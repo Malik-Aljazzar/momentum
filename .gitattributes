@@ -1,0 +1,9 @@
+* text=auto
+*.png binary
+*.jar binary
+*.ttf binary
+*.woff2 binary
+*.gif binary
+*.jpg binary
+*.webp binary
+*.pickle binary
