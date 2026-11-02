@@ -1,0 +1,23 @@
+# Local MinIO blob store for profile pictures.
+#   docker compose up -d
+# Console: http://localhost:9001 (user/password below)
+#
+# MinIO no longer publishes free images (minio/minio is gone from Docker Hub,
+# dl.min.io returns 410). For local dev we use the frozen Bitnami legacy build of
+# MinIO. It gets no updates - for production pick a maintained S3-compatible store;
+# the backend only speaks S3 (server/blobs.py), so nothing else has to change.
+services:
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: momentum
+      MINIO_ROOT_PASSWORD: momentum-dev-secret
+    volumes:
+      - minio-data:/bitnami/minio/data
+    restart: unless-stopped
+
+volumes:
+  minio-data:

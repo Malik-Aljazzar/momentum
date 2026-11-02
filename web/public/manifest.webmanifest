@@ -1,0 +1,16 @@
+{
+  "name": "Momentum",
+  "short_name": "Momentum",
+  "description": "Miss dein Momentum – Beschleuniger, Bremser, Fahrzeuge.",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "/app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

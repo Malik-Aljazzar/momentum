@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Momentum – Datenschutz, Nutzungsbedingungen, Konto löschen</title>
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/sprites/app_icon_192.png">
+<style>
+  /* served at /privacy, /terms and /delete-account (server/app.py fills in the operator) */
+  :root { --bg: #000; --card: #13151d; --text: #f4f4f4; --muted: rgba(244,244,244,.62); --yellow: #ffcd75; }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); margin: 0; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.55; padding: 24px 16px 48px; }
+  main { max-width: 760px; margin: 0 auto; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 28px; }
+  nav a, a { color: var(--yellow); }
+  h1 { font-size: 28px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 40px 0 8px; padding-top: 18px; border-top: 1px solid #2a2f45; }
+  h3 { font-size: 16px; margin: 22px 0 4px; }
+  p, li { color: var(--muted); }
+  .card { background: var(--card); border-radius: 16px; padding: 14px 18px; white-space: pre-line; color: var(--text); }
+  .lang { font-size: 13px; letter-spacing: .08em; color: var(--yellow); text-transform: uppercase; margin-top: 48px; }
+</style>
+</head>
+<body>
+<main>
+<nav>
+  <a href="/">Momentum</a>
+  <a href="/privacy">Datenschutz / Privacy</a>
+  <a href="/terms">Nutzungsbedingungen / Terms</a>
+  <a href="/delete-account">Konto löschen / Delete account</a>
+  <a href="#en">English</a>
+</nav>
+
+<h1>Momentum</h1>
+<p>Stand: 29.10.2026</p>
+
+<h3>Betreiber / Verantwortlicher</h3>
+<div class="card">{{OPERATOR}}</div>
+
+<h2 id="privacy">Datenschutzerklärung</h2>
+<p>Momentum ist eine App für Gewohnheiten mit sozialen Funktionen (Profil, Beiträge, Stories, Chats, Gruppen,
+Challenges, Ranglisten). Sie läuft als Android-App und als Web-App (PWA). Hier steht, welche Daten dabei verarbeitet
+werden, wofür und wie lange.</p>
+
+<h3>Welche Daten</h3>
+<ul>
+  <li><b>Konto:</b> E-Mail-Adresse und Passwort (nur als sicherer Hash gespeichert) oder – bei „Mit Google
+    fortfahren“ – die Konto-ID und E-Mail-Adresse deines Google-Kontos. Benutzername, Profilbild, Bio, Einstellungen,
+    Zeitzone, Sprache.</li>
+  <li><b>Spieldaten:</b> deine Regeln (Beschleuniger/Bremser), Taps, Momentum-Verlauf, Tageslimit, Fahrzeuge, Challenges.</li>
+  <li><b>Inhalte, die du teilst:</b> Beiträge, Fotos, Videos, Sprachnachrichten, Stories (24 Stunden, außer in
+    Highlights), Kommentare, Likes, Follows, Gruppen.</li>
+  <li><b>Chats:</b> Ende-zu-Ende-verschlüsselte Chats (Standard) – Texte, Fotos und Sprachnachrichten werden auf deinem
+    Gerät verschlüsselt, der Server kann sie nicht lesen. Gespeichert werden die verschlüsselten Daten sowie
+    Metadaten (wer, wann, mit wem, Reaktionen). Chats ohne Verschlüsselung liegen lesbar auf dem Server.
+    Chatfotos werden nach 14 Tagen bis auf ein kleines Vorschaubild gelöscht.</li>
+  <li><b>Kamera und Mikrofon:</b> nur wenn du selbst ein Foto, Video oder eine Sprachnachricht aufnimmst.
+    Es gibt keine Aufnahme im Hintergrund.</li>
+  <li><b>Benachrichtigungen:</b> ein Push-Token deines Geräts (Android: Firebase Cloud Messaging von Google;
+    Web-App: der Push-Dienst deines Browsers, z. B. Apple oder Google), an dein Login gebunden.</li>
+  <li><b>Technische Daten:</b> IP-Adresse und Zeitpunkte, um Anmeldeversuche zu begrenzen (Schutz vor dem Erraten von
+    Passwörtern) und für Server-Logs; Statistiken wie die Zahl aktiver Spieler pro Tag.</li>
+  <li><b>Meldungen:</b> Fehlerberichte und Wünsche, die du in der App abschickst, mit Screenshots, wenn du welche anhängst.</li>
+</ul>
+
+<h3>Wofür und auf welcher Grundlage</h3>
+<p>Um die App bereitzustellen, also dein Konto, das Spiel und die sozialen Funktionen (Art. 6 Abs. 1 lit. b DSGVO).
+Für Sicherheit und Missbrauchsschutz, etwa Anmeldesperren, Meldungen und Blockieren (Art. 6 Abs. 1 lit. f DSGVO).
+Push-Benachrichtigungen nur, wenn du sie erlaubst (Art. 6 Abs. 1 lit. a DSGVO). Es gibt keine Werbung, kein
+Tracking und keinen Verkauf von Daten.</p>
+
+<h3>Wer die Daten sieht</h3>
+<p>Öffentlich sind dein Benutzername, Profilbild, deine Bio, öffentliche Regeln, Beiträge und Ranglistenplätze;
+bei einem privaten Profil sehen Inhalte nur bestätigte Follower. Deine E-Mail-Adresse ist nie öffentlich.
+Dienstleister: der Server-Hoster des Betreibers, Google Firebase für
+Android-Benachrichtigungen, die Push-Dienste der Browser, Google für die Anmeldung mit Google (nur wenn du sie nutzt).
+Die Song-Suche (Deezer) und die Ortssuche (OpenStreetMap/Photon) laufen über unseren Server; deine IP-Adresse
+geht dabei nicht an diese Dienste.</p>
+
+<h3>Wie lange</h3>
+<p>Solange dein Konto besteht. Stories verschwinden nach 24 Stunden (außer Highlights), Chatfotos werden nach 14 Tagen
+verkleinert, Logins enden nach 180 Tagen ohne Nutzung. Wenn du dein Konto löschst, werden Profil, Regeln, Verlauf,
+Beiträge, Stories, Kommentare, Chats und Medien sofort gelöscht (siehe <a href="#delete">Konto löschen</a>);
+Server-Logs und Sicherungen werden spätestens nach 30 Tagen überschrieben.</p>
+
+<h3>Deine Rechte</h3>
+<p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch sowie auf
+Beschwerde bei einer Datenschutz-Aufsichtsbehörde. Schreib dazu an die oben genannte Adresse. Die App ist nicht für
+Kinder unter 16 Jahren bestimmt.</p>
+
+<h2 id="terms">Nutzungsbedingungen</h2>
+<p>Mit der Anmeldung akzeptierst du diese Regeln:</p>
+<ul>
+  <li>Du bist mindestens 16 Jahre alt.</li>
+  <li>Keine Inhalte, die Gesetze oder Rechte anderer verletzen: keine Belästigung, Hassrede, Drohungen, Gewalt- oder
+    sexuellen Inhalte, keine Inhalte mit Minderjährigen, kein Spam, keine Betrugsversuche, keine fremden Fotos,
+    Videos oder Musik ohne Erlaubnis.</li>
+  <li>Du kannst Inhalte und Personen in der App melden und blockieren. Gemeldete Inhalte werden geprüft; Verstöße
+    führen zum Entfernen der Inhalte und bis zur Sperrung des Kontos.</li>
+  <li>Was du postest, bleibt deins. Du erlaubst uns, es in der App so anzuzeigen und zu speichern, wie du es teilst,
+    solange es nicht gelöscht ist.</li>
+  <li>Kein Missbrauch der App, etwa durch automatisierte Zugriffe, Angriffe auf den Server oder mehrere Konten, um
+    Ranglisten zu manipulieren.</li>
+  <li>Die App ist kostenlos und wird ohne Gewähr betrieben; Funktionen können sich ändern oder eingestellt werden.</li>
+</ul>
+
+<h2 id="delete">Konto und Daten löschen</h2>
+<p><b>In der App:</b> Profil → Einstellungen → „Konto löschen“ (zweimal tippen).</p>
+<p><b>Ohne die App:</b> Öffne <a href="/app/">momentum.mal-zeta.de/app</a> im Browser, melde dich an (mit E-Mail und
+Passwort oder mit Google) und wähle Einstellungen → „Konto löschen“. Wenn du dich nicht mehr anmelden kannst, schreib
+an die oben genannte Adresse. Gib dabei deinen Benutzernamen an; wir löschen das Konto nach einer Prüfung.</p>
+<p><b>Was gelöscht wird:</b> sofort und endgültig dein Konto, Profil, Profilbild, deine Regeln, dein Verlauf, Beiträge,
+Stories, Kommentare, Likes, Follows, Chats, Medien und Login-Sitzungen. Gruppen-Challenges laufen für die anderen
+Mitglieder weiter, ohne deine Daten. Server-Logs und Sicherungen werden spätestens nach 30 Tagen überschrieben.</p>
+
+<div class="lang" id="en">English</div>
+
+<h2 id="privacy-en">Privacy policy</h2>
+<p>Momentum is a habit app with social features (profile, posts, stories, chats, groups, challenges, leaderboards), as an
+Android app and a web app (PWA). The operator is named at the top of this page.</p>
+<h3>What data</h3>
+<ul>
+  <li><b>Account:</b> e-mail and password (stored only as a secure hash), or with "Continue with Google" your Google
+    account's id and e-mail. Username, profile picture, bio, settings, time zone, language.</li>
+  <li><b>Game data:</b> your rules, taps, momentum history, daily limit, vehicles, challenges.</li>
+  <li><b>Content you share:</b> posts, photos, videos, voice messages, stories (24 hours unless highlighted),
+    comments, likes, follows, groups.</li>
+  <li><b>Chats:</b> end-to-end encrypted by default: texts, photos and voice messages are encrypted on your device, the
+    server can't read them; it stores the encrypted data plus metadata (who, when, reactions). Unencrypted chats are
+    stored readable. Chat photos shrink to a small preview after 14 days.</li>
+  <li><b>Camera and microphone:</b> only while you take a photo, video or voice message yourself. Nothing is
+    recorded in the background.</li>
+  <li><b>Notifications:</b> a push token (Android: Google Firebase Cloud Messaging; web app: your browser's push service).</li>
+  <li><b>Technical data:</b> IP address and times, to limit login attempts and for server logs; daily usage statistics.</li>
+  <li><b>Reports:</b> bug reports and requests you send in the app, with screenshots if you attach them.</li>
+</ul>
+<h3>Why</h3>
+<p>To run the app: your account, the game and the social features (Art. 6(1)(b) GDPR). For security and abuse
+protection, such as login limits, reports and blocking (Art. 6(1)(f)). Push notifications only with your consent
+(Art. 6(1)(a)). No ads, no tracking, no selling of data.</p>
+<h3>Who sees it</h3>
+<p>Public: username, profile picture, bio, public rules, posts and leaderboard places; with a private profile only
+accepted followers see your content. Your e-mail is never public. Processors: the operator's server host, Google Firebase for Android notifications, the browsers' push services, and Google for "Continue
+with Google" (only if you use it). Song search (Deezer) and place search (OpenStreetMap/Photon) go through our server,
+so your IP address isn't sent to them.</p>
+<h3>How long</h3>
+<p>As long as your account exists. Stories go after 24 hours (except highlights), chat photos shrink after 14 days,
+logins end after 180 days unused. Deleting your account removes everything at once (see below); server logs and
+backups are overwritten within 30 days.</p>
+<h3>Your rights</h3>
+<p>Access, correction, deletion, restriction, portability, objection, and a complaint with a data protection authority.
+Write to the address at the top. The app is not meant for children under 16.</p>
+
+<h2 id="terms-en">Terms of use</h2>
+<ul>
+  <li>You are at least 16 years old.</li>
+  <li>No content that breaks the law or others' rights: no harassment, hate speech, threats, violent or sexual
+    content, nothing involving minors, no spam or scams, no photos, videos or music of others without permission.</li>
+  <li>You can report and block content and people in the app. Reports are reviewed; violations lead to removal of the
+    content and up to closing the account.</li>
+  <li>What you post stays yours; you allow us to store and show it in the app as you share it, until it is deleted.</li>
+  <li>No abuse: no automated access, attacks on the server, or several accounts to game the leaderboards.</li>
+  <li>The app is free and provided as is; features may change or end.</li>
+</ul>
+
+<h2 id="delete-en">Delete your account and data</h2>
+<p><b>In the app:</b> Profile → Settings → "Delete account" (tap twice).</p>
+<p><b>Without the app:</b> open <a href="/app/">momentum.mal-zeta.de/app</a> in a browser, log in (e-mail and password, or
+Google) and choose Settings → "Delete account". If you can't log in any more, write to the address at the top with your
+username; we delete the account after checking it is yours.</p>
+<p><b>What is deleted:</b> right away and for good your account, profile, picture, rules, history, posts, stories,
+comments, likes, follows, chats, media and login sessions. Group challenges go on for the other members without your
+data. Server logs and backups are overwritten within 30 days.</p>
+</main>
+</body>
+</html>

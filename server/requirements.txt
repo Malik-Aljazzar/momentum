@@ -1,0 +1,9 @@
+quart>=0.20
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.20
+tzdata
+minio>=7.2
+pillow>=10
+imageio-ffmpeg>=0.5
+pywebpush>=2.0     # Web Push to the PWA (pulls in cryptography for the FCM token too)
+pytest

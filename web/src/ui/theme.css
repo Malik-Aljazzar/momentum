@@ -1,0 +1,192 @@
+/* Momentum look (android/.../ui/Theme.kt): black, rounded cards, pixel fonts. */
+@font-face { font-family: Silkscreen; src: url("/app/fonts/silkscreen_regular.ttf"); font-weight: 400; font-display: block; }
+@font-face { font-family: Silkscreen; src: url("/app/fonts/silkscreen_bold.ttf"); font-weight: 700; font-display: block; }
+@font-face { font-family: Pixelify; src: url("/app/fonts/pixelify_regular.ttf"); font-weight: 400; font-display: block; }
+@font-face { font-family: Pixelify; src: url("/app/fonts/pixelify_medium.ttf"); font-weight: 500; font-display: block; }
+@font-face { font-family: Pixelify; src: url("/app/fonts/pixelify_semibold.ttf"); font-weight: 600; font-display: block; }
+@font-face { font-family: Pixelify; src: url("/app/fonts/pixelify_bold.ttf"); font-weight: 700; font-display: block; }
+/* every emoji in pixel art (pixelart/emoji.py): last in each font stack, so it only gets the emojis */
+@font-face { font-family: "Pixel Emoji"; src: url("/app/fonts/pixel_emoji.woff2") format("woff2"); font-display: block; }
+
+:root {
+  --bg: #000000;
+  --card: #13151d;
+  --card2: #1b1e2b;
+  --sheet: #14161f;
+  --line: rgba(255, 255, 255, 0.08);
+  --faint: rgba(255, 255, 255, 0.07);
+  --text: #f4f4f4;
+  --muted: rgba(244, 244, 244, 0.55);
+  --yellow: #ffcd75;
+  --orange: #ef7d57;
+  --red: #b13e53;
+  --lime: #a7f070;
+  --cyan: #73eff7;
+  --silver: #94b0c2;
+  --tabbar: 64px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --card-radius: 28px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+img, video, canvas { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
+html, body { margin: 0; height: var(--app-height, 100%); background: var(--bg); color: var(--text); overflow: hidden; overscroll-behavior: none; }
+body {
+  font-family: Pixelify, system-ui, sans-serif, "Pixel Emoji"; font-size: 16px; line-height: 21px; font-feature-settings: "liga" 0;
+  -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#app { position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-height, 100%); max-width: 520px; margin: 0 auto; overflow: hidden; background: var(--bg); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, textarea { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
+img { display: block; }
+.pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* text styles (T in Theme.kt) */
+.t-body { font-family: Pixelify, "Pixel Emoji"; font-size: 16px; line-height: 21px; color: var(--text); }
+.t-strong { font-family: Pixelify, "Pixel Emoji"; font-weight: 600; font-size: 16px; line-height: 21px; color: var(--text); }
+.t-small { font-family: Pixelify, "Pixel Emoji"; font-size: 13px; line-height: 17px; color: var(--muted); }
+.t-label { font-family: Silkscreen, "Pixel Emoji"; font-size: 11px; letter-spacing: 0.7px; color: var(--muted); text-transform: uppercase; }
+.t-block { font-family: Silkscreen, "Pixel Emoji"; font-weight: 700; color: var(--text); }
+.t-title { font-family: Silkscreen, "Pixel Emoji"; font-weight: 700; font-size: 28px; line-height: 30px; color: var(--text); }
+.t-button { font-family: Silkscreen, "Pixel Emoji"; font-size: 13px; letter-spacing: 0.4px; text-transform: uppercase; }
+.user-text.system { font-family: system-ui, -apple-system, sans-serif, "Pixel Emoji"; letter-spacing: 0; }
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* layout helpers */
+.row { display: flex; flex-direction: row; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1 1 0; min-width: 0; }
+.center { display: flex; align-items: center; justify-content: center; }
+/* only the vertical overscroll is contained: a sideways swipe still reaches the tab pager */
+.scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; overscroll-behavior-x: auto; }
+.scroll::-webkit-scrollbar { display: none; }
+.fill { position: absolute; inset: 0; }
+/* no content-visibility on list items / post cards: older Android Chrome left skipped ones blank in the tab pager */
+
+.card { border-radius: var(--card-radius); background: linear-gradient(180deg, var(--card2), var(--card)); padding: 20px; position: relative; overflow: hidden; }
+.card.clickable:active { filter: brightness(1.1); }
+
+/* buttons (PxButton) */
+.btn { position: relative; border-radius: 16px; padding: 15px 18px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+.btn.primary { background: var(--text); color: #000; box-shadow: 0 4px 0 var(--silver); margin-bottom: 4px; transition: transform .05s; }
+.btn.primary:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--silver); }
+.btn.ghost { background: var(--faint); color: var(--text); }
+.btn.danger { background: var(--faint); color: var(--orange); }
+.btn:disabled { opacity: .5; }
+
+.icon-btn { position: relative; border-radius: 12px; padding: 10px; display: inline-flex; }
+.icon-btn:active { background: var(--faint); }
+.badge { position: absolute; top: 4px; right: 2px; background: var(--orange); color: #000; border-radius: 6px; padding: 0 4px; font: 700 10px Silkscreen, "Pixel Emoji"; }
+
+.field { width: 100%; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); padding: 13px 14px; outline: none; color: var(--text); font-size: 16px; }
+.field:focus { border-color: rgba(255, 205, 117, 0.6); }
+.field::placeholder { color: var(--muted); }
+/* emoji as a rule icon (PixelIcon) and the picker (ui/emoji.tsx) */
+.emoji-icon { display: inline-block; flex: none; text-align: center; font-family: "Pixel Emoji"; white-space: nowrap; overflow: hidden; }
+.emoji-tabs { gap: 2px; overflow-x: auto; flex: none; }
+.emoji-tabs button { font-size: 22px; line-height: 36px; width: 40px; flex: none; border-radius: 10px; opacity: .45; }
+.emoji-tabs button.on { opacity: 1; background: var(--faint); }
+.emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; min-height: 240px; max-height: 45vh; overflow-y: auto; align-content: flex-start; }
+.emoji-cell { width: 44px; height: 44px; font-size: 26px; line-height: 44px; text-align: center; border-radius: 10px; }
+.emoji-cell:active { background: var(--faint); }
+textarea.field { resize: none; line-height: 21px; }
+
+/* segmented progress bar */
+.segbar { display: flex; gap: 3px; width: 100%; }
+.segbar > i { flex: 1; height: 10px; border-radius: 2px; background: var(--faint); }
+
+/* sheets */
+.sheet-scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 50; animation: fade .2s; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; background: var(--sheet); border-radius: 28px 28px 0 0;
+  max-height: 92%; display: flex; flex-direction: column; animation: up .25s ease-out; padding-bottom: var(--safe-bottom); }
+.sheet .handle { width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); margin: 10px auto 14px; flex: none; }
+.sheet .body { padding: 0 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+@keyframes fade { from { opacity: 0 } }
+@keyframes up { from { transform: translateY(100%) } }
+
+/* toast */
+.toast { position: absolute; left: 16px; right: 16px; z-index: 90; display: flex; justify-content: center; pointer-events: none; transition: opacity .2s, transform .2s; }
+.toast > div { border-radius: 14px; padding: 11px 16px; color: #000; font-weight: 600; }
+
+/* tab bar */
+.tabbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: var(--safe-bottom); }
+.tabbar > div { height: var(--tabbar); display: flex; }
+.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.tabbar .dot { width: 4px; height: 4px; }
+
+/* pages over the tabs */
+.route { position: absolute; inset: 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column; animation: slide .18s ease-out; }
+.route.keep-tabs { bottom: calc(var(--tabbar) + 1px + var(--safe-bottom)); }
+@keyframes slide { from { transform: translateX(24px); opacity: 0 } }
+.topbar { display: flex; align-items: center; height: 56px; padding: 0 6px; margin-top: var(--safe-top); flex: none; }
+
+.chip { border-radius: 12px; padding: 9px 14px; background: var(--faint); }
+.chip.on { background: var(--text); color: #000; }
+
+.empty { padding: 48px 32px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+/* "Hyperraum / Hyperspace" as a word of its own */
+.hyper { background: linear-gradient(90deg, #73eff7, #5b7cff, #a77bff, #5b7cff, #73eff7); background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: hyper 2.6s linear infinite; position: relative; }
+/* twinkling pixel crosses around the word (same spots and beat as the native app) */
+.hyper { --spark: clamp(1.5px, .11em, 5px); }
+.spark { position: absolute; width: var(--spark); height: var(--spark); margin: calc(var(--spark) / -2) 0 0 calc(var(--spark) / -2);
+  pointer-events: none; opacity: 0; animation: twinkle 1.3s linear infinite; }
+@keyframes twinkle { 0% { opacity: 0 } 15% { opacity: .2 } 30% { opacity: .65 } 50% { opacity: 1 } 70% { opacity: .65 } 85% { opacity: .2 } 100% { opacity: 0 } }
+.hyper { cursor: pointer; }
+.hyper.gold { background-image: linear-gradient(90deg, #fff3c4, #ffcd45, #e89a2c, #ffcd45, #fff3c4); }
+@keyframes hyper { to { background-position: 300% 0 } }
+
+/* the hyperspace lore (tap on the shining word) */
+.lore { animation: lorein .9s ease-out; cursor: pointer; }
+@keyframes lorein { from { opacity: 0 } }
+.lore-text { background: linear-gradient(110deg, #fff, #73eff7, #fff, #a77bff, #fff) 0 0 / 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: hyper 5s linear infinite; }
+.lore-text.gold { background-image: linear-gradient(110deg, #fff, #ffcd45, #fff, #e89a2c, #fff); }
+.lore-banner { box-shadow: 0 0 0 2px #5b7cff, 0 0 24px rgba(167,123,255,.45); animation: lore-glow 2.4s ease-in-out infinite; }
+.lore-banner.gold { box-shadow: 0 0 0 2px #ffcd45, 0 0 24px rgba(255,205,69,.45); }
+@keyframes lore-glow { 50% { filter: brightness(1.25) } }
+
+/* competition: shimmering golden frame */
+.glow { position: relative; }
+.glow::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 3;
+  background: linear-gradient(110deg, #8a5a1e, #ffcd75, #fff4c8, #ffcd75, #8a5a1e) 0 0 / 300% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: hyper 2.6s linear infinite; }
+
+/* double tap on a post: the heart pops up, bounces, fades */
+.dbltap { touch-action: manipulation; }
+.big-heart { position: absolute; left: 50%; top: 50%; pointer-events: none; z-index: 4;
+  animation: big-heart .9s linear forwards; transform: translate(-50%, -50%) scale(0); }
+@keyframes big-heart { 25% { transform: translate(-50%, -50%) scale(1.2); opacity: 1 } 40%, 70% { transform: translate(-50%, -50%) scale(1); opacity: 1 }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0 } }
+
+/* stories: the ring around a profile picture (new: colourful, seen: grey) */
+.story-ring.new { background: linear-gradient(135deg, #ffcd75, #ef7d57, #b13e53, #a77bff); }
+.story-ring.seen { background: var(--line); }
+
+@keyframes rise { from { transform: translateY(0); opacity: 1 } to { transform: translateY(-48px); opacity: 0 } }
+.pop { position: absolute; pointer-events: none; font: 700 26px Silkscreen, "Pixel Emoji"; animation: rise .9s ease-out forwards; }
+@keyframes vehicle { to { background-position: var(--vw) 0 } }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* a rule that can't be tapped: grey for a moment, the "no tap" finger on top */
+@keyframes blocked { 12%, 70% { filter: saturate(0) brightness(.65) } }
+@keyframes blocked-sign { 0% { opacity: 0; transform: scale(.7) } 12%, 70% { opacity: 1; transform: none } 100% { opacity: 0 } }
+
+/* a pixel banner is always the bottom layer of its card; what follows it lies above (report #47: iOS Safari drew
+   the animated canvas over the card's content) */
+.banner-bg { z-index: 0; }
+.banner-bg ~ * { z-index: 1; }
+/* the momentum cards (home, profile): own compositing layers for the canvas, everything above it and the golden
+   frame, so WebKit can't draw the canvas over the rest (on the iPhone the frame, the competition badge, the
+   momentum and the vehicle were all gone) */
+.banner-card { isolation: isolate; transform: translateZ(0); }
+.banner-card > .banner-bg { transform: translateZ(0); }
+.banner-card > .banner-bg ~ * { transform: translateZ(0); }
+.banner-card.glow::before { transform: translateZ(0); }
+
+/* a tappable badge in the profile's name row (King of Reporters): the label, nothing else */
+.badge-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; }

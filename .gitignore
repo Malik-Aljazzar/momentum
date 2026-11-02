@@ -1,0 +1,39 @@
+# secrets: the Play upload key + its passwords, the Firebase service account, the server's .env
+secrets/
+android/keystore.properties
+android/local.properties
+.env
+*.env
+
+# local state and caches
+.venv/
+__pycache__/
+.pytest_cache/
+server/momentum.db
+server/momentum.db-*
+server/*.db
+pixelart/cache/
+node_modules/
+.idea/
+*.iml
+
+# build output
+web/dist/
+web/test-results/
+web/playwright-report/
+android/build/
+android/*/build/
+android/.gradle/
+android/.kotlin/
+
+# generated from shared sources (npm run assets / npm run strings, run by every build)
+web/public/sprites/
+web/public/fonts/
+web/public/icon-192.png
+web/public/icon-512.png
+web/src/precache.gen.json
+web/src/strings/strings.gen.ts
+
+# pixel-art previews (pixelart/generate.py writes them next to the sprites; the apps don't use them)
+pixelart/out/**/*.gif
+pixelart/out/_uebersicht.png

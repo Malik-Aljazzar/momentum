@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_momentum_description">Momentum und dein Fahrzeug</string>
+    <string name="widget_today_description">Heute gesammelt, Verfall und Tageslimit</string>
+    <string name="widget_quick_description">Regeln direkt vom Startbildschirm tippen</string>
+    <string name="widget_mini_description">Momentum und Fahrzeug, klein (2×1)</string>
+    <string name="widget_overview_description">Übersicht: Fahrzeug, Momentum, Tageslimit und Verfall</string>
+    <string name="widget_group_ranking_description">Rangliste einer Gruppe deiner Wahl</string>
+    <string name="widget_friends_ranking_description">Rangliste mit deinen Freunden</string>
+    <string name="widget_group_delta_description">Rangliste einer Gruppe: wer heute am meisten gesammelt hat</string>
+    <string name="widget_friends_delta_description">Rangliste mit deinen Freunden: heute</string>
+</resources>

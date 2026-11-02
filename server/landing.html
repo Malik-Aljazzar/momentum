@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Momentum</title>
+<meta name="description" content="Momentum – sammle Momentum mit deinen Gewohnheiten, vom Fahrrad bis ins Raumschiff.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/sprites/app_icon_192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000; --card: #13151d; --text: #f4f4f4; --muted: rgba(244,244,244,.55);
+    --yellow: #ffcd75; --lime: #a7f070; --orange: #ef7d57;
+    --px: 5;                                   /* screen pixels per art pixel (vehicles) */
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: "Pixelify Sans", system-ui, sans-serif; font-feature-settings: "liga" 0;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 28px 16px 40px;
+  }
+  .pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+  header { width: 100%; max-width: 720px; text-align: center; margin-bottom: 22px; }
+  .tag { font-family: Silkscreen, monospace; font-size: 12px; letter-spacing: .12em; color: var(--muted); }
+  h1 {
+    font-family: Silkscreen, monospace; font-weight: 700; letter-spacing: .04em;
+    font-size: clamp(40px, 11vw, 84px); line-height: 1; margin: 10px 0 14px;
+  }
+  .lead { font-size: clamp(17px, 4.2vw, 21px); color: var(--muted); max-width: 520px; margin: 0 auto; line-height: 1.35; }
+
+  /* ---------------- animated scene, like the cards in the app */
+  .scene {
+    position: relative; width: 100%; max-width: 720px; height: 380px; border-radius: 28px; overflow: hidden;
+    box-shadow: 0 0 0 2px rgba(255,205,117,.25);
+  }
+  .layer { position: absolute; inset: 0; transition: opacity .8s; }
+  .sky-land  { background: linear-gradient(#232a4f 0 22%, #2e2b55 22% 36%, #48295a 36% 48%, #6f2f57 48% 58%, #96435a 58% 66%, #b86455 66%); }
+  .sky-air   { background: linear-gradient(#22305e 0 20%, #2b4282 20% 38%, #3459a0 38% 56%, #3f73b8 56% 72%, #5791c8 72%); }
+  .sky-space { background: linear-gradient(#07080f 0 30%, #0d0f1d 30% 55%, #141832 55% 75%, #1c2246 75%); }
+  .strip { position: absolute; left: 0; right: 0; background-repeat: repeat-x; image-rendering: pixelated; }
+  .far  { bottom: 100px; height: 96px;  background-image: url(/sprites/icons/scene_mountains_far.png);  background-size: 256px 96px; animation: scroll 40s linear infinite; opacity: .85; }
+  .near { bottom: 100px; height: 96px;  background-image: url(/sprites/icons/scene_mountains_near.png); background-size: 256px 96px; animation: scroll 16s linear infinite; }
+  .road { position: absolute; left: 0; right: 0; bottom: 0; height: 100px; background: #1a1c2c; border-top: 6px solid #2a2f45; }
+  .road::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 30px; height: 4px;
+    background: repeating-linear-gradient(90deg, rgba(255,205,117,.55) 0 16px, transparent 16px 32px);
+    animation: dash .45s linear infinite;
+  }
+  .sun { position: absolute; width: 64px; height: 64px; right: 18%; top: 22%; image-rendering: pixelated; opacity: .85; }
+  .clouds { position: absolute; left: 0; right: 0; height: 120px; background: url(/sprites/icons/scene_cloud.png) repeat-x; background-size: 384px 120px; image-rendering: pixelated; }
+  .clouds.a { top: 18%; animation: scroll 9s linear infinite; opacity: .8; }
+  .clouds.b { top: 58%; background-size: 256px 80px; height: 80px; animation: scroll 5s linear infinite; opacity: .5; }
+  .planet { position: absolute; width: 72px; height: 72px; right: 10%; top: 14%; image-rendering: pixelated; opacity: .8; }
+  .stars span { position: absolute; width: 2px; height: 2px; background: #fff; animation: twinkle 2.4s ease-in-out infinite; }
+  .dither { position: absolute; inset: 0; pointer-events: none;
+    background-image: conic-gradient(rgba(0,0,0,.16) 25%, transparent 0 50%, rgba(0,0,0,.16) 0 75%, transparent 0);
+    background-size: 4px 4px; }
+  @keyframes scroll { from { background-position-x: 0; } to { background-position-x: -768px; } }
+  @keyframes dash   { from { background-position-x: 0; } to { background-position-x: -32px; } }
+  @keyframes twinkle { 50% { opacity: .25; } }
+
+  .vehicle {
+    position: absolute; left: 50%; bottom: 96px; width: calc(64px * var(--px)); height: calc(32px * var(--px));
+    margin-left: calc(-32px * var(--px)); background-size: calc(320px * var(--px)) 100%; image-rendering: pixelated;
+    animation: frames .5s steps(5) infinite; transition: transform .7s cubic-bezier(.6,0,.4,1), opacity .5s;
+  }
+  .vehicle.fly { bottom: 140px; }
+  .vehicle.out { transform: translateX(120vw); opacity: 0; }
+  .vehicle.in  { transform: translateX(-120vw); opacity: 0; transition: none; }
+  @keyframes frames { from { background-position-x: 0; } to { background-position-x: calc(-320px * var(--px)); } }
+
+  .hud { position: absolute; left: 22px; top: 18px; right: 22px; }
+  .hud .label { font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: .1em; color: var(--yellow); }
+  .hud .num { font-family: Silkscreen, monospace; font-weight: 700; font-size: clamp(34px, 9vw, 56px); line-height: 1.05; }
+  .hud .stage { font-size: 15px; color: var(--text); opacity: .9; }
+
+  /* ---------------- download */
+  .cta { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 720px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 14px; text-decoration: none;
+    font-family: Silkscreen, monospace; font-size: 18px; letter-spacing: .06em; color: #000;
+    background: var(--text); padding: 18px 30px; border-radius: 18px; box-shadow: 0 6px 0 #94b0c2;
+    transition: transform .1s, box-shadow .1s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #94b0c2; }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #94b0c2; }
+  .btn img { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 8px; }
+  .btn.ghost { background: #1b1e2b; color: var(--text); box-shadow: 0 6px 0 #0b0c12; }
+  .ios .cta { flex-direction: column-reverse; }
+  .hint { font-size: 14px; color: var(--muted); text-align: center; max-width: 460px; line-height: 1.4; }
+  .features { margin-top: 34px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%; max-width: 720px; }
+  .feature { background: linear-gradient(#1b1e2b, #13151d); border-radius: 22px; padding: 18px; display: flex; gap: 14px; align-items: center; }
+  .feature img { width: 40px; height: 40px; image-rendering: pixelated; flex: none; }
+  .feature b { display: block; font-weight: 600; }
+  .feature span { color: var(--muted); font-size: 14px; }
+  footer { margin-top: 36px; font-family: Silkscreen, monospace; font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+  @media (max-width: 520px) { :root { --px: 3.5; } .scene { height: 320px; } .far, .near { bottom: 84px; } .road { height: 84px; } .vehicle { bottom: 80px; } .vehicle.fly { bottom: 110px; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+  <header>
+    <div class="tag" data-t="tag">GEWOHNHEITEN · PIXEL · MOMENTUM</div>
+    <h1>MOMENTUM</h1>
+    <p class="lead" data-t="lead">Sammle Momentum mit allem, was dich voranbringt – und bremse, was dich ausbremst. Vom Fahrrad bis ins Raumschiff.</p>
+  </header>
+
+  <div class="scene" aria-hidden="true">
+    <div class="layer sky-land" id="land">
+      <img class="sun" src="/sprites/icons/scene_sun.png" alt="">
+      <div class="strip far"></div><div class="strip near"></div>
+      <div class="road"></div>
+    </div>
+    <div class="layer sky-air" id="air" style="opacity:0">
+      <div class="clouds a"></div><div class="clouds b"></div>
+    </div>
+    <div class="layer sky-space" id="space" style="opacity:0">
+      <div class="stars" id="stars"></div>
+      <img class="planet" src="/sprites/icons/scene_planet.png" alt="">
+    </div>
+    <div class="vehicle" id="vehicle"></div>
+    <div class="hud">
+      <div class="label">MOMENTUM</div>
+      <div class="num" id="num">0</div>
+      <div class="stage" id="stage"></div>
+    </div>
+    <div class="dither"></div>
+  </div>
+
+  <div class="cta">
+    <a class="btn" href="/app.apk" id="download">
+      <img src="/sprites/app_icon_192.png" alt="">
+      <span data-t="download">APP LADEN</span>
+    </a>
+    <p class="hint" data-t="hint">Für Android · APK direkt installieren. Beim ersten Mal fragt Android, ob Installationen aus dieser Quelle erlaubt sind.</p>
+    <a class="btn ghost" href="/app/" id="webapp">
+      <img src="/sprites/app_icon_192.png" alt="">
+      <span data-t="ios">FÜRS IPHONE</span>
+    </a>
+    <p class="hint" data-t="iosHint">iPhone &amp; iPad: in Safari öffnen, dann Teilen → „Zum Home-Bildschirm“. Läuft dann wie eine App, auch mit Benachrichtigungen.</p>
+  </div>
+
+  <div class="features">
+    <div class="feature"><img src="/sprites/icons/ui_up.png" alt=""><div><b data-t="f1">Beschleuniger</b><span data-t="f1s">Sport, Lesen, Beten – jeder Tap bringt Momentum.</span></div></div>
+    <div class="feature"><img src="/sprites/icons/ui_down.png" alt=""><div><b data-t="f2">Bremser</b><span data-t="f2s">Doomscrolling & Co. kosten Momentum.</span></div></div>
+    <div class="feature"><img src="/sprites/icons/trophy.png" alt=""><div><b data-t="f3">Challenges</b><span data-t="f3s">Mit Freunden in Gruppen um die Wette.</span></div></div>
+  </div>
+
+  <footer>MOMENTUM · ANDROID · IOS</footer>
+
+<script>
+  // language follows the browser
+  const en = !(navigator.language || "de").toLowerCase().startsWith("de");
+  const T = {
+    tag: "HABITS · PIXELS · MOMENTUM",
+    lead: "Collect momentum with everything that moves you forward – and brake what slows you down. From bicycle to spaceship.",
+    download: "GET THE APP",
+    hint: "For Android · install the APK directly. The first time, Android asks whether installs from this source are allowed.",
+    f1: "Accelerators", f1s: "Workout, reading, praying – every tap brings momentum.",
+    f2: "Decelerators", f2s: "Doomscrolling & co. cost momentum.",
+    f3: "Challenges", f3s: "Compete with friends in groups.",
+    ios: "FOR IPHONE", iosHint: "iPhone & iPad: open in Safari, then Share → “Add to Home Screen”. It then runs like an app, notifications included.",
+  };
+  // on an iPhone the web app comes first (the APK is Android only)
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+    document.body.classList.add("ios")
+  }
+  const NAMES_EN = { fahrrad: "Bicycle", motorroller: "Scooter", kleinwagen: "Small car", pkw: "Car", suv: "SUV", lkw: "Truck",
+    panzer: "Tank", kleinflugzeug: "Small plane", passagierflugzeug: "Airliner", kampfjet: "Fighter jet", shuttle: "Space shuttle",
+    raumschiff: "Spaceship", kreuzer: "Space cruiser" };
+  if (en) {
+    document.documentElement.lang = "en";
+    document.querySelectorAll("[data-t]").forEach(el => { if (T[el.dataset.t]) el.textContent = T[el.dataset.t]; });
+  }
+
+  // stars for the space scene
+  const stars = document.getElementById("stars");
+  for (let i = 0; i < 70; i++) {
+    const s = document.createElement("span");
+    s.style.left = Math.random() * 100 + "%"; s.style.top = Math.random() * 100 + "%";
+    s.style.animationDelay = (Math.random() * 2.4) + "s";
+    if (Math.random() > .85) { s.style.width = s.style.height = "3px"; }
+    stars.appendChild(s);
+  }
+
+  // the journey: every vehicle once, the momentum counter climbing along
+  const fmt = n => Math.round(n).toLocaleString(en ? "en-US" : "de-DE");
+  const vehicleEl = document.getElementById("vehicle"), num = document.getElementById("num"), stage = document.getElementById("stage");
+  const scenes = { land: document.getElementById("land"), air: document.getElementById("air"), space: document.getElementById("space") };
+  let vehicles = [{ key: "fahrrad", label: "Fahrrad", category: "land" }];
+  const LADDER = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1000, 2000, 4000].map(n => n * 1000);
+
+  function show(i) {
+    const v = vehicles[i];
+    Object.entries(scenes).forEach(([k, el]) => el.style.opacity = k === v.category ? 1 : 0);
+    vehicleEl.style.backgroundImage = `url(/sprites/${v.key}/sheet.png)`;
+    vehicleEl.classList.toggle("fly", v.category !== "land");
+    stage.textContent = `${en ? (NAMES_EN[v.key] || v.label) : v.label} · ${en ? "Stage" : "Stufe"} ${i + 1}/${vehicles.length}`;
+    countTo(i === vehicles.length - 1 ? LADDER[13] + 1 : (LADDER[i] + LADDER[i + 1]) / 2);
+  }
+  let shown = 0, raf;
+  function countTo(target) {
+    cancelAnimationFrame(raf);
+    const from = shown, t0 = performance.now(), dur = 1800;
+    const tick = now => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      shown = from + (target - from) * e; num.textContent = fmt(shown);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  let idx = 0;
+  function next() {
+    vehicleEl.classList.add("out");                       // drives off to the right ...
+    setTimeout(() => {
+      idx = (idx + 1) % vehicles.length;
+      if (idx === 0) shown = 0;
+      vehicleEl.classList.remove("out"); vehicleEl.classList.add("in");   // ... next one comes in from the left
+      show(idx);
+      requestAnimationFrame(() => requestAnimationFrame(() => vehicleEl.classList.remove("in")));
+    }, 700);
+  }
+  fetch("/api/meta").then(r => r.json()).then(m => { if (m.vehicles?.length) vehicles = m.vehicles; show(0); })
+    .catch(() => show(0));
+  setInterval(next, 3200);
+</script>
+</body>
+</html>

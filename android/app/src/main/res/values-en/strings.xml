@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_momentum_description">Momentum and your vehicle</string>
+    <string name="widget_today_description">Collected today, decay and daily limit</string>
+    <string name="widget_quick_description">Tap rules right from the home screen</string>
+    <string name="widget_mini_description">Momentum and vehicle, small (2×1)</string>
+    <string name="widget_overview_description">Overview: vehicle, momentum, daily limit and decay</string>
+    <string name="widget_group_ranking_description">Ranking of a group of your choice</string>
+    <string name="widget_friends_ranking_description">Ranking with your friends</string>
+    <string name="widget_group_delta_description">A group\'s ranking: who gained the most today</string>
+    <string name="widget_friends_delta_description">Ranking with your friends: today</string>
+</resources>

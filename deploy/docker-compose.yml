@@ -1,0 +1,51 @@
+# Production setup: backend + MinIO (media). The host's nginx terminates HTTPS and
+# proxies momentum.mal-zeta.de to 127.0.0.1:8095. Secrets come from .env next to this file.
+# Container logs are rotated (a runaway log once filled the host's disk and MinIO refused every upload).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "127.0.0.1:8095:8000"
+    environment:
+      MOMENTUM_DB: sqlite+aiosqlite:////data/momentum.db
+      MOMENTUM_TZ: Europe/Berlin
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD}
+      # sign in with Google (server/google.py) and the operator on /legal - set in .env, empty = off / placeholder
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MOMENTUM_OPERATOR: ${MOMENTUM_OPERATOR:-}
+      # bug reports / feature requests as issues of the public repo (server/github.py) - empty = off
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - app-data:/data
+      # the release APK offered at /app.apk (copied here on deploy)
+      - ./apk:/app/android/app/build/outputs/apk/release:ro
+      # the admin app at /admin.apk (deploy.sh --admin)
+      - ./apk-admin:/app/android/admin/build/outputs/apk/release:ro
+    depends_on:
+      - minio
+
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - minio-data:/bitnami/minio/data
+
+volumes:
+  app-data:
+  minio-data:

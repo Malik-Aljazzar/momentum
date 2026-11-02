@@ -1,0 +1,23 @@
+{
+ "conversation": 7,
+ "reader": 5,
+ "sender": 3,
+ "reader_pkcs8": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgg42a3cwjtS2g7Y8m7MSyk/I9QZJBGwsWXBWVtE55u1ehRANCAARQB2sIAr3WHiySeEydbfKmZWFDHJOvPQl0+iKs6F1yWww9V1DjiwaXBWkSmo8rIq5oZm0rLloA9UupSZlHWMOv",
+ "reader_public": "BFAHawgCvdYeLJJ4TJ1t8qZlYUMck689CXT6IqzoXXJbDD1XUOOLBpcFaRKajysirmhmbSsuWgD1S6lJmUdYw68=",
+ "sender_public": "BNP5Eq2GGJxtWUZxj5en1/fQiMuBsL+PyCye1Z7DuZ32KMqukjkOd+y6+P5c+Y+5I2OY0dHLosTXluAkNM+mMAw=",
+ "reader_safety_code": "36375 64644 31006 03214 28506 23634",
+ "envelope": {
+  "v": 1,
+  "eph": "BCU8fKceLatBVFlvD/ujVay1N1zdyPwh8JFxPBOXjEiDPW4ush/D/bFEcu9NGmDZjkVHjyN6xsGO2HnRQFuydSQ=",
+  "spk": "BNP5Eq2GGJxtWUZxj5en1/fQiMuBsL+PyCye1Z7DuZ32KMqukjkOd+y6+P5c+Y+5I2OY0dHLosTXluAkNM+mMAw=",
+  "ct": "LwCoLfxFlzKBYLd5tAr+6DatLMe75h6BVWDOsOaoVSAz353bnRN5SQBwVILDgmGA3u3d0/JnUbvrxIh7pcCmIp1Hlq19KRsDRoD/GBCmY5f93yzHQ+GRbx45fwc2RWfModL2bX6fj9s=",
+  "pv": "L9g4HCQ7jAM83f+83uFR5hV3qWql4DvfQBBOZXsJ/tyaBsVTvX8bCJ1OtPcpcErvrQ3y4otBumHczW4JmGVMFPAG6KSRXO9ZRLTTWAideh7fOVSDjJLEzVFVxDYd9/XPk4Va1uiE3B0=",
+  "key": "re4XZmtveUPE8ZoLBX99RkuAEZhvg+mrOLipyJxY5UXxo4bwo40gE+T+ODMV9AQeXH8UjcLdxVPq5iV8"
+ },
+ "text": "Hallo Bob ✓ – grüß dich 👋",
+ "recovery": "qd/Uffsly79eAmyNMIbUx1iBb6lS2eNgWaqU5QCRFKo=",
+ "backup": "E/LsJr10vr86Etkp7F0DjN9wu/whLkPF4aKF5M9oYrO4iddJdtE1Las5OHM5o9l8edBcuEoor4WiNGN0+1biMEOxn20B339vlaGAminc4Wflxt5/0CS5bG84xdp0+atiNFu9FAdZgvcK1JSlZxOFOAtN8xFShKVE4gMd2LyDqZSpoOR04+btkWJd7Cfs3QgBB+SynqG/moM4GOClOt0Kk0cZ6J0bHA==",
+ "media_key": "1xTnKjRoQysBni5O+vBrhF+3Ise130DMrhLJeOeo4OQ=",
+ "media": "UXXb2B4mNLDVyouip2CNN/ZafJSada45AGzkvMJpxS5luYsilWYP",
+ "media_plain": "cGl4ZWwgYnl0ZXM="
+}
