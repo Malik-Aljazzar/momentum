@@ -334,6 +334,11 @@ Scheme in `server/e2e.py` (docstring); the same code three times: `web/src/e2ecr
   `scripts/sw-plugin.ts`), Android opens it in `Notifier` (`E2EStore.previewText`).
 - Tests: `create_app(e2e_default=False)` is the default for tests and the e2e server (plain chats); encrypted tests
   switch it on (`PUT /conversations/<id>/e2e`). Safety codes + key-change warnings = trust on first use per device.
+- A message must fit the chat as it is now: every member with a key gets a wrapped key, and `GET /conversations/<id>/keys`
+  gives `hash`, which the apps send back as `e2e.kh` - stale, a member missing or a reader gone -> 409 (`e2e.StaleKeys`),
+  the apps reload the keys and send again (also photos / voice, if the chat's encryption still matches). `eph` must be a
+  point on the curve (server `valid_public_key`, Android `E2E.publicKey`). The offline chat caches keep encrypted messages
+  as they came (`closeMessage`), never the opened text / media keys.
 
 ## Groups
 

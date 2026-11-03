@@ -76,8 +76,8 @@ def test_encrypted_direct_chat(tmp_path):
         await ann.req("post", f"/api/conversations/{cid}/messages", json={"text": "hi"}, status=409)
         keys = await ids(ann, cid)
         assert set(keys) == {"ann", "ben"} and keys["ben"]["public"] == ec.public_b64(ben.key)
-        # only members may read it; a key that isn't the sender's current one is refused
-        await send(ann, cid, "nope", readers={999: ec.public_b64(cat.key)}, status=400)
+        # only members may read it (409: the app loads the keys again); a key that isn't the sender's current one is refused
+        await send(ann, cid, "nope", readers={999: ec.public_b64(cat.key)}, status=409)
         stale = ec.new_key()
         env = ec.encrypt(stale, cid, {keys["ben"]["user_id"]: keys["ben"]["public"]}, {"t": "x"}, {"t": "x"})
         await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": env}, status=409)
@@ -193,6 +193,44 @@ def test_push_and_updates_carry_the_encrypted_preview(tmp_path):
         up = await ben.req("get", "/api/updates?after_message=0&after_notification=0")
         assert [m["mention"] for m in up["messages"]] == [True]
         assert ec.decrypt(up["messages"][0]["e2e"], ben.key, cid, ben_id, "pv")["t"] == "psst @ben"
+    run(tmp_path, scenario)
+
+
+def test_messages_fit_the_members_and_keys(tmp_path):
+    """A message is for everyone in the chat as it is now: the apps send the fingerprint of the keys they
+    encrypted for; a stale one, a missing member or a reader who isn't one any more -> 409 (load again)."""
+    async def scenario(app, c):
+        ann, ben, cat, dan = await keyed(c, "ann"), await keyed(c, "ben"), await keyed(c, "cat"), await user(c, "dan")
+        for u in (ben, cat, dan):
+            await u.req("post", "/api/users/ann/follow")
+        cid = (await ann.req("post", "/api/conversations/group", json={"name": "Crew", "usernames": ["ben"]}))["conversation"]["id"]
+        before = await ann.req("get", f"/api/conversations/{cid}/keys")
+        readers = {k["user_id"]: k["public"] for k in before["keys"]}
+        env = ec.encrypt(ann.key, cid, readers, {"t": "x"}, {"t": "x"})
+        # the ephemeral key must be a point on the curve (readers do ECDH with it)
+        await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": dict(env, eph=ec.b64(b"\x04" + bytes(64)))}, status=400)
+        # the fingerprint of the keys it was encrypted for comes along; a stale one is refused
+        await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": dict(env, kh="0000000000000000")}, status=409)
+        await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": dict(env, kh=before["hash"])})
+        # cat joins: a message that isn't encrypted for her (an app with the old key list) is refused ...
+        await ann.req("post", f"/api/conversations/{cid}/members", json={"usernames": ["cat"]})
+        after = await ann.req("get", f"/api/conversations/{cid}/keys")
+        assert after["hash"] != before["hash"]
+        stale = ec.encrypt(ann.key, cid, readers, {"t": "y"}, {"t": "y"})
+        await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": stale}, status=409)
+        # ... one for everyone with a key goes through (dan has none: he can't read it, that's known)
+        await ann.req("post", f"/api/conversations/{cid}/members", json={"usernames": ["dan"]})
+        await send(ann, cid, "alle da")
+        cat_id = (await ids(ann, cid))["cat"]["user_id"]
+        got = (await cat.req("get", f"/api/conversations/{cid}/messages"))["messages"][-1]
+        assert ec.decrypt(got["e2e"], cat.key, cid, cat_id)["t"] == "alle da"
+        # ben leaves: a message still encrypted for him is refused too, then it goes without him
+        await ben.req("delete", f"/api/conversations/{cid}/members/me")
+        everyone = {k["user_id"]: k["public"] for k in (await ann.req("get", f"/api/conversations/{cid}/keys"))["keys"] if k["public"]}
+        assert len(everyone) == 2
+        env = ec.encrypt(ann.key, cid, {**everyone, **readers}, {"t": "z"}, {"t": "z"})
+        await ann.req("post", f"/api/conversations/{cid}/messages", json={"e2e": env}, status=409)
+        await send(ann, cid, "ohne ben")
     run(tmp_path, scenario)
 
 

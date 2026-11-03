@@ -17,6 +17,11 @@ The second ECDH ties the message to the sender's key: nobody without it - the se
 one. Stored as JSON {"v", "eph", "spk" (the sender's public key), "ct", "pv", "keys": {user id: ...}};
 each reader only gets their own wrapped key.
 
+A message must fit the chat as it is now: every member with a key gets a wrapped key (a new member would
+read nothing otherwise), and the apps send "kh", the fingerprint of the members' keys they encrypted for
+(GET /conversations/<id>/keys gives it as "hash"). Someone joined / left / reset their key since -> 409,
+the app loads the keys again and sends again.
+
 Media (chat photos, voice messages) are encrypted on the phone with a key of their own (iv || AES-GCM)
 and stored as they come (no processing here); photos bring an encrypted small copy, which is all that
 stays after chat.CHAT_IMAGE_DAYS.
@@ -42,6 +47,18 @@ class KeyChanged(Exception):
     """The sender wrote with a key that isn't their current one (reset on another device)."""
 
 
+class StaleKeys(Exception):
+    """The message wasn't encrypted for the chat's current members and keys (someone joined, left or reset)."""
+
+
+def keys_hash(members):
+    """A fingerprint of who has which key ({user id: public key or None}): the apps send it back with a
+    message ("kh"); one from before a member / key change is refused."""
+    import hashlib
+    items = sorted(f"{uid}:{pub}" for uid, pub in members.items() if pub)
+    return hashlib.sha256("\n".join(items).encode()).hexdigest()[:16]
+
+
 def _b64(value, limit, size=None):
     if not isinstance(value, str) or not value or len(value) > limit:
         return None
@@ -65,13 +82,15 @@ def valid_public_key(value):
     return True
 
 
-def parse_envelope(data, member_ids, sender):
-    """The envelope a client sent, checked (shape, sizes, readers are members) -> stored JSON."""
+def parse_envelope(data, members, sender):
+    """The envelope a client sent, checked (shape, sizes, readers are members, every member with a key
+    is a reader, "kh" is current) -> stored JSON. members: {user id: public key or None}."""
     if not isinstance(data, dict) or data.get("v") != VERSION:
         raise ValueError("version")
     if not sender.e2e_public or data.get("spk") != sender.e2e_public:
         raise KeyChanged()
-    if _b64(data.get("eph"), 200, 65) is None or _b64(data.get("ct"), MAX_CT) is None or _b64(data.get("pv"), MAX_PV) is None:
+    # eph must be a point on the curve: readers do ECDH with it (an invalid one could probe their key)
+    if not valid_public_key(data.get("eph")) or _b64(data.get("ct"), MAX_CT) is None or _b64(data.get("pv"), MAX_PV) is None:
         raise ValueError("fields")
     keys = data.get("keys")
     if not isinstance(keys, dict) or not keys:
@@ -82,9 +101,15 @@ def parse_envelope(data, member_ids, sender):
             uid = int(uid)
         except (TypeError, ValueError):
             raise ValueError("reader")
-        if uid not in member_ids or _b64(wrapped, MAX_WRAPPED) is None:
+        if _b64(wrapped, MAX_WRAPPED) is None:
             raise ValueError("reader")
+        if uid not in members:              # left the chat since the app loaded the keys
+            raise StaleKeys()
         out[str(uid)] = wrapped
+    if data.get("kh") is not None and data["kh"] != keys_hash(members):
+        raise StaleKeys()
+    if any(pub and str(uid) not in out for uid, pub in members.items()):      # a member who couldn't read it
+        raise StaleKeys()
     return json.dumps(dict(v=VERSION, eph=data["eph"], spk=data["spk"], ct=data["ct"], pv=data["pv"], keys=out),
                       separators=(",", ":"))
 

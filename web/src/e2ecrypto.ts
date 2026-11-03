@@ -124,7 +124,7 @@ export async function openBackup(backup: string, recovery: Bytes): Promise<Bytes
 // ---------------------------------------------------------------- messages
 
 /** What the server stores: one wrapped message key per reader. */
-export interface Envelope { v: number; eph: string; spk: string; ct: string; pv: string; keys: Record<string, string> }
+export interface Envelope { v: number; eph: string; spk: string; ct: string; pv: string; keys: Record<string, string>; kh?: string }
 /** What one reader gets back: their wrapped key ("key"), the preview, the body unless it's only a preview. */
 export interface ReaderEnvelope { v: number; eph: string; spk: string; pv: string; ct?: string; key?: string | null }
 

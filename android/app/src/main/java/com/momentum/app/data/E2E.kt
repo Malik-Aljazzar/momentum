@@ -23,7 +23,9 @@ import javax.crypto.spec.SecretKeySpec
 
 /** What the server stores: one wrapped message key per reader. */
 @Serializable
-data class Envelope(val v: Int, val eph: String, val spk: String, val ct: String, val pv: String, val keys: Map<String, String>)
+data class Envelope(val v: Int, val eph: String, val spk: String, val ct: String, val pv: String, val keys: Map<String, String>,
+                    /** the fingerprint of the members' keys it was made for (the server refuses a stale one: 409) */
+                    val kh: String? = null)
 
 /** What one reader gets back: their wrapped key, the preview, the body unless it's only a preview. */
 @Serializable
@@ -92,11 +94,21 @@ object E2E {
         return byteArrayOf(4) + fixed(w.affineX) + fixed(w.affineY)
     }
 
+    private val P = BigInteger("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF", 16)
+    private val B = BigInteger("5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B", 16)
+
+    /** Is (x, y) on P-256 (y² = x³ - 3x + b)? ECDH with a point that isn't could give away bits of my key. */
+    private fun onCurve(x: BigInteger, y: BigInteger): Boolean =
+        x.signum() >= 0 && y.signum() >= 0 && x < P && y < P &&
+            (y * y - (x * x * x - x * BigInteger.valueOf(3) + B)).mod(P).signum() == 0
+
     fun publicKey(value: String): PublicKey {
         val r = unb64(value)
         require(r.size == 65 && r[0] == 4.toByte()) { "not a P-256 point" }
-        val point = ECPoint(BigInteger(1, r.copyOfRange(1, 33)), BigInteger(1, r.copyOfRange(33, 65)))
-        return KeyFactory.getInstance("EC").generatePublic(ECPublicKeySpec(point, curve))
+        val x = BigInteger(1, r.copyOfRange(1, 33))
+        val y = BigInteger(1, r.copyOfRange(33, 65))
+        require(onCurve(x, y)) { "not a P-256 point" }
+        return KeyFactory.getInstance("EC").generatePublic(ECPublicKeySpec(ECPoint(x, y), curve))
     }
 
     fun privateKey(pkcs8: ByteArray): PrivateKey = KeyFactory.getInstance("EC").generatePrivate(PKCS8EncodedKeySpec(pkcs8))

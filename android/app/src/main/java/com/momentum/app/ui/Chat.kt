@@ -272,9 +272,9 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
             messages.addAll(new)
             list.animateScrollToItem(0)          // new messages pull the chat down
         }
-        if (vm.online) {      // keep the whole chat cached, so it opens offline like WhatsApp
+        if (vm.online) {      // keep the whole chat cached, so it opens offline like WhatsApp (encrypted ones as they came)
             vm.cacheWrite(cacheKey, vm.api.json.encodeToString(MessagesResponse.serializer(),
-                MessagesResponse(messages.takeLast(200), readUpto)))
+                MessagesResponse(messages.takeLast(200).map { E2EStore.closeMessage(it) }, readUpto)))
         }
     }
     LaunchedEffect(id) {
@@ -319,11 +319,13 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
             if (messages.none { it.id == m.id }) messages.add(m)
             list.animateScrollToItem(0)
         } catch (e: ApiException) {
-            // the encryption was switched / a key changed in the meantime: reload and send the text again
-            if (e.status == 409 && retry && media == null) {
-                vm.req<ConversationResponse>("GET", "/conversations/$id")?.let { conv = it.conversation }
+            // the encryption was switched / a key or the members changed in the meantime: reload and send again
+            if (e.status == 409 && retry) {
+                val fresh = vm.req<ConversationResponse>("GET", "/conversations/$id")?.conversation
+                fresh?.let { conv = it }
                 runCatching { E2EStore.chatKeys(vm.api, id, refresh = true) }
-                return send(text, media, reply, retry = false)
+                // a photo / voice message is uploaded encrypted or plain already: it goes again if the chat still matches
+                if (media == null || (fresh != null && fresh.e2e == (media.key != null))) return send(text, media, reply, retry = false)
             }
             if (e.status == 0) vm.showToast(S.needsInternet, error = true) else vm.onError(e)
         }

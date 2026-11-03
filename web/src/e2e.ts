@@ -111,6 +111,7 @@ export function stopE2E() {
   e2eState.value = "loading"
   recoveryPending.value = false
   keyWarnings.value = {}
+  memberKeys.clear()
 }
 
 export const myPublicKey = () => me?.pub ?? null
@@ -118,20 +119,25 @@ export const myPublicKey = () => me?.pub ?? null
 // ---------------------------------------------------------------- the others' keys
 
 export interface MemberKey { user_id: number; username: string; public: string | null }
-const memberKeys = new Map<number, Promise<MemberKey[]>>()
+/** the members' keys and their fingerprint ("hash"): it goes with every message, so the server can tell
+ *  when someone joined / left / reset their key since (409: load again, send again) */
+interface KeySet { keys: MemberKey[]; hash?: string }
+const memberKeys = new Map<number, Promise<KeySet>>()
 
-/** The members' keys of a chat (refresh: after the server said a key changed). */
-export function chatKeys(convId: number, refresh = false): Promise<MemberKey[]> {
+function keySet(convId: number, refresh = false): Promise<KeySet> {
   if (refresh || !memberKeys.has(convId)) {
-    const p = api.call<{ keys: MemberKey[] }>("GET", `/conversations/${convId}/keys`).then((r) => {
+    const p = api.call<KeySet>("GET", `/conversations/${convId}/keys`).then((r) => {
       for (const k of r.keys) if (k.public && k.user_id !== userId) checkKey(k.user_id, k.public)
-      return r.keys
+      return r
     })
     p.catch(() => memberKeys.delete(convId))
     memberKeys.set(convId, p)
   }
   return memberKeys.get(convId)!
 }
+
+/** The members' keys of a chat (refresh: after the server said a key / the members changed). */
+export const chatKeys = (convId: number, refresh = false): Promise<MemberKey[]> => keySet(convId, refresh).then((r) => r.keys)
 
 /** Trust on first use: a key seen before must stay the same, a new one is shown as a warning. */
 function checkKey(uid: number, pub: string) {
@@ -177,6 +183,15 @@ export async function openMessage(convId: number, m: ChatMessage): Promise<ChatM
 
 export const openMessages = (convId: number, list: ChatMessage[]) => Promise.all(list.map((m) => openMessage(convId, m)))
 
+/** A message back to how the server sent it (text and media key out again, the envelope stays): what
+ *  the device's chat cache keeps - it's opened again when the chat loads. */
+export function closeMessage(m: ChatMessage): ChatMessage {
+  let out = m
+  if (m.e2e) out = { ...m, text: "", sealed: undefined, media: m.media ? { ...m.media, key: undefined, mime: undefined } : m.media }
+  if (m.reply?.e2e) out = { ...out, reply: { ...m.reply, text: "" } }
+  return out
+}
+
 /** The chat list's line for an encrypted last message. */
 export async function openLast(convId: number, last: LastMessage): Promise<LastMessage> {
   if (!last.e2e) return last
@@ -192,10 +207,11 @@ export function mentionNames(text: string): string[] {
 /** A new message for everyone in the chat who has a key (me too: my other devices). */
 export async function sealMessage(convId: number, text: string, media?: { key: string; mime: string; kind: string } | null) {
   if (!me) throw new Error("locked")
-  const readers = (await chatKeys(convId)).filter((k): k is MemberKey & { public: string } => !!k.public)
+  const set = await keySet(convId)
+  const readers = set.keys.filter((k): k is MemberKey & { public: string } => !!k.public)
   const body: MessageBody = { t: text, m: media ? { k: media.key, mime: media.mime } : null }
   const preview: Preview = { t: text.slice(0, 180), k: media?.kind ?? null }
-  return { e2e: await C.encryptEnvelope(me, convId, readers, body, preview), mentions: mentionNames(text) }
+  return { e2e: { ...await C.encryptEnvelope(me, convId, readers, body, preview), kh: set.hash }, mentions: mentionNames(text) }
 }
 
 // ---------------------------------------------------------------- photos, voice messages

@@ -6,7 +6,7 @@ import { secondsSince } from "../format"
 import { chatLine } from "../lines"
 import { api, ApiError } from "../api"
 import {
-  chatKeys, e2eState, keyWarnings, mediaUrl, openLast, openMessage, openMessages, recoveryPending, sealMedia, sealMessage, useMediaUrl,
+  chatKeys, closeMessage, e2eState, keyWarnings, mediaUrl, openLast, openMessage, openMessages, recoveryPending, sealMedia, sealMessage, useMediaUrl,
   type MemberKey,
 } from "../e2e"
 import type { ChatMessage, Conversation, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
@@ -189,7 +189,8 @@ export function ChatRoomScreen({ id }: { id: number }) {
       setMessages(all)
       if (stick) requestAnimationFrame(toBottom)            // new messages pull the chat down
     }
-    if (online.value) void cache.set(cacheKey, JSON.stringify({ messages: msgs.current.slice(-200), read_upto: r.read_upto }))  // opens offline like WhatsApp
+    // opens offline like WhatsApp; encrypted messages are cached as they came (opened again on load)
+    if (online.value) void cache.set(cacheKey, JSON.stringify({ messages: msgs.current.slice(-200).map(closeMessage), read_upto: r.read_upto }))
   }
   useEffect(() => {
     void req<{ conversation: Conversation }>("GET", `/conversations/${id}`).then((r) => setConv(r?.conversation ?? null))
@@ -231,12 +232,13 @@ export function ChatRoomScreen({ id }: { id: number }) {
       }
     } catch (e) {
       if (!(e instanceof ApiError)) throw e
-      // the encryption was switched / a key changed in the meantime: reload and send the text again
-      if (e.status === 409 && retry && !out.media) {
+      // the encryption was switched / a key or the members changed in the meantime: reload and send again
+      if (e.status === 409 && retry) {
         const fresh = (await req<{ conversation: Conversation }>("GET", `/conversations/${id}`))?.conversation
         if (fresh) { convRef.current = fresh; setConv(fresh) }
         await chatKeys(id, true).catch(() => {})
-        return send(out, reply, false)
+        // a photo / voice message is uploaded encrypted or plain already: it goes again if the chat still matches
+        if (!out.media || (fresh && !!fresh.e2e === !!out.media.key)) return send(out, reply, false)
       }
       onError(e)
     }

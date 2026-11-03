@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-03 d
+
+### DE
+- Verschlüsselte Gruppen: wer neu dazukommt, liest neue Nachrichten sofort mit – die App merkt, wenn sich Mitglieder oder Schlüssel geändert haben, und schickt die Nachricht passend neu.
+- Verschlüsselte Chats liegen im Offline-Speicher des Geräts nur noch verschlüsselt.
+
+### EN
+- Encrypted groups: whoever joins reads new messages right away – the app notices when members or keys changed and sends the message again to match.
+- Encrypted chats are kept in the device's offline storage encrypted only.
+
 ## 2026-11-03 c
 
 ### DE

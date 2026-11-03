@@ -32,7 +32,9 @@ import javax.crypto.spec.GCMParameterSpec
 
 @Serializable data class MyKeys(val public: String? = null, val backup: String? = null)
 @Serializable data class MemberKey(@SerialName("user_id") val userId: Int, val username: String, val public: String? = null)
-@Serializable data class MemberKeysResponse(val keys: List<MemberKey> = emptyList())
+/** the members' keys and their fingerprint ("hash"): it goes with every message, so the server can tell when
+ *  someone joined / left / reset their key since (409: load again, send again) */
+@Serializable data class MemberKeysResponse(val keys: List<MemberKey> = emptyList(), val hash: String? = null)
 
 /**
  * End-to-end encrypted chats on this phone (= web/src/e2e.ts): my key (in private prefs, encrypted with a
@@ -58,7 +60,7 @@ object E2EStore {
     private var ctx: Context? = null
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
-    private val memberKeys = mutableMapOf<Int, List<MemberKey>>()
+    private val memberKeys = mutableMapOf<Int, MemberKeysResponse>()
 
     private fun prefs(c: Context) = c.getSharedPreferences("e2e", Context.MODE_PRIVATE)
 
@@ -200,14 +202,16 @@ object E2EStore {
         prefs(c).edit().putString("known_$uid", json.encodeToString(knownSerializer, known)).apply()
     }
 
-    /** The members' keys of a chat (refresh: after the server said a key changed). */
-    suspend fun chatKeys(api: Api, convId: Int, refresh: Boolean = false): List<MemberKey> {
+    private suspend fun keySet(api: Api, convId: Int, refresh: Boolean): MemberKeysResponse {
         if (!refresh) memberKeys[convId]?.let { return it }
-        val keys = api.call<MemberKeysResponse>("GET", "/conversations/$convId/keys").keys
-        keys.forEach { k -> if (k.public != null && k.userId != userId) checkKey(k.userId, k.public) }
-        memberKeys[convId] = keys
-        return keys
+        val set = api.call<MemberKeysResponse>("GET", "/conversations/$convId/keys")
+        set.keys.forEach { k -> if (k.public != null && k.userId != userId) checkKey(k.userId, k.public) }
+        memberKeys[convId] = set
+        return set
     }
+
+    /** The members' keys of a chat (refresh: after the server said a key / the members changed). */
+    suspend fun chatKeys(api: Api, convId: Int, refresh: Boolean = false): List<MemberKey> = keySet(api, convId, refresh).keys
 
     /** Trust on first use: a key seen before must stay the same, a new one is shown as a warning. */
     private fun checkKey(uid: Int, pub: String) {
@@ -255,6 +259,16 @@ object E2EStore {
         return out
     }
 
+    /** A message back to how the server sent it (text and media key out again, the envelope stays): what
+     *  the phone's chat cache keeps - it's opened again when the chat loads. */
+    fun closeMessage(m: ChatMessage): ChatMessage {
+        var out = m
+        if (m.e2e != null) out = m.copy(text = "", sealed = false, media = m.media?.copy(key = null, mime = null))
+        val reply = m.reply
+        if (reply?.e2e != null) out = out.copy(reply = reply.copy(text = ""))
+        return out
+    }
+
     private fun openPreview(my: Me, convId: Int, env: ReaderEnvelope): E2EPreview? =
         E2E.openEnvelope(my.priv, convId, my.id, env, preview = true)
             ?.let { runCatching { json.decodeFromString(E2EPreview.serializer(), it) }.getOrNull() }
@@ -284,10 +298,11 @@ object E2EStore {
     suspend fun sealMessage(api: Api, convId: Int, text: String, media: Triple<String, String, String>? = null): JsonObject =
         withContext(Dispatchers.Default) {
             val my = me ?: throw IllegalStateException("locked")
-            val readers = chatKeys(api, convId).mapNotNull { k -> k.public?.let { k.userId to it } }.toMap()
+            val set = keySet(api, convId, refresh = false)
+            val readers = set.keys.mapNotNull { k -> k.public?.let { k.userId to it } }.toMap()
             val body = json.encodeToString(E2EBody.serializer(), E2EBody(text, media?.let { E2EMediaKey(it.first, it.second) }))
             val preview = json.encodeToString(E2EPreview.serializer(), E2EPreview(text.take(180), media?.third))
-            val env = E2E.encryptEnvelope(my.priv, my.pub, convId, readers, body, preview)
+            val env = E2E.encryptEnvelope(my.priv, my.pub, convId, readers, body, preview).copy(kh = set.hash)
             buildJsonObject {
                 put("e2e", json.encodeToJsonElement(Envelope.serializer(), env))
                 put("mentions", JsonArray(mentionNames(text).map { JsonPrimitive(it) }))

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as C from "../../src/e2ecrypto"
-import { mentionNames } from "../../src/e2e"
+import { closeMessage, mentionNames } from "../../src/e2e"
 
 const v = JSON.parse(readFileSync(join(__dirname, "e2e-vector.json"), "utf8"))
 
@@ -55,6 +55,18 @@ describe("chat encryption", () => {
     expect(await C.safetyCode(v.reader_public)).toBe(code)
     expect(await C.safetyCode(v.sender_public)).not.toBe(code)
     expect(code).toBe(v.reader_safety_code)
+  })
+
+  it("caches an opened message without its text and media key", () => {
+    const env = { v: 1, eph: "e", spk: "s", pv: "p", ct: "c", key: "k" }
+    const opened = { id: 1, at: "", text: "geheim", sealed: false, e2e: env, media: { id: 2, kind: "image", url: "/m", thumb: "/t", encrypted: true, key: "K", mime: "image/jpeg" },
+      reply: { id: 0, text: "zitat", e2e: env } }
+    const closed = closeMessage(opened)
+    expect(JSON.stringify(closed)).not.toMatch(/geheim|zitat|"K"|jpeg/)
+    expect(closed.e2e).toBe(env)
+    expect(closed.media?.encrypted).toBe(true)
+    const plain = { id: 3, at: "", text: "offen" }
+    expect(closeMessage(plain)).toBe(plain)
   })
 
   it("names the tagged accounts for the server", () => {

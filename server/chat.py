@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, or_, select, update
 
 from .clients import hidden_message_kinds
 from .db import Conversation, ConversationMember, Media, Message, MessageReaction, Post, Rule, User, utcnow
-from .e2e import KeyChanged, envelope_for, mentioned_ids, parse_envelope
+from .e2e import KeyChanged, StaleKeys, envelope_for, keys_hash, mentioned_ids, parse_envelope
 from .mentions import encode, names_for, render, render_one
 from .posts import media_json, post_thumbs
 from .social import block_ids, card_map, connected, iso
@@ -29,6 +29,13 @@ async def unread_messages(s, user_id):
 
 async def _members(s, conv_id):
     return list(await s.scalars(select(ConversationMember.user_id).where(ConversationMember.conversation_id == conv_id)))
+
+
+async def _member_keys(s, conv_id):
+    """{user id: public key or None} of a chat's members (server/e2e.py)."""
+    rows = (await s.execute(select(User.id, User.e2e_public).join(ConversationMember, ConversationMember.user_id == User.id)
+                            .where(ConversationMember.conversation_id == conv_id))).all()
+    return {uid: pub for uid, pub in rows}
 
 
 SHARE_KINDS = ("rule", "profile", "post", "story")
@@ -573,12 +580,14 @@ def register(app, authed, api_error):
     @app.get("/api/conversations/<int:conv_id>/keys")
     @authed
     async def member_keys(conv_id):
-        """The members' public keys: a new message is encrypted for each of them (null: no key yet)."""
+        """The members' public keys: a new message is encrypted for each of them (null: no key yet).
+        "hash": their fingerprint, sent back with the message as "kh" (stale -> 409, load again)."""
         conv, _ = await membership(conv_id)
         rows = (await g.s.execute(select(User.id, User.username, User.e2e_public)
                                   .join(ConversationMember, ConversationMember.user_id == User.id)
                                   .where(ConversationMember.conversation_id == conv.id))).all()
-        return jsonify(keys=[dict(user_id=u, username=name, public=pub) for u, name, pub in rows])
+        return jsonify(keys=[dict(user_id=u, username=name, public=pub) for u, name, pub in rows],
+                       hash=keys_hash({u: pub for u, _, pub in rows}))
 
     @app.put("/api/conversations/<int:conv_id>/e2e")
     @authed
@@ -708,16 +717,20 @@ def register(app, authed, api_error):
         text = await encode(g.s, str(data.get("text", "")).strip()[:MAX_TEXT])     # "@tim" -> account reference
         envelope = mentions = None
         if data.get("e2e") is not None:
+            members = await _member_keys(g.s, conv.id)
             try:
-                envelope = parse_envelope(data["e2e"], set(await _members(g.s, conv.id)), g.user)
+                envelope = parse_envelope(data["e2e"], members, g.user)
             except KeyChanged:
                 raise api_error("Dein Schlüssel hat sich geändert - lade den Chat neu",
                                 "Your key changed - reload the chat", 409)
+            except StaleKeys:
+                raise api_error("Die Mitglieder oder ihre Schlüssel haben sich geändert - lade den Chat neu",
+                                "The members or their keys changed - reload the chat", 409)
             except ValueError:
                 raise api_error("Verschlüsselte Nachricht ungültig", "Invalid encrypted message")
             # who is tagged: the server can't read it, the sender names them (members only)
             names = {str(n).lower() for n in (data.get("mentions") or [])[:50]}
-            ids = set(await _members(g.s, conv.id)) - {g.user.id}
+            ids = set(members) - {g.user.id}
             tagged = sorted(u.id for u in await users_by_name(names) if u.id in ids) if names else []
             mentions = "," + ",".join(map(str, tagged)) + "," if tagged else None
         media = None

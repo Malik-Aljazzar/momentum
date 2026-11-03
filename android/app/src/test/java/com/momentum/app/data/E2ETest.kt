@@ -52,6 +52,30 @@ class E2ETest {
         assertNull(E2E.openEnvelope(E2E.privateKey(benPk), 12, 2, forUser(2).copy(spk = evePub), preview = false))
     }
 
+    @Test fun refusesAPointOffTheCurve() {
+        // ECDH with a point that isn't on P-256 could leak the private key: such a key opens nothing
+        val off = E2E.b64(byteArrayOf(4) + ByteArray(64))
+        assertTrue(runCatching { E2E.publicKey(off) }.isFailure)
+        assertTrue(runCatching { E2E.publicKey(s("reader_public")) }.isSuccess)
+        val priv = E2E.privateKey(E2E.unb64(s("reader_pkcs8")))
+        val env = json.decodeFromString(ReaderEnvelope.serializer(), v["envelope"].toString())
+        assertNull(E2E.openEnvelope(priv, v["conversation"]!!.jsonPrimitive.int, v["reader"]!!.jsonPrimitive.int, env.copy(eph = off), preview = false))
+    }
+
+    @Test fun cachesAnOpenedMessageClosed() {
+        val env = ReaderEnvelope(1, "e", "s", "p", "c", "k")
+        val opened = ChatMessage(id = 1, text = "geheim", at = "", e2e = env, sealed = false,
+            media = MediaItem(id = 2, kind = "image", url = "/m", thumb = "/t", encrypted = true, key = "K", mime = "image/jpeg"),
+            reply = ReplyRef(id = 0, text = "zitat", e2e = env))
+        val closed = E2EStore.closeMessage(opened)
+        val text = json.encodeToString(ChatMessage.serializer(), closed)
+        assertTrue(!text.contains("geheim") && !text.contains("zitat") && !text.contains("\"K\"") && !text.contains("jpeg"))
+        assertEquals(env, closed.e2e)
+        assertTrue(closed.media!!.encrypted)
+        val plain = ChatMessage(id = 3, text = "offen", at = "")
+        assertEquals(plain, E2EStore.closeMessage(plain))
+    }
+
     @Test fun recoveryKeyAndSafetyCode() {
         val raw = E2E.random(32)
         val text = E2E.formatRecovery(raw)
