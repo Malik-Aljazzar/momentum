@@ -597,6 +597,11 @@ interface Strings {
     fun limitForecast(average: String, players: Int, next: String): String
     val readBy: String
     fun notReadYet(n: Int): String
+    /** who reacted to a message (report #63) */
+    val reactions: String
+    /** an upload's steps under its progress bar: shrinking a video on the phone, then the server re-encoding it */
+    val compressing: String
+    val processing: String
     /** chat: day separator, the countdown under a photo and its small copy after two weeks (reports #48, #49) */
     val yesterday: String
     fun deletedIn(days: Int, hm: String): String
@@ -1325,6 +1330,9 @@ object De : Strings {
         "Heute bisher: im Schnitt $average bei $players aktiven Spielern → morgen voraussichtlich $next (steht erst um Mitternacht fest)."
     override val readBy = "Gelesen von"
     override fun notReadYet(n: Int) = "Noch nicht gelesen: $n"
+    override val reactions = "Reaktionen"
+    override val compressing = "Wird verkleinert…"
+    override val processing = "Wird verarbeitet…"
     override val yesterday = "Gestern"
     override fun deletedIn(days: Int, hm: String) = "Gelöscht in $days T $hm"
     override val photoArchived = "Archiviert · kleine Kopie"
@@ -2054,6 +2062,9 @@ object En : Strings {
         "So far today: $average on average over $players active players → tomorrow probably $next (fixed at midnight)."
     override val readBy = "Read by"
     override fun notReadYet(n: Int) = "Not read yet: $n"
+    override val reactions = "Reactions"
+    override val compressing = "Compressing…"
+    override val processing = "Processing…"
     override val yesterday = "Yesterday"
     override fun deletedIn(days: Int, hm: String) = "Deleted in $days d $hm"
     override val photoArchived = "Archived · small copy"

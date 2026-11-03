@@ -153,3 +153,20 @@ def test_storage_by_category_and_the_limit(tmp_path):
         app.blobs.inner.put = inner_put
         await ben.req("post", "/api/media", data=png(), ctype="image/png")
     run(tmp_path, scenario)
+
+
+def test_the_cli_sets_a_reports_task(tmp_path, monkeypatch, capsys):
+    """`python -m server.admin report-note <id> <text>`: the owner's reworded task, shown with `reports`."""
+    import asyncio
+    from ..admin import main
+    monkeypatch.setenv("MOMENTUM_DB", f"sqlite+aiosqlite:///{(tmp_path / 't.db').as_posix()}")
+
+    async def scenario(app, c):
+        ann = await user(c, "ann")
+        await ann.req("post", "/api/reports", json={"kind": "bug", "text": "Emoji-Picker schließt sich"})
+    run(tmp_path, scenario)
+    asyncio.run(main(["report-note", "1", "Keep the emoji picker open after a pick"]))
+    asyncio.run(main(["report-status", "1", "todo"]))
+    asyncio.run(main(["reports", "todo"]))
+    out = capsys.readouterr().out
+    assert "#1 [bug] todo" in out and "NOTE: Keep the emoji picker open after a pick" in out

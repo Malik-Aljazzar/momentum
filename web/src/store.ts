@@ -403,11 +403,11 @@ export async function bulk(path: string, body: unknown): Promise<BulkResult | nu
   }
 }
 
-/** Upload a photo / video / audio (already prepared: images shrunk). */
-export async function uploadMedia(data: Blob, type: string, query = ""): Promise<MediaItem | null> {
+/** Upload a photo / video / audio (already prepared: images shrunk); [onProgress] gets the part sent (0..1). */
+export async function uploadMedia(data: Blob, type: string, query = "", onProgress?: (done: number) => void): Promise<MediaItem | null> {
   if (!online.value) { showToast(S.value.needsInternet, true); return null }
   try {
-    return (await api.upload<{ media: MediaItem }>("/media" + query, data, type)).media
+    return (await api.upload<{ media: MediaItem }>("/media" + query, data, type, onProgress)).media
   } catch (e) {
     if (!(e instanceof ApiError)) throw e
     // a failed upload isn't a lost connection: don't switch the app to offline

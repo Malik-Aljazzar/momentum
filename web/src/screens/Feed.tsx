@@ -444,7 +444,11 @@ export function PlaceSheet({ onClose, onPick }: { onClose: () => void; onPick: (
   </Sheet>
 }
 
-export interface Draft { key: number; file: File; video: boolean; preview: string | null; media: MediaItem | null; failed: boolean; overlay: TextOverlay | null }
+export interface Draft {
+  key: number; file: File; video: boolean; preview: string | null; media: MediaItem | null; failed: boolean; overlay: TextOverlay | null
+  /** while uploading: the part sent (0..1; 1 = the server's turn) - the tile's progress bar */
+  progress?: number
+}
 
 export const SOUND_SECONDS = 30
 export interface SoundDraft { blob: Blob; title: string; durationMs: number; startMs: number; endMs: number; url: string }

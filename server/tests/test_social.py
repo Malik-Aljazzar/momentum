@@ -753,9 +753,14 @@ def test_message_reactions(tmp_path):
         assert sorted((e["emoji"], e["count"]) for e in r["reactions"]) == [("❤️", 1), ("😂", 1)]
         r = await ben.req("put", f"/api/messages/{mid}/reaction", json={"emoji": "😂"})
         assert r["reactions"] == [{"emoji": "❤️", "count": 1, "mine": False}]
-        # not a member: no reacting
+        # who reacted with what (report #63: a long press on the reactions), newest first
+        await ben.req("put", f"/api/messages/{mid}/reaction", json={"emoji": "🔥"})
+        who = (await ann.req("get", f"/api/messages/{mid}/reactions"))["reactions"]
+        assert [(x["user"]["username"], x["emoji"]) for x in who] == [("ben", "🔥"), ("ann", "❤️")]
+        # not a member: no reacting, no list
         cat = await user(c, "cat")
         await cat.req("put", f"/api/messages/{mid}/reaction", json={"emoji": "❤️"}, status=404)
+        await cat.req("get", f"/api/messages/{mid}/reactions", status=404)
         await ann.req("delete", "/api/account")           # cascades without errors
     run(tmp_path, scenario)
 

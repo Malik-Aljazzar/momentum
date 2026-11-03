@@ -45,8 +45,9 @@ export const api = {
     return JSON.parse(await api.raw(method, path, body)) as T
   },
 
-  /** POST raw bytes (photo, video, audio) and return the parsed answer. */
-  async upload<T>(path: string, data: Blob, type: string): Promise<T> {
+  /** POST raw bytes (photo, video, audio) and return the parsed answer; [onProgress] gets the part sent (0..1). */
+  async upload<T>(path: string, data: Blob, type: string, onProgress?: (done: number) => void): Promise<T> {
+    if (onProgress) return xhrUpload<T>(path, data, type, onProgress)
     let res: Response
     try {
       res = await fetch("/api" + path, { method: "POST", headers: api.headers({ "Content-Type": type }), body: data })
@@ -57,6 +58,23 @@ export const api = {
     if (!res.ok) throw failure(text, res.status)
     return JSON.parse(text) as T
   },
+}
+
+/** An upload that tells how far it is (fetch can't: XMLHttpRequest's upload events). */
+function xhrUpload<T>(path: string, data: Blob, type: string, onProgress: (done: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest()
+    x.open("POST", "/api" + path)
+    for (const [k, v] of Object.entries(api.headers({ "Content-Type": type }))) x.setRequestHeader(k, v)
+    x.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total) }
+    x.onload = () => {
+      if (x.status === 426) api.onUpdateRequired()
+      if (x.status < 200 || x.status >= 300) { reject(failure(x.responseText, x.status)); return }
+      try { resolve(JSON.parse(x.responseText) as T) } catch { reject(failure(x.responseText, x.status)) }
+    }
+    x.onerror = x.ontimeout = () => reject(new ApiError("Server nicht erreichbar", 0, false))
+    x.send(data)
+  })
 }
 
 /** The server's explanation (JSON `error`); without one (nginx while the app restarts, a proxy page) the status

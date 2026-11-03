@@ -38,7 +38,8 @@ val Pixelify: FontFamily get() = Fonts.pixelify
 /**
  * The app's fonts. On Android 10+ each one is a typeface chain with the pixel emoji font (res/font/pixel_emoji.ttf,
  * made by pixelart/emoji.py) as its fallback: every emoji in texts, inputs and rule icons is pixel art, like in the
- * PWA (theme.css lists "Pixel Emoji" last in every font stack). Older phones show the system's emojis.
+ * PWA (theme.css lists "Pixel Emoji" last in every font stack). Older phones show the system's emojis, and so does
+ * user text with the "system font" setting.
  * [MomentumApplication] calls [init] before anything is drawn.
  */
 object Fonts {
@@ -57,9 +58,8 @@ object Fonts {
     )
         private set
 
-    /** The phone's font (setting "system font" for user text), with the pixel emojis too. */
-    var system: FontFamily = FontFamily.Default
-        private set
+    /** The phone's font (setting "system font" for user text) with the phone's own emojis (report #61). */
+    val system: FontFamily = FontFamily.Default
 
     private var emoji: android.graphics.fonts.FontFamily? = null
 
@@ -70,7 +70,6 @@ object Fonts {
             emoji = android.graphics.fonts.FontFamily.Builder(android.graphics.fonts.Font.Builder(res, R.font.pixel_emoji).build()).build()
             silkscreen = family(res, R.font.silkscreen_regular to 400, R.font.silkscreen_bold to 700)
             pixelify = family(res, R.font.pixelify_regular to 400, R.font.pixelify_medium to 500, R.font.pixelify_semibold to 600, R.font.pixelify_bold to 700)
-            roboto()?.let { system = FontFamily(chain(it)) }
         }.onFailure { android.util.Log.w("Momentum", "pixel emoji font not usable", it) }
     }
 
@@ -84,18 +83,6 @@ object Fonts {
     @androidx.annotation.RequiresApi(29)
     private fun chain(main: android.graphics.fonts.FontFamily): Typeface =
         Typeface.CustomFallbackBuilder(main).addCustomFallback(emoji!!).setSystemFallback("sans-serif").build()
-
-    /** The system's Roboto as one family (one font per weight / slant), null when the phone has none. */
-    @androidx.annotation.RequiresApi(29)
-    private fun roboto(): android.graphics.fonts.FontFamily? {
-        val fonts = android.graphics.fonts.SystemFonts.getAvailableFonts()
-            .filter { it.file?.name?.startsWith("Roboto") == true && it.axes.isNullOrEmpty() }
-            .distinctBy { it.style.weight to it.style.slant }
-        if (fonts.isEmpty()) return null
-        val b = android.graphics.fonts.FontFamily.Builder(fonts[0])
-        for (f in fonts.drop(1)) runCatching { b.addFont(f) }
-        return b.build()
-    }
 
     /** A typeface for Paint (widgets): the font with the emoji fallback on Android 10+. */
     fun typeface(ctx: android.content.Context, resId: Int): Typeface? {

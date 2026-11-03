@@ -783,7 +783,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun uploadMedia(uri: Uri, mime: String? = null): MediaItem? {
+    /** [progress]: where the upload is (for a progress bar): a big video shrunk here, the bytes sent, the server's turn. */
+    suspend fun uploadMedia(uri: Uri, mime: String? = null, progress: (com.momentum.app.data.UploadProgress) -> Unit = {}): MediaItem? {
         if (!online) {
             showToast(strings.needsInternet, error = true)
             return null
@@ -804,13 +805,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }?.let { raw ->
             // big videos (straight from the camera, gallery) are re-encoded to 720p first: a fraction of the size
             if (type.startsWith("video/") && raw.size > 8_000_000) {
-                com.momentum.app.data.compressVideo(ctx, uri)?.let { f ->
+                progress(com.momentum.app.data.UploadProgress.Compressing(0f))
+                com.momentum.app.data.compressVideo(ctx, uri) { progress(com.momentum.app.data.UploadProgress.Compressing(it)) }?.let { f ->
                     withContext(Dispatchers.IO) { f.readBytes().also { f.delete() } }.also { type = "video/mp4" }
                 } ?: raw
             } else raw
         } ?: return null
         return try {
-            api.json.decodeFromString<MediaResponse>(api.upload("/media", bytes, type)).media
+            api.json.decodeFromString<MediaResponse>(api.upload("/media", bytes, type) { done ->
+                progress(if (done < 1f) com.momentum.app.data.UploadProgress.Sending(done) else com.momentum.app.data.UploadProgress.Processing)
+            }).media
         } catch (e: ApiException) {
             // a failed upload isn't a lost connection: don't switch the app to offline
             if (e.status == 0) showToast(strings.uploadFailed, error = true) else onError(e)

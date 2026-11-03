@@ -20,6 +20,13 @@ test("the emoji picker puts an emoji into a chat message", async ({ page, reques
   await page.getByPlaceholder("Emoji suchen (englisch)…").fill("fire")
   await grid.locator('.emoji-cell[aria-label="fire"]').click()          // not "heart on fire"
   await expect(input).toHaveValue("Los 🔥")
+  // the picker stays open for more (report #64): it shows the text, its delete key takes a whole emoji back
+  await grid.locator('.emoji-cell[aria-label="fire"]').click()
+  await expect(page.getByTestId("emoji-preview")).toHaveText("Los 🔥🔥")
+  await page.locator("button[aria-label=delete]").click()
+  await expect(input).toHaveValue("Los 🔥")
+  await page.locator(".sheet button[aria-label=close]").click()
+  await expect(grid).toBeHidden()
   // the pixel emoji font is loaded and used for the text
   expect(await page.evaluate(() => document.fonts.check('16px "Pixel Emoji"'))).toBe(true)
   await page.locator("button[aria-label=send]").click()

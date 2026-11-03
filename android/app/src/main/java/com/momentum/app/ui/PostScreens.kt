@@ -221,6 +221,8 @@ private fun CommentRow(
 internal class Draft(val uri: Uri, val video: Boolean) {
     var media by mutableStateOf<MediaItem?>(null)
     var failed by mutableStateOf(false)
+    /** while uploading: where it is (the tile's progress bar) */
+    var progress by mutableStateOf<com.momentum.app.data.UploadProgress?>(null)
     var overlay by mutableStateOf<com.momentum.app.data.TextOverlay?>(null)
     /** rules tapped with this picture when posting: rule id -> times */
     var rules by mutableStateOf(mapOf<Int, Int>())

@@ -158,10 +158,12 @@ private fun rememberTrack(url: String?, active: Boolean, audible: Boolean): ExoP
 @Composable
 fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifier = Modifier.fillMaxSize(),
                 /** the post's own sound: plays instead of the video's sound */
-                soundUrl: String? = null) {
+                soundUrl: String? = null,
+                /** a preview (making a post, report #65): always muted, taps go to what's around it */
+                preview: Boolean = false) {
     var firstFrame by remember { mutableStateOf(false) }
     val (active, measure) = mediaFocus(playing)
-    val video = rememberTrack(url, active, audible = soundUrl == null)!!
+    val video = rememberTrack(url, active, audible = soundUrl == null && !preview)!!
     rememberTrack(soundUrl, active, audible = true)
     DisposableEffect(video) {
         val listener = object : Player.Listener {
@@ -170,13 +172,13 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
         video.addListener(listener)
         onDispose { video.removeListener(listener) }
     }
-    Box(modifier.clipToBounds().then(measure).clickable { Videos.soundOn = !Videos.soundOn }) {
+    Box(modifier.clipToBounds().then(measure).then(if (preview) Modifier else Modifier.clickable { Videos.soundOn = !Videos.soundOn })) {
         AndroidView({
             (android.view.LayoutInflater.from(it).inflate(com.momentum.app.R.layout.video_player, null) as PlayerView)
                 .also { v -> v.player = video }
         }, Modifier.fillMaxSize())
         if (!firstFrame && thumb != null) RemoteImage(thumb, Modifier.fillMaxSize())
-        SoundBadge(Modifier.align(Alignment.BottomEnd).padding(10.dp))
+        if (!preview) SoundBadge(Modifier.align(Alignment.BottomEnd).padding(10.dp))
     }
 }
 

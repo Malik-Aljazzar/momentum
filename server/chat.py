@@ -10,7 +10,7 @@ from .db import Conversation, ConversationMember, Media, Message, MessageReactio
 from .e2e import KeyChanged, envelope_for, mentioned_ids, parse_envelope
 from .mentions import encode, names_for, render, render_one
 from .posts import media_json, post_thumbs
-from .social import card_map, connected, iso
+from .social import block_ids, card_map, connected, iso
 
 MAX_TEXT = 2000
 PAGE = 50
@@ -642,6 +642,20 @@ def register(app, authed, api_error):
         read = [m.user_id for m in rows if m.last_read_id >= msg.id]
         people = await card_map(g.s, g.user.id, read)
         return jsonify(readers=[people[u] for u in read if u in people], unread=len(rows) - len(read))
+
+    @app.get("/api/messages/<int:message_id>/reactions")
+    @authed
+    async def reactors(message_id):
+        """Who reacted with what (report #63, a long press on the reactions): newest first."""
+        msg = await g.s.get(Message, message_id)
+        if msg is None:
+            raise api_error("Nachricht nicht gefunden", "Message not found", 404)
+        await membership(msg.conversation_id)
+        rows = list(await g.s.scalars(select(MessageReaction).where(MessageReaction.message_id == msg.id)
+                                      .order_by(MessageReaction.created_at.desc())))
+        hidden = await block_ids(g.s, g.user.id)
+        people = await card_map(g.s, g.user.id, [r.user_id for r in rows if r.user_id not in hidden])
+        return jsonify(reactions=[dict(user=people[r.user_id], emoji=r.emoji) for r in rows if r.user_id in people])
 
     @app.put("/api/messages/<int:message_id>/reaction")
     @authed

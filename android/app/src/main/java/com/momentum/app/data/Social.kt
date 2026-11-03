@@ -436,6 +436,10 @@ data class Challenge(
 /** Who read a message (report #44); unread = the other members who haven't yet. */
 @Serializable data class ReadersResponse(val readers: List<UserCard> = emptyList(), val unread: Int = 0)
 
+/** Who reacted with what to a message (report #63), newest first. */
+@Serializable data class Reactor(val user: UserCard, val emoji: String)
+@Serializable data class ReactorsResponse(val reactions: List<Reactor> = emptyList())
+
 /** A song for a post's sound (Deezer): its 30 s preview comes through the server. */
 @Serializable data class Song(val id: Long, val title: String, val artist: String = "", val cover: String? = null)
 @Serializable data class SongsResponse(val songs: List<Song> = emptyList())

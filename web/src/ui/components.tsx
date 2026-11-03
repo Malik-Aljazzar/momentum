@@ -10,7 +10,7 @@ import type { UserCard } from "../model"
 import { nav } from "../nav"
 import { hyperLore, imageRetry, online, req, state, systemFont, toast } from "../store"
 import { S } from "../strings"
-import { insertEmoji, isEmojiIcon } from "../emoji"
+import { deleteBefore, insertEmoji, isEmojiIcon } from "../emoji"
 import { EmojiButton } from "./emoji"
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ")
@@ -295,17 +295,32 @@ export function PxTextField({ value, onInput, placeholder = "", password, type =
   if (!emoji) return input
   return <div class="row" style={{ gap: 2 }}>
     <div class="grow">{input}</div>
-    <EmojiButton onPick={(e) => putEmoji(ref.current, value, onInput, e, maxLength)} />
+    <FieldEmoji field={ref} value={value} onInput={onInput} maxLength={maxLength} />
   </div>
 }
 
-/** Puts [emoji] at the caret of [el] (at the end when the field isn't focused) and keeps the caret behind it. */
-function putEmoji(el: HTMLInputElement | HTMLTextAreaElement | null, value: string, onInput: (v: string) => void, emoji: string, maxLength?: number) {
-  const start = el?.selectionStart ?? value.length, end = el?.selectionEnd ?? value.length
-  const next = insertEmoji(value, start, end, emoji)
-  if (maxLength != null && next.value.length > maxLength) return
-  onInput(next.value)
-  requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(next.caret, next.caret) } })
+/** The emoji button of a text field. The picker stays open while picking (report #64) and works at the field's caret,
+ *  kept here meanwhile (focusing the field after each pick would bring up the keyboard over the picker); when it
+ *  closes, the caret goes behind the last pick. */
+function FieldEmoji({ field, value, onInput, maxLength }: {
+  field: { current: HTMLInputElement | HTMLTextAreaElement | null }; value: string; onInput: (v: string) => void; maxLength?: number
+}) {
+  const caret = useRef<[number, number] | null>(null)
+  const at = (): [number, number] => caret.current ?? [field.current?.selectionStart ?? value.length, field.current?.selectionEnd ?? value.length]
+  return <EmojiButton text={value}
+    onOpen={() => { caret.current = null; caret.current = at() }}
+    onPick={(emoji) => {
+      const next = insertEmoji(value, ...at(), emoji)
+      if (maxLength != null && next.value.length > maxLength) return
+      caret.current = [next.caret, next.caret]
+      onInput(next.value)
+    }}
+    onDelete={() => { const next = deleteBefore(value, ...at()); caret.current = [next.caret, next.caret]; onInput(next.value) }}
+    onClose={() => {
+      const el = field.current, c = caret.current
+      caret.current = null
+      if (el && c) requestAnimationFrame(() => { el.focus(); el.setSelectionRange(c[0], c[0]) })
+    }} />
 }
 
 /** Multi-line text (captions, bios) in the look of PxTextField, with the emoji button below its corner. */
@@ -319,7 +334,7 @@ export function PxTextArea({ value, onInput, placeholder = "", rows = 3, user, m
       placeholder={placeholder} style={{ resize: "none", paddingRight: emoji ? 44 : undefined, ...style }}
       onInput={(e) => { const v = (e.target as HTMLTextAreaElement).value; if (maxLength == null || v.length <= maxLength) onInput(v) }} />
     {emoji && <div style={{ position: "absolute", right: 2, bottom: 2 }}>
-      <EmojiButton onPick={(e) => putEmoji(ref.current, value, onInput, e, maxLength)} />
+      <FieldEmoji field={ref} value={value} onInput={onInput} maxLength={maxLength} />
     </div>}
   </div>
 }

@@ -91,20 +91,23 @@ function SoundBadge() {
   </div>
 }
 
-export function VideoPlayer({ url, thumb, playing, soundUrl }: { url: string; thumb?: string | null; playing: boolean; soundUrl?: string | null }) {
+/** [preview]: making a post (report #65) - always muted, taps go to what's around it. */
+export function VideoPlayer({ url, thumb, playing, soundUrl, preview }: {
+  url: string; thumb?: string | null; playing: boolean; soundUrl?: string | null; preview?: boolean
+}) {
   const box = useRef<HTMLDivElement>(null)
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [first, setFirst] = useState(false)
   const active = useMediaFocus(box, playing)
-  useTrack(video, url, active, !soundUrl)
+  useTrack(video, url, active, !soundUrl && !preview)
   useTrack(audio, soundUrl, active, true)
-  return <div ref={box} class="fill" style={{ overflow: "hidden" }} onClick={() => { soundOn.value = !soundOn.value }}>
+  return <div ref={box} class="fill" style={{ overflow: "hidden" }} onClick={preview ? undefined : () => { soundOn.value = !soundOn.value }}>
     <video ref={setVideo} src={url} poster={thumb ?? undefined} playsInline muted loop preload="metadata"
       onLoadedData={() => setFirst(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
     {soundUrl && <audio ref={setAudio} src={soundUrl} loop preload="none" />}
     {!first && thumb && <RemoteImage url={thumb} class="fill" />}
-    <SoundBadge />
+    {!preview && <SoundBadge />}
   </div>
 }
 

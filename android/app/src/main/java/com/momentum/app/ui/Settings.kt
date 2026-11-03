@@ -371,7 +371,7 @@ private fun BioField(value: String, onChange: (String) -> Unit, placeholder: Str
             },
         )
         Box(Modifier.align(Alignment.BottomEnd).padding(2.dp)) {
-            EmojiButton { e -> tfv = Emoji.insert(tfv, e); onChange(tfv.text) }
+            EmojiButton(tfv) { tfv = it; onChange(it.text) }
         }
     }
 }

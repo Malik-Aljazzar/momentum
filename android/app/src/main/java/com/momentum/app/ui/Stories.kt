@@ -81,6 +81,17 @@ object StoryViewing {
     var open by mutableStateOf<Open?>(null)
 }
 
+/** Who has stories (the feed's row): rings on profile pictures elsewhere, in the chats (report #67). */
+object StoryRings {
+    var rows by mutableStateOf<List<StoryRow>>(emptyList())
+    suspend fun load(vm: AppViewModel) { vm.req<StoryRowsResponse>("GET", "/stories")?.let { rows = it.rows } }
+    /** The stories of [username] while some are new to me (never mine), else null. */
+    fun unseen(username: String?) = rows.firstOrNull { it.user.username == username && !it.user.isMe && it.unseen }
+    fun open(vm: AppViewModel, row: StoryRow, scope: kotlinx.coroutines.CoroutineScope) {
+        StoryViewing.open = StoryViewing.Open(listOf(row), 0) { scope.launch { load(vm) } }
+    }
+}
+
 @Composable
 fun StoryHost(vm: AppViewModel) {
     val o = StoryViewing.open ?: return
@@ -125,7 +136,7 @@ fun StoriesRow(vm: AppViewModel) {
     var rows by remember { mutableStateOf<List<StoryRow>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(StoriesVersion.n, vm.feedVersion, reload) {
-        vm.req<StoryRowsResponse>("GET", "/stories")?.let { rows = it.rows }
+        vm.req<StoryRowsResponse>("GET", "/stories")?.let { rows = it.rows; StoryRings.rows = it.rows }
     }
     val mine = rows.firstOrNull { it.user.isMe }
     fun open(r: StoryRow) { StoryViewing.open = StoryViewing.Open(rows, rows.indexOf(r)) { reload++ } }

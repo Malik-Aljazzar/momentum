@@ -121,16 +121,14 @@ def pixelize(png_bytes):
     for (x, y), i in zip(opaque, idx):
         r, g, b = pal[3 * i:3 * i + 3]
         grid[y + 1][x + 1] = (r // 4 * 4, g // 4 * 4, b // 4 * 4, 255)     # 6 bit/channel: fewer palette entries
-    # outline: transparent pixels next to the picture (4-neighbourhood, like Canvas.outline)
-    for y in range(CELL):
-        for x in range(CELL):
-            if grid[y][x] is None and any(0 <= x + dx < CELL and 0 <= y + dy < CELL and grid[y + dy][x + dx] not in (None, OUTLINE)
-                                           for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                grid[y][x] = "outline"
-    for y in range(CELL):
-        for x in range(CELL):
-            if grid[y][x] == "outline":
-                grid[y][x] = OUTLINE
+    # outline: transparent pixels next to the picture (4-neighbourhood, like Canvas.outline) - found first, set
+    # after: a pixel marked during the scan counted as picture and the outline flooded to the right and bottom
+    # edges, a dark box behind every emoji (report #64)
+    edge = [(x, y) for y in range(CELL) for x in range(CELL) if grid[y][x] is None and any(
+        0 <= x + dx < CELL and 0 <= y + dy < CELL and grid[y + dy][x + dx] is not None
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
+    for x, y in edge:
+        grid[y][x] = OUTLINE
     return grid
 
 

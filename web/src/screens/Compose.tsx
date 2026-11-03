@@ -9,7 +9,7 @@ import { S } from "../strings"
 import { IconBtn, Label, MentionSuggestions, OfflineState, PixelIcon, PxButton, PxTextArea, Sheet, TopBar, UserRow } from "../ui/components"
 import { pickFiles, shrinkImage } from "../ui/media"
 import { openOverlay } from "../ui/overlay"
-import { OverlayText } from "../ui/video"
+import { OverlayText, VideoPlayer } from "../ui/video"
 import { MicButton } from "../ui/voice"
 import {
   clampRange, ConnectedPeople, type Draft, OverlayEditor, type Place, PlaceSheet, type SoundDraft, soundDraft, SoundEditor, SongSearch,
@@ -51,13 +51,14 @@ function Composer({ story }: { story: boolean }) {
     const files = await pickFiles(accept, !camera && !story, camera ? "environment" : undefined)
     for (const file of files.slice(0, max - slides.length)) {
       const video = file.type.startsWith("video")
-      const d: Slide = { key: keyN.current++, file, video, preview: video ? null : URL.createObjectURL(file), media: null, failed: false, overlay: null, rules: {} }
+      // a video plays (muted) right away from the file (report #65)
+      const d: Slide = { key: keyN.current++, file, video, preview: URL.createObjectURL(file), media: null, failed: false, overlay: null, rules: {}, progress: 0 }
       setSlides((list) => [...list, d])
       void (async () => {
         // photos are scaled down first (camera pictures are several MB); the server shrinks videos
         const data = video ? file : await shrinkImage(file)
-        const media = await uploadMedia(data, video ? file.type || "video/mp4" : data.type || "image/jpeg")
-        patch(d.key, { media, failed: media == null })
+        const media = await uploadMedia(data, video ? file.type || "video/mp4" : data.type || "image/jpeg", "", (done) => patch(d.key, { progress: done }))
+        patch(d.key, { media, failed: media == null, progress: undefined })
       })()
     }
   }
@@ -160,7 +161,7 @@ function Composer({ story }: { story: boolean }) {
     {open && <Sheet onClose={() => setSheet(null)} label={s.slideRules}>
       <div class="row" style={{ gap: 12, alignItems: "flex-start" }}>
         <div style={{ position: "relative", width: 96, height: 120, borderRadius: 12, overflow: "hidden", background: "var(--faint)", flex: "none" }}>
-          {(open.media?.thumb ?? open.preview) && <img src={(open.media?.thumb ?? open.preview)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+          {(open.media?.thumb ?? (open.video ? null : open.preview)) && <img src={(open.media?.thumb ?? open.preview)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
           {open.overlay && <OverlayText o={open.overlay} />}
         </div>
         <div class="col grow" style={{ gap: 8 }}>
@@ -212,20 +213,36 @@ function Composer({ story }: { story: boolean }) {
 }
 
 function SlideTile({ d, story, onOpen, onRemove }: { d: Slide; story: boolean; onOpen: () => void; onRemove: () => void }) {
-  const s = S.value
   const n = Object.values(d.rules).filter((t) => t > 0).length
   const w = 96, h = story ? 170 : 120
   return <div class="slide-tile" style={{ position: "relative", width: w, height: h, borderRadius: 14, overflow: "hidden", background: "var(--faint)", flex: "none",
     border: "1px solid var(--line)", cursor: "pointer" }} onClick={onOpen}>
-    {(d.media?.thumb ?? d.preview) && <img src={(d.media?.thumb ?? d.preview)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+    {d.video && d.preview ? <VideoPlayer url={d.preview} thumb={d.media?.thumb} playing preview />
+      : (d.media?.thumb ?? d.preview) && <img src={(d.media?.thumb ?? d.preview)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
     {d.overlay && <OverlayText o={d.overlay} />}
     {d.video && <div style={{ position: "absolute", bottom: 6, left: 6 }}><PixelIcon name="ui_video" size={14} /></div>}
-    {!d.media && <div class="fill center t-small" style={{ background: "rgba(0,0,0,0.6)", color: "var(--text)" }}>{d.failed ? "!" : s.uploading}</div>}
+    {!d.media && <div class="fill center t-small" style={{ background: "rgba(0,0,0,0.6)", color: "var(--text)" }}>{d.failed ? "!" : <UploadBar progress={d.progress} />}</div>}
     <div style={{ position: "absolute", top: -4, left: -4 }} onClick={(e) => e.stopPropagation()}>
       <IconBtn icon="ui_close" alpha={.85} onClick={onRemove} label="remove" />
     </div>
     {n > 0 && <span class="t-block" style={{ position: "absolute", top: 6, right: 6, fontSize: 10, padding: "2px 5px", borderRadius: 8,
       background: "rgba(10,12,20,0.6)", color: "var(--yellow)" }}>⚡{n}</span>}
+  </div>
+}
+
+/** An upload's progress bar: sent (with %), then the server's turn (= Compose.kt UploadBar). */
+export function UploadBar({ progress }: { progress?: number }) {
+  const s = S.value
+  const sending = progress == null || progress < 1
+  const done = Math.max(0, Math.min(1, progress ?? 0))
+  return <div class="col upload-bar" data-testid="upload-bar" style={{ alignItems: "center", gap: 4, padding: "0 8px", width: "100%" }}>
+    <span class="t-small" style={{ fontSize: 11, color: "var(--text)", textAlign: "center" }}>{sending ? s.uploading : s.processing}</span>
+    {/* square pixel bar: the part sent, or a block moving back and forth while the server works */}
+    <div style={{ position: "relative", width: "100%", height: 6, background: "var(--faint)", overflow: "hidden" }}>
+      {sending ? <i style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: done * 100 + "%", background: "var(--cyan)" }} />
+        : <i class="upload-busy" style={{ position: "absolute", top: 0, bottom: 0, width: "30%", background: "var(--cyan)" }} />}
+    </div>
+    {sending && <span class="t-small" style={{ fontSize: 10 }}>{Math.floor(done * 100)} %</span>}
   </div>
 }
 

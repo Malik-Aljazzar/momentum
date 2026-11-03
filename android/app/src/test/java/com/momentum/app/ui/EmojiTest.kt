@@ -29,6 +29,29 @@ class EmojiTest {
     }
 
     @Test
+    fun deleteTakesAWholeEmojiBack() {
+        fun del(text: String, caret: Int = text.length) = Emoji.deleteBefore(TextFieldValue(text, TextRange(caret))).let { it.text to it.selection.start }
+        assertEquals("a" to 1, del("ab"))
+        assertEquals("hi " to 3, del("hi 🔥"))                          // a surrogate pair
+        assertEquals("x" to 1, del("x❤️"))                              // with a variation selector
+        assertEquals("x" to 1, del("x👍🏽"))                             // a skin tone
+        assertEquals("x" to 1, del("x👩🏽‍💻"))                          // a ZWJ sequence with a skin tone
+        assertEquals("x" to 1, del("x👨‍👩‍👧"))                          // a family
+        assertEquals("x" to 1, del("x🏳️‍🌈"))                           // a flag with ZWJ
+        assertEquals("🇩🇪" to 4, del("🇩🇪🇫🇷"))                          // flags: pairs of regional indicators
+        assertEquals("x" to 1, del("x1️⃣"))                             // a keycap
+        assertEquals("a😀b" to 3, del("a😀🔥b", 5))                      // at the caret, not at the end
+        assertEquals("" to 0, del(""))
+        assertEquals(TextFieldValue("ad", TextRange(1)), Emoji.deleteBefore(TextFieldValue("abcd", TextRange(1, 3))))   // a selection
+    }
+
+    @Test
+    fun previewShowsTheEnd() {
+        assertEquals("kurz", Emoji.tail("kurz"))
+        assertEquals("…🔥🔥", Emoji.tail("abc🔥🔥", 2))
+    }
+
+    @Test
     fun searchByEnglishName() {
         assertEquals(listOf("🔥"), Emoji.search(groups, "fire").map { it.e })
         assertEquals(listOf("😀"), Emoji.search(groups, "FACE").map { it.e })

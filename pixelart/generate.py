@@ -1129,6 +1129,15 @@ def close(cv):
 
 
 @ui_icon
+def backspace(cv):
+    """The emoji picker's delete key (report #64): a key pointing left with a cross cut out."""
+    cv.poly([(0, 8), (5.5, 2.5), (16, 2.5), (16, 13.5), (5.5, 13.5)], "white")
+    for i in range(5):
+        cv.rect(8 + i, 6 + i, 9 + i, 6 + i, None)
+        cv.rect(12 - i, 6 + i, 13 - i, 6 + i, None)
+
+
+@ui_icon
 def video(cv):
     cv.poly([(4, 2), (14, 8), (4, 14)], "white")
 
@@ -1323,7 +1332,7 @@ def notap(cv):
 
 UI_ICONS = [home, gauge, up, down, gear, plus, edit, back, feed, heart, comment, chat, search, send, image,
             dots, close, video, grid, rules, clock, lock, share, group, eye, mic, play, pause, updown, cup, grip, bell, muted,
-            notap]
+            notap, backspace]
 
 
 # Scene pieces for the app's card backgrounds. Strips/tiles wrap horizontally.

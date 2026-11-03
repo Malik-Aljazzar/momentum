@@ -1,6 +1,6 @@
 // Chats (android/.../ui/Chat.kt + ShareCard from Community.kt): list, chat room with swipe to
 // reply, read receipts, voice messages, shared rules/profiles/posts/challenges.
-import { useEffect, useRef, useState } from "preact/hooks"
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks"
 import { clock, countdown, dayKey, dayLabel, minuteKey } from "../chattime"
 import { secondsSince } from "../format"
 import { chatLine } from "../lines"
@@ -10,21 +10,22 @@ import {
   type MemberKey,
 } from "../e2e"
 import type { ChatMessage, Conversation, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
-import { nav } from "../nav"
+import { nav, stack, tab } from "../nav"
 import { clearNotifications } from "../push"
 import { foreground, onError, online, refresh, req, showToast, state, uploadMedia } from "../store"
 import { cache } from "../storage"
 import { lang, S, type Strings } from "../strings"
+import { photoSize } from "../chatphoto"
 import {
   Avatar, EmptyFriends, IconBtn, Label, LoadMore, MentionSuggestions, MentionText, OfflineState, OfflineStrip, PixelIcon,
-  PxButton, PxTextField, RemoteImage, Sheet, TopBar, UserRow,
+  PxButton, PxTextField, RemoteImage, Sheet, TopBar, usePress, UserRow,
 } from "../ui/components"
 import { pickFiles, securePhoto, shrinkImage } from "../ui/media"
 import { AudioBubble, MicButton, RecordingIndicator } from "../ui/voice"
 import { ChallengeMini } from "./Community"
 import { ConnectedPeople } from "./Feed"
 import { openViewer } from "./media"
-import { openSharedStory } from "./Stories"
+import { loadStoryRings, openSharedStory, openStoriesOf, StoryAvatar, unseenStories } from "./Stories"
 import { ConversationAvatar, ConversationName, conversationTitle, MilestoneTile, RuleDetailSheet, RuleIconBox } from "./shared"
 
 const POLL_MS = 3000
@@ -70,6 +71,13 @@ function pastedImages(e: ClipboardEvent): File[] {
 export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
   const s = S.value
   const [convs, setConvs] = useState<Conversation[] | null>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  const keepTop = useRef(false)
+  // the top chats whenever the list comes up (its tab, back from a chat: report #66)
+  const onTop = !isTab || (tab.value === "chats" && stack.value.length === 0)
+  useEffect(() => { if (!onTop) return; if (scroller.current) scroller.current.scrollTop = 0; loadStoryRings() }, [onTop])
+  // a chat moving to the top stays in view while the list is at the top
+  useLayoutEffect(() => { if (keepTop.current && scroller.current) scroller.current.scrollTop = 0 }, [convs])
   useEffect(() => {
     let alive = true
     const load = async () => {
@@ -77,6 +85,7 @@ export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
       const r = await req<{ conversations: Conversation[] }>("GET", "/conversations")
       // encrypted last messages: their preview is opened here
       const list = r && await Promise.all(r.conversations.map(async (c) => (c.last ? { ...c, last: await openLast(c.id, c.last) } : c)))
+      keepTop.current = (scroller.current?.scrollTop ?? 0) < 4
       if (list && alive) setConvs(list)
     }
     void load()
@@ -90,7 +99,7 @@ export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
       <IconBtn icon="chat" onClick={() => nav.push({ r: "newGroup" })} label="new group" />
     </TopBar>
     <OfflineStrip />
-    {!convs ? (!online.value && <OfflineState />) : <div class="scroll" style={{ flex: 1, paddingBottom: isTab ? "calc(var(--tabbar) + 24px + var(--safe-bottom))" : undefined }}>
+    {!convs ? (!online.value && <OfflineState />) : <div ref={scroller} class="scroll chat-list" style={{ flex: 1, paddingBottom: isTab ? "calc(var(--tabbar) + 24px + var(--safe-bottom))" : undefined }}>
       {e2eState.value === "locked" && <E2ECard title={s.unlockCard} hint={s.unlockCardHint} onClick={() => nav.push({ r: "e2eUnlock" })} />}
       {e2eState.value === "ready" && recoveryPending.value && <E2ECard title={s.recoveryCard} hint={s.recoveryCardHint} onClick={() => nav.push({ r: "e2eRecovery" })} />}
       {convs.length === 0 && <EmptyFriends title={et} sub={esub} />}
@@ -99,7 +108,7 @@ export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
         const who = last ? (last.mine ? `${s.you}: ` : c.kind === "group" ? `${last.sender}: ` : "") : ""
         const sec = last ? secondsSince(last.at) : null
         return <div key={c.id} class="row list-item" style={{ padding: "10px 16px", gap: 12, cursor: "pointer" }} onClick={() => nav.push({ r: "chat", id: c.id })}>
-          <ConversationAvatar c={c} size={52} />
+          <ChatListAvatar c={c} />
           <div class="col grow">
             <ConversationName c={c} />
             {typingShort(s, c.typing) ? <span class="t-small ellipsis" style={{ color: "var(--lime)" }}>{typingShort(s, c.typing)}</span>
@@ -184,6 +193,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
   }
   useEffect(() => {
     void req<{ conversation: Conversation }>("GET", `/conversations/${id}`).then((r) => setConv(r?.conversation ?? null))
+    loadStoryRings()                                        // the pictures' rings: new stories (report #67)
     void poll()
     // in the background: no polling (it would mark messages as read -> no notification)
     const h = setInterval(() => { if (foreground.value) void poll() }, POLL_MS)
@@ -423,6 +433,37 @@ function ChatAudio({ media }: { media: MediaItem }) {
   return url ? <AudioBubble url={url} duration={media.duration ?? 0} /> : <div style={{ width: 220, height: 52 }} />
 }
 
+/** A chat's picture in the list; a person with new stories gets the ring, a tap on it shows them (report #67). */
+function ChatListAvatar({ c }: { c: Conversation }) {
+  const ring = c.kind !== "group" ? unseenStories(c.members[0]?.username) : null
+  if (!ring) return <ConversationAvatar c={c} size={52} />
+  return <div class="chat-story" onClick={(e) => { e.stopPropagation(); openStoriesOf(ring) }}>
+    <StoryAvatar user={ring.user} size={42} ring="new" />
+  </div>
+}
+
+/** A reaction under a message: a tap is mine (again = taken back), holding shows who reacted. */
+function ReactionChip({ r, onTap, onHold }: { r: Reaction; onTap: () => void; onHold: () => void }) {
+  const press = usePress(onTap, onHold)
+  return <button {...press} style={{ fontSize: 14, padding: "0 3px", color: r.mine ? "var(--yellow)" : "var(--text)", WebkitTouchCallout: "none", userSelect: "none" }}>
+    {r.count > 1 ? `${r.emoji} ${r.count}` : r.emoji}
+  </button>
+}
+
+/** Who reacted with what (report #63): everyone with their emoji, a tap opens the profile. */
+function ReactorsSheet({ messageId, onClose }: { messageId: number; onClose: () => void }) {
+  const s = S.value
+  const [data, setData] = useState<{ reactions: { user: UserCard; emoji: string }[] } | null>(null)
+  useEffect(() => { void req<{ reactions: { user: UserCard; emoji: string }[] }>("GET", `/messages/${messageId}/reactions`).then(setData) }, [messageId])
+  return <Sheet onClose={onClose} label={s.reactions}>
+    <div class="t-title" style={{ fontSize: 20 }}>{s.reactions}</div>
+    {data && <div class="col reactors" style={{ maxHeight: 380, overflowY: "auto" }}>
+      {data.reactions.map((x) => <UserRow key={x.user.username} user={x.user} onClick={() => { onClose(); nav.push({ r: "user", username: x.user.username }) }}
+        trailing={<span style={{ fontSize: 22 }}>{x.emoji}</span>} />)}
+    </div>}
+  </Sheet>
+}
+
 /** Who read one of my messages (report #44). */
 function ReadersSheet({ messageId, onClose }: { messageId: number; onClose: () => void }) {
   const s = S.value
@@ -567,6 +608,7 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
   // reactions: hold for the emoji row, double tap for a heart (like Instagram)
   const [picking, setPicking] = useState(false)
   const [readers, setReaders] = useState(false)
+  const [reactors, setReactors] = useState(false)
   const press = useRef<{ timer: number; x: number; y: number; last: number }>({ timer: 0, x: 0, y: 0, last: 0 })
   const react = async (emoji: string) => {
     const r = await req<{ reactions: Reaction[] }>("PUT", `/messages/${m.id}/reaction`, { emoji })
@@ -614,8 +656,12 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
     </div>
     <div class="row" style={{ justifyContent: m.mine ? "flex-end" : "flex-start", transform: dx ? `translateX(${dx}px)` : undefined, transition: dx ? undefined : "transform .2s", alignItems: "flex-end" }}>
       {/* the picture only next to the last message of a run (the others keep its space) */}
-      {!m.mine && m.user && (last ? <div class="msg-avatar" style={{ marginRight: 8, cursor: "pointer" }} onClick={() => nav.push({ r: "user", username: m.user!.username })}>
-        <Avatar name={m.user.display_name} url={m.user.avatar} size={28} />
+      {/* with new stories: the ring, a tap shows them (report #67) */}
+      {!m.mine && m.user && (last ? <div class="msg-avatar" style={{ marginRight: 8, cursor: "pointer" }} onClick={() => {
+        const ring = unseenStories(m.user!.username)
+        if (ring) openStoriesOf(ring); else nav.push({ r: "user", username: m.user!.username })
+      }}>
+        {unseenStories(m.user.username) ? <StoryAvatar user={m.user} size={20} ring="new" /> : <Avatar name={m.user.display_name} url={m.user.avatar} size={28} />}
       </div> : <div style={{ width: 28, marginRight: 8, flex: "none" }} />)}
       <div class="col" style={{ alignItems: m.mine ? "flex-end" : "flex-start", position: "relative" }}>
       {picking && <>
@@ -634,6 +680,7 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
         </div>
       </>}
       {readers && <ReadersSheet messageId={m.id} onClose={() => setReaders(false)} />}
+      {reactors && <ReactorsSheet messageId={m.id} onClose={() => setReactors(false)} />}
       <div class="col bubble" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => clearTimeout(press.current.timer)}
         onContextMenu={(e) => e.preventDefault()} style={{
         maxWidth: 280, borderRadius: 18, overflow: "hidden", padding: m.media || m.share ? 4 : 0,
@@ -660,24 +707,24 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
         {collage ? <Collage photos={photos} onOpen={view} />
           : m.media && !m.sealed && (m.media.kind === "audio" ? <ChatAudio media={m.media} />
             : <div class="chat-photo" style={{ cursor: "pointer" }} onClick={() => view(0)}>
-              <ChatImage media={m.media} style={{ width: 240, height: 240, borderRadius: 14 }} />
+              <ChatImage media={m.media} style={{ ...photoSize(m.media.width, m.media.height), borderRadius: 14 }} />
             </div>)}
         {m.share && <ShareCard share={m.share} onOpenRule={onOpenRule} />}
         {!collage && m.text?.trim() && <div style={{ padding: "8px 12px 0" }}><MentionText text={m.text} /></div>}
         {/* the time once per run of the same minute (report #49); mine: ✓ sent, eye: read (by everyone in the chat) */}
-        {last || m.mine || photos.length > 0 ? <div class="row msg-meta" style={{ alignSelf: photos.length ? "stretch" : "flex-end", gap: 5, padding: "2px 10px 6px 12px" }}>
+        {/* a single photo: as wide as the photo (the countdown may wrap), so the bubble keeps the photo's shape */}
+        {last || m.mine || photos.length > 0 ? <div class="row msg-meta" style={{ alignSelf: photos.length ? "stretch" : "flex-end", gap: 5, padding: "2px 10px 6px 12px",
+          width: photos.length === 1 && m.media ? photoSize(m.media.width, m.media.height).width + 8 : undefined, boxSizing: "border-box" }}>
           {photos.length > 0 && <PhotoExpiry photos={photos} />}
           {last && <span class="t-small msg-time" style={{ fontSize: 11 }}>{clock(m.at, tz)}</span>}
           {m.mine && (read ? <PixelIcon name="ui_eye" size={14} color="var(--lime)" /> : <span class="t-small" style={{ fontSize: 11 }}>✓</span>)}
         </div> : <div style={{ height: 8 }} />}
       </div>
-      {/* the reactions under the bubble; a tap on my own takes it back */}
+      {/* the reactions under the bubble; a tap on my own takes it back, holding shows who reacted (report #63) */}
       {(m.reactions ?? []).length > 0 && <div class="row reactions" style={{
         padding: "1px 4px", margin: "-6px 8px 0", borderRadius: 12, background: "var(--card)", border: "1px solid var(--line)", gap: 2, zIndex: 1,
       }}>
-        {m.reactions!.map((r) => <button key={r.emoji} onClick={() => react(r.emoji)} style={{ fontSize: 14, padding: "0 3px", color: r.mine ? "var(--yellow)" : "var(--text)" }}>
-          {r.count > 1 ? `${r.emoji} ${r.count}` : r.emoji}
-        </button>)}
+        {m.reactions!.map((r) => <ReactionChip key={r.emoji} r={r} onTap={() => react(r.emoji)} onHold={() => setReactors(true)} />)}
       </div>}
       </div>
     </div>

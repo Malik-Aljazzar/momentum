@@ -14,9 +14,12 @@ import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -29,10 +32,10 @@ private const val MAX_MS = 30_000L
 /**
  * A video re-encoded on the phone before uploading: 720p on the short side, ~2 Mbit/s, at most
  * 30 s (what the server keeps anyway) - a phone video of 50 MB becomes a few MB and uploads fast.
- * Null when it can't be converted (the original is sent then).
+ * Null when it can't be converted (the original is sent then). [onProgress] gets how far it is (0..1).
  */
 @OptIn(UnstableApi::class)
-suspend fun compressVideo(ctx: Context, uri: Uri): File? {
+suspend fun compressVideo(ctx: Context, uri: Uri, onProgress: (Float) -> Unit = {}): File? {
     val (w, h) = withContext(Dispatchers.IO) {
         runCatching {
             val r = MediaMetadataRetriever().apply { setDataSource(ctx, uri) }
@@ -53,7 +56,15 @@ suspend fun compressVideo(ctx: Context, uri: Uri): File? {
     ).setEffects(Effects(emptyList(), listOf(Presentation.createForWidthAndHeight(tw, th, Presentation.LAYOUT_SCALE_TO_FIT))))
         .build()
     return withContext(Dispatchers.Main) {           // the Transformer needs a looper thread
-        suspendCancellableCoroutine { cont ->
+        var running: Transformer? = null
+        val poll = launch {                          // the upload's progress bar
+            val holder = ProgressHolder()
+            while (true) {
+                delay(300)
+                if (running?.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) onProgress(holder.progress / 100f)
+            }
+        }
+        try { suspendCancellableCoroutine { cont ->
             val transformer = Transformer.Builder(ctx)
                 .setVideoMimeType(MimeTypes.VIDEO_H264)
                 .setAudioMimeType(MimeTypes.AUDIO_AAC)
@@ -70,8 +81,9 @@ suspend fun compressVideo(ctx: Context, uri: Uri): File? {
                     }
                 })
                 .build()
+            running = transformer
             transformer.start(item, out.absolutePath)
             cont.invokeOnCancellation { transformer.cancel(); out.delete() }
-        }
+        } } finally { poll.cancel() }
     }
 }

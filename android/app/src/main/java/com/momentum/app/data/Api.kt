@@ -7,12 +7,37 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+
+/** Where an upload is, for its progress bar: a video shrunk on the phone, the bytes sent, the server working on it. */
+sealed interface UploadProgress {
+    data class Compressing(val done: Float) : UploadProgress
+    data class Sending(val done: Float) : UploadProgress
+    data object Processing : UploadProgress
+}
+
+/** Bytes sent in pieces, reporting how much went out. */
+private class ProgressBody(private val bytes: ByteArray, private val type: MediaType, private val onProgress: (Float) -> Unit) : RequestBody() {
+    override fun contentType() = type
+    override fun contentLength() = bytes.size.toLong()
+    override fun writeTo(sink: okio.BufferedSink) {
+        var sent = 0
+        while (sent < bytes.size) {
+            val n = minOf(64 * 1024, bytes.size - sent)
+            sink.write(bytes, sent, n)
+            sink.flush()
+            sent += n
+            onProgress(sent.toFloat() / bytes.size)
+        }
+    }
+}
 
 /** [fromServer]: the text is the server's own explanation (its JSON `error`), not a worded status code. */
 class ApiException(message: String, val status: Int, val fromServer: Boolean = true) : Exception(message)
@@ -65,11 +90,12 @@ class Api(var baseUrl: String, var token: String?, var language: String) {
             }
         }
 
-    /** POST raw bytes (e.g. an image) and return the response text. */
-    suspend fun upload(path: String, bytes: ByteArray, contentType: String): String = withContext(Dispatchers.IO) {
+    /** POST raw bytes (e.g. an image) and return the response text; [onProgress] gets the part sent (0..1). */
+    suspend fun upload(path: String, bytes: ByteArray, contentType: String, onProgress: ((Float) -> Unit)? = null): String = withContext(Dispatchers.IO) {
+        val type = contentType.toMediaType()
         val request = Request.Builder()
             .url(baseUrl.trimEnd('/') + "/api" + path)
-            .post(bytes.toRequestBody(contentType.toMediaType()))
+            .post(if (onProgress != null) ProgressBody(bytes, type, onProgress) else bytes.toRequestBody(type))
             .header("Accept-Language", language)
             .header("X-App-Version", com.momentum.app.BuildConfig.VERSION_CODE.toString())
             .header("X-App-Channel", CHANNEL)

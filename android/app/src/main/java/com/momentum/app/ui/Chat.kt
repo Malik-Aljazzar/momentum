@@ -13,6 +13,8 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.content.consume
 import androidx.compose.foundation.content.hasMediaType
@@ -127,11 +129,18 @@ fun ChatsScreen(vm: AppViewModel, isTab: Boolean = false,
     val S = LocalStrings.current
     val nav = LocalNav.current
     var convs by remember { mutableStateOf<List<Conversation>?>(null) }
+    // the top chats whenever the list comes up (its tab, back from a chat: report #66)
+    val onTop = LocalOnTop.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(onTop) { if (onTop) { listState.scrollToItem(0); StoryRings.load(vm) } }
     LaunchedEffect(E2EStore.status) {
         while (true) {
             // encrypted last messages: their preview is opened here
             if (vm.foreground) vm.req<ConversationsResponse>("GET", "/conversations")?.let { r ->
+                val atTop = !listState.canScrollBackward
                 convs = withContext(Dispatchers.Default) { r.conversations.map { c -> c.last?.let { c.copy(last = E2EStore.openLast(c.id, it)) } ?: c } }
+                // a chat moving to the top stays in view (the list would keep the old first one there)
+                if (atTop) listState.requestScrollToItem(0)
             }
             delay(POLL_MS * 3)
         }
@@ -157,7 +166,10 @@ fun ChatsScreen(vm: AppViewModel, isTab: Boolean = false,
                     Modifier.fillMaxWidth().clickable { nav.push(Route.ChatRoom(c.id)) }.padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ConversationAvatar(c, 52.dp)
+                    // a person with new stories: the ring, a tap on it shows them (report #67)
+                    val ring = if (c.isGroup) null else StoryRings.unseen(c.members.firstOrNull()?.username)
+                    if (ring != null) StoryAvatar(ring.user, 42.dp, true, onClick = { StoryRings.open(vm, ring, scope) })
+                    else ConversationAvatar(c, 52.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         ConversationName(c)
@@ -267,6 +279,7 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     }
     LaunchedEffect(id) {
         conv = vm.req<ConversationResponse>("GET", "/conversations/$id")?.conversation
+        StoryRings.load(vm)                       // the pictures' rings: new stories (report #67)
         while (true) {
             // in the background: no polling (it would mark messages as read -> no notification)
             if (vm.foreground) {
@@ -526,6 +539,7 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     openRule?.let { RuleDetailSheet(vm, it, onDismiss = { openRule = null }) }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> = emptyList(), tz: String, last: Boolean = true, showSender: Boolean, read: Boolean, onOpenRule: (Int) -> Unit,
                    highlighted: Boolean = false, onReply: () -> Unit = {}, onQuote: (Int) -> Unit = {},
@@ -544,6 +558,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
     // reactions: hold for the emoji row, double tap for a heart (like Instagram)
     var picking by remember { mutableStateOf(false) }
     var readers by remember { mutableStateOf(false) }
+    var reactors by remember { mutableStateOf(false) }
     fun react(emoji: String) = scope.launch {
         vm.req<com.momentum.app.data.ReactionsResponse>("PUT", "/messages/${m.id}/reaction", buildJsonObject { put("emoji", emoji) })
             ?.let { onReactions(it.reactions) }
@@ -571,10 +586,14 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
     }
     Row(Modifier.fillMaxWidth().offset { androidx.compose.ui.unit.IntOffset(swipe.value.toInt(), 0) },
         horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.Start) {
-        // the picture only next to the last message of a run (the others keep its space)
+        // the picture only next to the last message of a run (the others keep its space); with new stories the
+        // ring, a tap shows them (report #67)
         if (!m.mine && m.user != null) {
-            if (last) Box(Modifier.align(Alignment.Bottom).clickable { nav.push(Route.UserProfile(m.user.username)) }) {
-                Avatar(m.user.displayName, m.user.avatar, 28.dp)
+            val ring = StoryRings.unseen(m.user.username)
+            if (last) Box(Modifier.align(Alignment.Bottom).clickable {
+                if (ring != null) StoryRings.open(vm, ring, scope) else nav.push(Route.UserProfile(m.user.username))
+            }) {
+                if (ring != null) StoryAvatar(ring.user, 20.dp, true) else Avatar(m.user.displayName, m.user.avatar, 28.dp)
             } else Spacer(Modifier.width(28.dp))
             Spacer(Modifier.width(8.dp))
         }
@@ -598,6 +617,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
             }
         }
         if (readers) ReadersSheet(vm, m.id) { readers = false }
+        if (reactors) ReactorsSheet(vm, m.id) { reactors = false }
         Column(
             Modifier.widthIn(max = 280.dp)
                 .pointerInput(m.id, m.reactions) {
@@ -651,7 +671,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
             if (photos.size > 1) Collage(vm, photos, Modifier.onGloballyPositioned { collageRect = it.boundsInParent() })
             else m.media?.takeIf { !m.sealed }?.let {
                 if (it.kind == "audio") ChatAudio(vm, it)
-                else ChatImage(vm, it, Modifier.size(240.dp).clip(RoundedCornerShape(14.dp)))
+                else photoSize(it.width, it.height).let { (w, h) -> ChatImage(vm, it, Modifier.size(w.dp, h.dp).clip(RoundedCornerShape(14.dp))) }
             }
             m.share?.let { ShareCard(vm, it, onOpenRule) }
             // a collage's captions are in the big view; a single photo shows it right under it
@@ -662,8 +682,10 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
             }
             // a photo: when only its small copy is left (report #48); the time once per run of the same minute
             // (report #49); mine: ✓ sent, eye: read (by everyone in the chat)
+            // a single photo: as wide as the photo (the countdown may wrap), so the bubble keeps the photo's shape
             if (last || m.mine || photos.isNotEmpty()) Row(
-                (if (photos.isNotEmpty()) Modifier.width(248.dp) else Modifier.align(Alignment.End))
+                (if (photos.size == 1 && m.media != null) Modifier.width((photoSize(m.media.width, m.media.height).first + 8).dp)
+                else if (photos.isNotEmpty()) Modifier.width(248.dp) else Modifier.align(Alignment.End))
                     .padding(start = 12.dp, end = 10.dp, bottom = 6.dp, top = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -675,7 +697,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
                 }
             } else Spacer(Modifier.height(8.dp))
         }
-        // the reactions under the bubble; a tap on my own takes it back
+        // the reactions under the bubble; a tap on my own takes it back, holding shows who reacted (report #63)
         if (m.reactions.isNotEmpty()) Row(
             Modifier.offset(y = (-6).dp).padding(horizontal = 8.dp).clip(RoundedCornerShape(12.dp)).background(Px.Card)
                 .border(1.dp, Px.Line, RoundedCornerShape(12.dp)).padding(horizontal = 4.dp, vertical = 1.dp),
@@ -684,7 +706,11 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
             m.reactions.forEach { r ->
                 Text(if (r.count > 1) "${r.emoji} ${r.count}" else r.emoji, fontSize = 14.sp,
                     color = if (r.mine) Px.Yellow else Px.Text,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { react(r.emoji) }.padding(horizontal = 3.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .combinedClickable(onLongClick = {
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); reactors = true
+                        }) { react(r.emoji) }
+                        .padding(horizontal = 3.dp).testTag("reaction"))
             }
         }
         }
@@ -752,6 +778,13 @@ private fun ChatAudio(vm: AppViewModel, media: MediaItem) {
     if (url != null) AudioBubble(url, media.duration) else Spacer(Modifier.width(220.dp).height(52.dp))
 }
 
+/** A single chat photo in its own shape (report #68: it was cut to a square): 240 dp on its long side,
+ *  very long / wide ones a little cut (= Chat.tsx photoSize). Width and height in dp. */
+internal fun photoSize(width: Int, height: Int): Pair<Int, Int> {
+    val ratio = if (width > 0 && height > 0) (width.toFloat() / height).coerceIn(.5f, 2f) else 1f
+    return if (ratio >= 1f) 240 to Math.round(240 / ratio) else Math.round(240 * ratio) to 240
+}
+
 /** Who read one of my messages (report #44). */
 @Composable
 private fun ReadersSheet(vm: AppViewModel, messageId: Int, onDismiss: () -> Unit) {
@@ -766,6 +799,26 @@ private fun ReadersSheet(vm: AppViewModel, messageId: Int, onDismiss: () -> Unit
             items(d.readers, key = { it.username }) { u -> UserRow(u, onClick = { onDismiss(); nav.push(Route.UserProfile(u.username)) }) }
         }
         if (d.unread > 0) Text(S.notReadYet(d.unread), style = T.small)
+    }
+}
+
+/** Who reacted with what (report #63): everyone with their emoji, a tap opens the profile. */
+@Composable
+private fun ReactorsSheet(vm: AppViewModel, messageId: Int, onDismiss: () -> Unit) {
+    val S = LocalStrings.current
+    val nav = LocalNav.current
+    var data by remember { mutableStateOf<com.momentum.app.data.ReactorsResponse?>(null) }
+    LaunchedEffect(messageId) { data = vm.req<com.momentum.app.data.ReactorsResponse>("GET", "/messages/$messageId/reactions") }
+    PxSheet(onDismiss) {
+        Text(S.reactions, style = T.title.copy(fontSize = 20.sp))
+        val d = data ?: return@PxSheet
+        LazyColumn(Modifier.heightIn(max = 380.dp)) {
+            items(d.reactions, key = { it.user.username }) { r ->
+                UserRow(r.user, onClick = { onDismiss(); nav.push(Route.UserProfile(r.user.username)) }) {
+                    Text(r.emoji, fontSize = 22.sp)
+                }
+            }
+        }
     }
 }
 

@@ -28,6 +28,13 @@ export const storyViewer = signal<{ rows: StoryRow[]; row: number; highlight?: H
 
 const IMAGE_MS = 5000
 
+/** Who has stories (the feed's row): rings on profile pictures elsewhere, in the chats (report #67). */
+export const storyRings = signal<StoryRow[]>([])
+export function loadStoryRings() { void req<{ rows: StoryRow[] }>("GET", "/stories").then((r) => { if (r) storyRings.value = r.rows }) }
+/** The stories of [username] while some are new to me (never mine), else null. */
+export const unseenStories = (username?: string) => storyRings.value.find((r) => r.user.username === username && !r.user.is_me && r.unseen) ?? null
+export function openStoriesOf(row: StoryRow) { storyViewer.value = { rows: [row], row: 0, onChange: loadStoryRings } }
+
 /** Rendered once at the app's root. */
 export function StoryHost() {
   const v = storyViewer.value
@@ -58,7 +65,7 @@ export function StoriesRow() {
   const s = S.value
   const me = state.value?.user
   const [rows, setRows] = useState<StoryRow[]>([])
-  const load = () => { void req<{ rows: StoryRow[] }>("GET", "/stories").then((r) => r && setRows(r.rows)) }
+  const load = () => { void req<{ rows: StoryRow[] }>("GET", "/stories").then((r) => { if (r) { setRows(r.rows); storyRings.value = r.rows } }) }
   useEffect(load, [storiesVersion.value, feedVersion.value])
   if (!me) return null
   const mine = rows.find((r) => r.user.is_me)

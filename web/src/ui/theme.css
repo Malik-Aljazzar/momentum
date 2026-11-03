@@ -51,7 +51,10 @@ img { display: block; }
 .t-block { font-family: Silkscreen, "Pixel Emoji"; font-weight: 700; color: var(--text); }
 .t-title { font-family: Silkscreen, "Pixel Emoji"; font-weight: 700; font-size: 28px; line-height: 30px; color: var(--text); }
 .t-button { font-family: Silkscreen, "Pixel Emoji"; font-size: 13px; letter-spacing: 0.4px; text-transform: uppercase; }
-.user-text.system { font-family: system-ui, -apple-system, sans-serif, "Pixel Emoji"; letter-spacing: 0; }
+/* the "system font" setting: the phone's font with its own emojis (report #61), also in the emoji picker */
+.user-text.system, .emoji-picker.system .emoji-cell, .emoji-picker.system .emoji-tabs button {
+  font-family: system-ui, -apple-system, sans-serif, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji"; letter-spacing: 0;
+}
 .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* layout helpers */
@@ -91,6 +94,8 @@ img { display: block; }
 .emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; min-height: 240px; max-height: 45vh; overflow-y: auto; align-content: flex-start; }
 .emoji-cell { width: 44px; height: 44px; font-size: 26px; line-height: 44px; text-align: center; border-radius: 10px; }
 .emoji-cell:active { background: var(--faint); }
+.emoji-preview { gap: 4px; padding-left: 14px; border-radius: 14px; background: var(--faint); align-items: center; }
+.emoji-preview > span { white-space: nowrap; overflow: hidden; }
 textarea.field { resize: none; line-height: 21px; }
 
 /* segmented progress bar */
@@ -190,3 +195,7 @@ textarea.field { resize: none; line-height: 21px; }
 
 /* a tappable badge in the profile's name row (King of Reporters): the label, nothing else */
 .badge-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; }
+
+/* an upload's progress bar while the server works on it (Compose.tsx UploadBar) */
+.upload-busy { animation: upload-busy .9s steps(10) infinite alternate; }
+@keyframes upload-busy { from { left: 0 } to { left: 70% } }

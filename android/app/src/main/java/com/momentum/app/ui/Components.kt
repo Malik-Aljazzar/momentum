@@ -245,7 +245,7 @@ fun PxTextField(
         Box(Modifier.weight(1f)) {
             PxTextFieldInner(tfv, { tfv = it; if (it.text != value) onValueChange(it.text) }, modifier, value, placeholder, password, keyboardType, imeAction, onDone, textStyle, focused) { focused = it }
         }
-        EmojiButton { e -> tfv = Emoji.insert(tfv, e); onValueChange(tfv.text) }
+        EmojiButton(tfv) { tfv = it; onValueChange(it.text) }
     }
 }
 

@@ -6,6 +6,28 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-03 b
+
+### DE
+- Lange auf eine Reaktion unter einer Nachricht drücken zeigt, wer wie reagiert hat.
+- Der Emoji-Picker bleibt beim Schreiben offen – mit Vorschau deines Texts und einer Löschtaste.
+- Pixel-Emojis haben keinen dunklen Kasten mehr (zum Beispiel in deinen eigenen Nachrichten und auf Stories).
+- Mit „Systemschrift für Texte“ siehst du auch wieder die normalen Emojis deines Handys.
+- Neue Stories zeigen einen Ring am Profilbild in der Chatliste und im Chat – antippen spielt sie ab.
+- Die Chatliste zeigt beim Öffnen immer die obersten Chats.
+- Einzelne Fotos im Chat werden nicht mehr quadratisch abgeschnitten.
+- Beim Posten läuft ein Video sofort als Vorschau, und ein Ladebalken zeigt, wie weit der Upload ist.
+
+### EN
+- Hold a reaction under a message to see who reacted with what.
+- The emoji picker stays open while you write – with a preview of your text and a delete key.
+- Pixel emojis no longer have a dark box behind them (for example in your own messages and on stories).
+- With "System font for texts" you see your phone's regular emojis again.
+- New stories show a ring around the profile picture in the chat list and in the chat – tap to play them.
+- The chat list always shows the top chats when it opens.
+- Single photos in chats are no longer cropped to a square.
+- When posting, a video plays as a preview right away, and a progress bar shows how far the upload is.
+
 ## 2026-11-03
 
 ### DE

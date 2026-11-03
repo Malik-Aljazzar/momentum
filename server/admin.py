@@ -7,6 +7,7 @@
     python -m server.admin reports [new|todo|done|all]  # bug reports / feature requests (default: todo)
     python -m server.admin report-done <id>      # mark a report as done
     python -m server.admin report-status <id> new|todo|done
+    python -m server.admin report-note <id> <text>   # the owner's (reworded) task for a report
     python -m server.admin issues              # send changed reports to their GitHub issues now (server/github.py)
     python -m server.admin grant <username>      # may use the admin app; prints the authenticator key (2FA)
     python -m server.admin revoke <username>     # no admin any more, its admin sessions end
@@ -89,6 +90,13 @@ async def main(argv):
                 raise SystemExit("unknown report")
             r.status, r.status_at = argv[2], utcnow()
             print(f"#{r.id} {r.status}")
+        elif argv[:1] == ["report-note"] and len(argv) == 3:
+            from .db import Report
+            r = await s.get(Report, int(argv[1]))
+            if r is None:
+                raise SystemExit("unknown report")
+            r.note = argv[2].strip()[:4000]
+            print(f"#{r.id} note: {r.note}")
         elif argv[:1] in (["grant"], ["revoke"], ["totp-reset"]) and len(argv) == 2:
             from sqlalchemy import delete
             from .db import AuthToken

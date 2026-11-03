@@ -142,7 +142,9 @@ docs/SPEC.md   the original (German) product spec
   `out/emoji/emoji.json` (picker data) and `sheet.png` (server: `server/emoji.py` burns emojis into overlays). Android:
   `Fonts` (Theme.kt) chains the app fonts with the emoji font (API 29+; `MomentumApplication`), EmojiCompat's auto-start
   is removed in the manifest. PWA: `"Pixel Emoji"` is the last family of every font stack in theme.css - keep it there in
-  new `font-family` declarations. A rule icon may be one emoji (`emoji.is_emoji`, clients: `isEmojiIcon` → PixelIcon draws
+  new `font-family` declarations. Exception: the "system font" setting shows the phone's own emojis (`.user-text.system`,
+  `Fonts.system`, also in the picker). `generate.py` empties `pixelart/out/` - rerun `emoji.py` (or `git checkout
+  pixelart/out/emoji`) after it; after changing the pixelizing delete `pixelart/cache/sprites.pickle`. A rule icon may be one emoji (`emoji.is_emoji`, clients: `isEmojiIcon` → PixelIcon draws
   text). Picker: `ui/Emoji.kt` = `web/src/ui/emoji.tsx`, `emoji = true` / `emoji` on PxTextField. Rerun the generator
   after an emoji version bump (downloads into `pixelart/cache/`, not deployed).
 - Errors explain themselves: unexpected exceptions answer JSON 500 with `error` + `detail` (type and message,

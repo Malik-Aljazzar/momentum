@@ -148,8 +148,8 @@ test("composer: camera and gallery side by side over the whole width, then a nar
   await tiles.nth(1).click()
   await (await chooser).setFiles({ name: "p.png", mimeType: "image/png", buffer: PNG })
   await expect(page.locator(".slide-tile")).toHaveCount(1)
-  const small = (await page.locator(".add-tile").first().boundingBox())!
-  expect(small.width).toBeLessThan(90)                                     // a narrow column next to the picture
+  // a narrow column next to the picture (measured once the layout has settled: under load it lagged a frame)
+  await expect.poll(async () => (await page.locator(".add-tile").first().boundingBox())!.width).toBeLessThan(90)
   await page.screenshot({ path: test.info().outputPath("composer-picked.png") })
 })
 

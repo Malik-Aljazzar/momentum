@@ -60,6 +60,8 @@ import kotlinx.serialization.json.put
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
+import androidx.compose.animation.core.animateFloat
 
 /*
  * Making a post or a story (web/src/screens/Compose.tsx): a compact form - pictures in a strip (tap
@@ -104,7 +106,7 @@ fun Composer(vm: AppViewModel, story: Boolean) {
     fun add(uris: List<Uri>) = uris.take(max - drafts.size).forEach { uri ->
         val d = Draft(uri, context.contentResolver.getType(uri)?.startsWith("video") == true || uri.toString().endsWith(".mp4"))
         drafts += d
-        scope.launch { d.media = vm.uploadMedia(uri); d.failed = d.media == null }
+        scope.launch { d.media = vm.uploadMedia(uri) { d.progress = it }; d.failed = d.media == null; d.progress = null }
     }
     val many = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { add(it) }
     val one = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let { u -> add(listOf(u)) } }
@@ -212,7 +214,7 @@ fun Composer(vm: AppViewModel, story: Boolean) {
                         decorationBox = { inner -> if (text.isEmpty()) Text(S.captionHint, style = T.body.copy(fontSize = 17.sp, color = Px.Muted)); inner() },
                     )
                     Box(Modifier.align(Alignment.BottomEnd).padding(2.dp)) {
-                        EmojiButton { e -> captionValue = Emoji.insert(captionValue, e); text = captionValue.text }
+                        EmojiButton(captionValue) { captionValue = it; text = it.text }
                     }
                 }
                 MentionSuggestions(vm, text) { text = it }
@@ -313,16 +315,45 @@ private fun SlideTile(vm: AppViewModel, d: Draft, story: Boolean, onOpen: () -> 
     Box(Modifier.size(96.dp, if (story) 170.dp else 120.dp).clip(RoundedCornerShape(14.dp)).background(Px.Faint)
         .border(1.dp, Px.Line, RoundedCornerShape(14.dp)).clickable(onClick = onOpen)) {
         val thumb = d.media?.let { vm.abs(it.thumb) } ?: if (!d.video) d.uri.toString() else null
-        if (thumb != null) AsyncImage(thumb, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        // a video plays (muted) right away, from the phone (report #65)
+        if (d.video) VideoPlayer(d.uri.toString(), thumb, playing = true, preview = true)
+        else if (thumb != null) AsyncImage(thumb, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         d.overlay?.let { OverlayText(it) }
         if (d.video) PixelIcon("ui_video", 14.dp, Modifier.align(Alignment.BottomStart).padding(6.dp))
         if (d.media == null) Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
-            Text(if (d.failed) "!" else S.uploading, style = T.small.copy(color = Px.Text))
+            if (d.failed) Text("!", style = T.small.copy(color = Px.Text)) else UploadBar(d.progress)
         }
         Box(Modifier.align(Alignment.TopStart)) { IconBtn("ui_close", alpha = .85f) { onRemove() } }
         if (n > 0) Text("⚡$n", style = T.block.copy(fontSize = 10.sp, color = Px.Yellow),
             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x990A0C14))
                 .padding(horizontal = 5.dp, vertical = 2.dp))
+    }
+}
+
+/** An upload's progress bar: a video shrunk on the phone, then sent (with %), then the server's turn. */
+@Composable
+internal fun UploadBar(p: com.momentum.app.data.UploadProgress?, modifier: Modifier = Modifier) {
+    val S = LocalStrings.current
+    val (label, done) = when (p) {
+        is com.momentum.app.data.UploadProgress.Compressing -> S.compressing to p.done
+        is com.momentum.app.data.UploadProgress.Sending -> S.uploading to p.done
+        com.momentum.app.data.UploadProgress.Processing -> S.processing to null
+        null -> S.uploading to 0f
+    }
+    Column(modifier.padding(horizontal = 8.dp).testTag("upload-bar"), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = T.small.copy(fontSize = 11.sp, color = Px.Text), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        // square pixel bar: the part done, or a block moving back and forth while the server works
+        Box(Modifier.fillMaxWidth().height(6.dp).background(Px.Faint)) {
+            if (done != null) Box(Modifier.fillMaxWidth(done.coerceIn(0f, 1f)).height(6.dp).background(Px.Cyan))
+            else {
+                val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "processing")
+                val x by t.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "x")
+                Box(Modifier.fillMaxWidth(.3f).height(6.dp).align(androidx.compose.ui.BiasAlignment(x * 2 - 1, 0f)).background(Px.Cyan))
+            }
+        }
+        if (done != null) Text("${(done * 100).toInt()} %", style = T.small.copy(fontSize = 10.sp, color = Px.Muted))
     }
 }
 
