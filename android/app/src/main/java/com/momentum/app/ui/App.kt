@@ -339,7 +339,7 @@ private fun MilestoneOverlay(vm: AppViewModel, onClose: () -> Unit) {
 
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize()) {
-            SceneBackground(sceneFor(v.category), Modifier.matchParentSize(), groundDp = 0f)
+            SceneBackground(sceneFor(v.category), Modifier.matchParentSize(), groundDp = 0f, speed = vehicleSpeed(v.key))
             Column(
                 Modifier.align(Alignment.Center).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -347,7 +347,7 @@ private fun MilestoneOverlay(vm: AppViewModel, onClose: () -> Unit) {
                 Label(S.milestoneReached)
                 Text(S.levelUp, style = T.block.copy(fontSize = 52.sp, lineHeight = 54.sp), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(28.dp))
-                VehicleSprite(v.key, 5f)
+                VehicleSprite(v.key, 5f, night = v.category != "air")
                 Spacer(Modifier.height(28.dp))
                 Text("${S.nowDriving} ${S.vehicle(v.key, v.label)}", style = T.bodyStrong.copy(fontSize = 18.sp))
                 Spacer(Modifier.height(20.dp))
@@ -403,7 +403,7 @@ private fun HyperspaceOverlay(vm: AppViewModel, onClose: () -> Unit) {
             }
             Box(Modifier.align(Alignment.Center).offset(x = shake.dp)) {
                 // the last vehicle (the one that reaches hyperspace)
-                VehicleSprite(vm.meta?.vehicles?.lastOrNull()?.key ?: "kreuzer", scale.coerceAtLeast(1f))
+                VehicleSprite(vm.meta?.vehicles?.lastOrNull()?.key ?: "kreuzer", scale.coerceAtLeast(1f), night = true)
             }
             val flash = when {
                 sec in 1.6f..2.6f -> 1f - (sec - 1.6f)
@@ -449,8 +449,8 @@ private fun UpdateScreen(vm: AppViewModel) {
             .background(Px.Bg)
             .clickable(remember { MutableInteractionSource() }, indication = null) {},
     ) {
-        BannerBackground("dusk", Modifier.matchParentSize(), groundDp = 160f)
-        VehicleSprite("motorroller", 4f, Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp))
+        BannerBackground("dusk", Modifier.matchParentSize(), groundDp = 160f, speed = vehicleSpeed("motorroller"))
+        VehicleSprite("motorroller", 4f, Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp), night = true)
         Column(
             Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(start = 28.dp, end = 28.dp, top = 72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

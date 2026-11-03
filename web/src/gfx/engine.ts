@@ -42,11 +42,22 @@ export function tileX(c: Ctx, img: HTMLImageElement, s: number, y: number, phase
   for (let x = -Math.floor(phase * w); x < c.w; x += w) blit(c, img, x, y, s, alpha)
 }
 
+/** Like tileX, but every art row is shifted sideways by [offset](row) device pixels (heat shimmer, water). */
+export function tileXWavy(c: Ctx, img: HTMLImageElement, s: number, y: number, phase: number, offset: (row: number) => number) {
+  if (!ready(img)) return
+  const w = img.naturalWidth * s, iw = img.naturalWidth, ih = img.naturalHeight
+  const x0 = -Math.floor(phase * w)
+  for (let r = 0; r < ih; r++) {
+    const o = Math.round(offset(r))
+    for (let x = x0 - w; x < c.w + w; x += w) c.g.drawImage(img, 0, r, iw, 1, Math.floor(x) + o, Math.floor(y) + r * s, w, s)
+  }
+}
+
 /** Repeat an image over the whole area, shifted vertically by phase (0..1) of one tile. */
 export function tileAll(c: Ctx, img: HTMLImageElement, s: number, phase: number, alpha: number) {
   if (!ready(img)) return
   const w = img.naturalWidth * s, h = img.naturalHeight * s
-  for (let y = -h + phase * h; y < c.h; y += h) for (let x = 0; x < c.w; x += w) blit(c, img, x, y, s, alpha)
+  for (let y = -h + phase * h; y < c.h; y += h) for (let x = -w; x < c.w + w; x += w) blit(c, img, x, y, s, alpha)
 }
 
 export function rect(c: Ctx, color: string, x: number, y: number, w: number, h: number) {
@@ -54,8 +65,37 @@ export function rect(c: Ctx, color: string, x: number, y: number, w: number, h: 
   c.g.fillRect(x, y, w, h)
 }
 
+/** A soft round glow, drawn only within its own box (cheap enough for many per frame). */
+export function glowAt(c: Ctx, x: number, y: number, r: number, color: string, ry = r) {
+  if (r <= 0 || ry <= 0) return
+  const g = c.g
+  g.save()
+  g.translate(x, y)
+  g.scale(1, ry / r)
+  const grad = g.createRadialGradient(0, 0, 0, 0, 0, r)
+  grad.addColorStop(0, color); grad.addColorStop(1, "rgba(0,0,0,0)")
+  g.fillStyle = grad
+  g.fillRect(-r, -r, 2 * r, 2 * r)
+  g.restore()
+}
+
+/** "#RRGGBB" with an alpha -> "rgba(...)". */
+export function rgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, a))})`
+}
+
+/** Relative luminance (0..1) of "#RRGGBB". */
+export function luminance(hex: string) {
+  const n = parseInt(hex.slice(1), 16)
+  return (.2126 * ((n >> 16) & 255) + .7152 * ((n >> 8) & 255) + .0722 * (n & 255)) / 255
+}
+
 /** 0..1 progress of a loop with the given period. */
 export const phase = (seconds: number, periodMs: number) => ((seconds * 1000) / periodMs) % 1
+
+/** Evenly spread offsets in 0..1 for particle i (golden ratio: no two alike, no pattern). */
+export const spread = (i: number) => (i * .618034) % 1
 
 export type Bands = [number, string][]
 
@@ -81,6 +121,21 @@ export function dither(c: Ctx) {
     ditherCache = { dp: c.dp, pattern: c.g.createPattern(tile, "repeat") }
   }
   if (ditherCache.pattern) { c.g.fillStyle = ditherCache.pattern; c.g.fillRect(0, 0, c.w, c.h) }
+}
+
+let scratch: HTMLCanvasElement | null = null
+
+/** A shared scratch canvas of at least the given size, cleared (masks, glints). */
+export function offscreen(w: number, h: number): CanvasRenderingContext2D {
+  if (!scratch) scratch = document.createElement("canvas")
+  if (scratch.width < w || scratch.height < h) { scratch.width = Math.max(scratch.width, w); scratch.height = Math.max(scratch.height, h) }
+  const g = scratch.getContext("2d")!
+  g.setTransform(1, 0, 0, 1, 0, 0)
+  g.globalCompositeOperation = "source-over"
+  g.globalAlpha = 1
+  g.clearRect(0, 0, scratch.width, scratch.height)
+  g.imageSmoothingEnabled = false
+  return g
 }
 
 /** Seeded random numbers (same layout every time for the same key). */

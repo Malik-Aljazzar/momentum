@@ -11,6 +11,7 @@ import {
   usePress, VehicleSprite,
 } from "../ui/components"
 import { sceneFor } from "../gfx/scenes"
+import { vehicleSpeed } from "../gfx/vehicles"
 import { RuleSentence } from "./Editors"
 
 export function RuleIconBox({ icon, size = 44 }: { icon: string; size?: number }) {
@@ -269,9 +270,9 @@ export function MilestoneTile({ vehicle, dpPerPixel = 3 }: { vehicle: string; dp
   const land = scene === "land"
   // "banner-card": iOS Safari drew the animated scene over the vehicle and the star (report #52, like #47)
   return <div class="fill banner-card" style={{ borderRadius: 4, overflow: "hidden" }}>
-    <SceneBg scene={scene} groundDp={land ? 24 * dpPerPixel : 0} />
+    <SceneBg scene={scene} groundDp={land ? 24 * dpPerPixel : 0} speed={vehicleSpeed(v.key)} />
     <div class="fill" style={{ display: "flex", justifyContent: "center", alignItems: land ? "flex-end" : "center", paddingBottom: land ? 22 * dpPerPixel : 0 }}>
-      <VehicleSprite vkey={v.key} dpPerPixel={dpPerPixel} />
+      <VehicleSprite vkey={v.key} dpPerPixel={dpPerPixel} night={scene !== "air"} />
     </div>
     <div style={{ position: "absolute", top: 4 * dpPerPixel, left: 4 * dpPerPixel }}><PixelIcon name="star" size={8 * dpPerPixel} /></div>
   </div>

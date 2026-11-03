@@ -135,6 +135,13 @@ docs/SPEC.md   the original (German) product spec
 - Android: avoid full-screen Compose `Dialog`s with controls at the bottom - on Android 15+ their window
   starts below the status bar but lays out full height, so the bottom gets cut off (reports #31/#34/#35).
   Use an overlay layer in the screen instead.
+- Vehicle sheets have 8 frames of 64x32 (`generate.py FRAMES`, 80 ms each: `web/src/gfx/vehicles.ts` = `ui/VehicleFx.kt`
+  FRAMES / FRAME_MS; widgets use frame 0). Effects around the sprite (dust, exhaust, headlights at night, contrails,
+  afterburner, engine trails, glint) live in those two files (`VEHICLE_FX`, art-pixel coordinates); `vehicleSpeed`
+  scrolls the banner / scene (`drawBanner(..., speed)` = `BannerBackground(speed)`), `bannerNight` switches the
+  lights on. Banner extras (rays, fog, heat, water, bolt, lava, aurora, disc, galaxy, traffic) are the `EXTRAS`
+  table in both; a new banner gets its line there too. The PWA draws the vehicle on its own canvas (`VehicleSprite`,
+  `PAD` around it), Android draws past the sprite's bounds (the card clips).
 - Pixel look everywhere: no rounded Material checkboxes/arrows – draw controls on a pixel grid
   (Android: `ui/PixelControls.kt`).
 - Emojis are always pixel art: `pixelart/emoji.py` turns Twemoji into 18×18 sprites and builds two fonts

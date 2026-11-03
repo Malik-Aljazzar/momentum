@@ -25,13 +25,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.PI
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlin.random.Random
 
 /**
  * Banners: backgrounds for the own vehicle (profile + start screen), groups and challenges.
  * Layers come from pixelart/banners.py (far + near strips, sky object); the sky bands below
- * are generated from its SKY table. Drawn: bands -> sky object -> far -> near -> particles -> road.
+ * are generated from its SKY table. Drawn: bands -> sky object -> sky effects (rays, aurora, shooting
+ * stars) -> far -> near -> weather / particles -> road. The landscape scrolls with the vehicle's speed
+ * (VehicleFx.kt vehicleSpeed). Same as web/src/gfx/banners.ts.
  */
 enum class Fx { None, Stars, Snow, Rain, Petals, Embers, Leaves, Fireflies, Bubbles, Storm, Birds, Clouds,
     Sparkles, Hearts, Butterflies, Warp }
@@ -175,15 +187,87 @@ fun defaultBanner(scene: Scene) = when (scene) {
 
 private class Particle(val x: Float, val y: Float, val speed: Float, val seed: Float)
 
+/** Extra scene effects on top of the particles (what makes each banner its own place; gfx/banners.ts EXTRAS). */
+class Extras(
+    /** sun rays turning around this point (fractions of the card) */
+    val rays: Pair<Float, Float>? = null,
+    /** drifting fog near the ground */
+    val fog: Boolean = false,
+    /** heat shimmer over the far landscape */
+    val heat: Boolean = false,
+    /** glittering water: rows of the far strip */
+    val water: Pair<Int, Int>? = null,
+    /** lightning bolts with the flashes */
+    val bolt: Boolean = false,
+    /** glowing lava: "crater" (the volcano's) or "horizon" */
+    val lava: String? = null,
+    /** curtains of light in the sky */
+    val aurora: Boolean = false,
+    /** accretion disc orbiting the sky object */
+    val disc: Boolean = false,
+    /** stars slowly turning around the sky object */
+    val galaxy: Boolean = false,
+    /** tiny cars passing along the street */
+    val traffic: Boolean = false,
+)
+
+val EXTRAS: Map<String, Extras> = mapOf(
+    "desert" to Extras(rays = .62f to .18f, heat = true), "canyon" to Extras(rays = .9f to -.05f, heat = true), "sunrise" to Extras(rays = .4f to .7f),
+    "twinsuns" to Extras(rays = .62f to .18f, heat = true), "beach" to Extras(rays = .66f to .4f, water = 18 to 39), "strawberry" to Extras(rays = .74f to .16f),
+    "skyisland" to Extras(rays = .62f to .18f), "fields" to Extras(rays = .85f to -.05f), "grassroute" to Extras(rays = .85f to -.05f),
+    "tournament" to Extras(rays = .8f to -.05f),
+    "harbor" to Extras(water = 22 to 39, fog = true), "pirates" to Extras(water = 26 to 39), "comet" to Extras(water = 32 to 39),
+    "forest" to Extras(fog = true), "spiritforest" to Extras(fog = true), "bathhouse" to Extras(fog = true), "jungle" to Extras(fog = true),
+    "glacier" to Extras(fog = true),
+    "volcano" to Extras(lava = "crater", heat = true), "lavaplanet" to Extras(lava = "horizon", heat = true), "redplanet" to Extras(heat = true),
+    "storm" to Extras(bolt = true), "redclouds" to Extras(bolt = true),
+    "aurora" to Extras(aurora = true), "iceplanet" to Extras(aurora = true),
+    "blackhole" to Extras(disc = true), "galaxy" to Extras(galaxy = true),
+    "city" to Extras(traffic = true), "neotokyo" to Extras(traffic = true),
+)
+private val NO_EXTRAS = Extras()
+
+/** Dark banners: vehicles switch their lights on. */
+fun bannerNight(key: String?) = luminance((DEFS[key] ?: DEFS.getValue("dusk")).bands[0].second) < .2f
+
+private val BIRD = Color(0xCC2E2F63)
+
+/** A pixel bird (two wing strokes), flapping. */
+private fun DrawScope.bird(x: Float, y: Float, flap: Float, dp: Float) {
+    drawRect(BIRD, Offset(x - 4 * dp, y - flap), Size(4 * dp, 2 * dp))
+    drawRect(BIRD, Offset(x, y - flap), Size(4 * dp, 2 * dp))
+    drawRect(BIRD, Offset(x - dp, y + dp), Size(2 * dp, 2 * dp))
+}
+
+/** A lightning bolt from (x, 0) down to [bottom]: jagged white core with a blue glow. */
+private fun DrawScope.bolt(seed: Int, x: Float, bottom: Float, alpha: Float, dp: Float) {
+    val r = Random(seed)
+    val n = 7
+    val pts = ArrayList<Offset>()
+    pts.add(Offset(x, 0f))
+    for (i in 1..n) pts.add(Offset(x + (r.nextFloat() - .5f) * size.width * .22f * (if (i < n) 1f else .4f), i.toFloat() / n * bottom))
+    val path = Path().apply { moveTo(pts[0].x, pts[0].y); for (p in pts.drop(1)) lineTo(p.x, p.y) }
+    for ((w, c) in listOf(9 * dp to Color(0xFF8CAAFF).copy(alpha = .25f * alpha), 4 * dp to Color(0xFFC8DCFF).copy(alpha = .5f * alpha),
+        1.6f * dp to Color.White.copy(alpha = alpha))) {
+        drawPath(path, c, style = Stroke(w, join = StrokeJoin.Round))
+    }
+    val b = pts[3]                                   // a side branch
+    val branch = Path().apply { moveTo(b.x, b.y); lineTo(b.x + (r.nextFloat() - .5f) * size.width * .2f, b.y + bottom * .25f) }
+    drawPath(branch, Color.White.copy(alpha = .7f * alpha), style = Stroke(1.2f * dp))
+}
+
 /**
  * @param road draw the road (land vehicles stand on its top edge, [groundDp] above the bottom)
+ * @param speed how fast the world passes by (the vehicle's, vehicleSpeed; 1 = a car)
  */
 @Composable
 fun BannerBackground(
     key: String?, modifier: Modifier = Modifier, groundDp: Float = 0f, road: Boolean = groundDp > 0f,
     still: Boolean = false,          // thumbnails / avatars: no animation
+    speed: Float = 1f,
 ) {
     val def = DEFS[key] ?: DEFS.getValue("dusk")
+    val ex = EXTRAS[def.key] ?: NO_EXTRAS
     val s2 = pixelScale(2f)
     val s3 = pixelScale(3f)
     val far = def.far?.let { rememberAsset(it.ifEmpty { "banners/${def.key}_far.png" }) }
@@ -196,6 +280,8 @@ fun BannerBackground(
         List(when (def.fx) { Fx.Birds -> 5; Fx.Butterflies -> 7; Fx.Warp -> 120; else -> 60 }) { Particle(r.nextFloat(), r.nextFloat(), .5f + r.nextFloat(), r.nextFloat() * 6.28f) }
     }
     val clock = if (still) remember { androidx.compose.runtime.mutableFloatStateOf(3f) } else rememberClock()
+    val space = def.key in SPACE
+    val seed = abs(def.key.hashCode())
 
     Box(modifier) {
         Spacer(Modifier.matchParentSize().drawWithCache {
@@ -209,68 +295,203 @@ fun BannerBackground(
         Canvas(Modifier.matchParentSize().graphicsLayer()) {
             val t = clock.value
             val dp = density
+            val sp = speed
             val ground = if (road) size.height - groundDp * dp else size.height
             // small cards (thumbnails, avatars) get smaller art pixels so the sky stays visible
             val k = ((ground / dp) / 260f).coerceIn(.3f, 1f)
             val s = maxOf(1, kotlin.math.round(def.dpPerPx * dp * k).toInt())
-            // sky object
+            val farH = (far?.height ?: 0) * s
+            val farTop = ground - farH
+            // ---- sky object (and where it ended up, for rays and discs)
+            var skyC: Offset? = null
             if (skyImg != null) when (val o = def.sky) {
                 SkyObj.High -> tileX(skyImg, s, 4 * dp, phase(t, 60_000))
-                is SkyObj.At -> blit(skyImg, o.x * size.width - skyImg.width * s / 2f,
-                    minOf(o.y * size.height, ground - (far?.height ?: 0) * s - skyImg.height * s), s, .95f)
+                is SkyObj.At -> {
+                    val x = o.x * size.width - skyImg.width * s / 2f
+                    val y = minOf(o.y * size.height, farTop - skyImg.height * s)
+                    blit(skyImg, x, y, s, .95f)
+                    skyC = Offset(x + skyImg.width * s / 2f, y + skyImg.height * s / 2f)
+                }
                 is SkyObj.Horizon -> blit(skyImg, o.x * size.width - skyImg.width * s / 2f,
-                    ground - (far?.height ?: 0) * s / 2f - skyImg.height * s, s)
+                    ground - farH / 2f - skyImg.height * s, s)
                 null -> {}
             }
+            // ---- sun rays turning slowly
+            ex.rays?.let { (rx0, ry0) ->
+                val c = if (skyC != null && def.sky is SkyObj.At) skyC!! else Offset(rx0 * size.width, ry0 * size.height)
+                val len = maxOf(size.width, size.height) * 1.4f
+                for (i in 0 until 7) {
+                    val a = i * 2f * PI.toFloat() / 7 + t * .05f
+                    val a2 = a + .07f + .03f * sin(t * .8f + i)
+                    val path = Path().apply {
+                        moveTo(c.x, c.y); lineTo(c.x + cos(a) * len, c.y + sin(a) * len); lineTo(c.x + cos(a2) * len, c.y + sin(a2) * len); close()
+                    }
+                    drawPath(path, Color(0xFFFFECAA).copy(alpha = .07f + .035f * sin(t * .9f + i * 1.7f)))
+                }
+            }
+            // ---- aurora curtains
+            if (ex.aurora) {
+                val n = 40
+                for (i in 0 until n) {
+                    val x = i.toFloat() / n * size.width
+                    val w = size.width / n + 1
+                    val hgt = (.16f + .1f * sin(t * .6f + i * .4f) + .06f * sin(t * 1.3f + i * .9f)) * size.height
+                    val top = size.height * .04f + .05f * size.height * sin(t * .4f + i * .3f)
+                    val a = .14f + .1f * sin(t * .9f + i * .5f)
+                    val col = if (i % 2 == 1) Color(0xFF73EFAA) else Color(0xFF41A6F6)
+                    drawRect(
+                        Brush.verticalGradient(0f to col.copy(alpha = 0f), .3f to col.copy(alpha = a), 1f to col.copy(alpha = 0f), startY = top, endY = top + hgt),
+                        Offset(x, top), Size(w, hgt),
+                    )
+                }
+            }
             if (cloud != null) {
-                tileX(cloud, s3, size.height * .12f, phase(t, 9_000), .85f)
-                tileX(cloud, s2, size.height * .40f, phase(t, 5_000), .5f)
+                tileX(cloud, s2, size.height * .02f, phase(t, (24_000 / sp).toInt()), .35f)
+                tileX(cloud, s3, size.height * .12f, phase(t, (9_000 / sp).toInt()), .85f)
+                tileX(cloud, s2, size.height * .40f, phase(t, (5_000 / sp).toInt()), .5f)
             }
-            if (def.fx == Fx.Stars) parts.forEach { p ->
-                if (p.y > .62f) return@forEach
-                val a = .35f + .45f * (.5f + .5f * sin(t * p.speed * 2 + p.seed))
-                val d = if (p.speed > 1.3f) 2 * dp else 1.3f * dp
-                drawRect(Color.White.copy(alpha = a), Offset(p.x * size.width, p.y * size.height), Size(d, d))
+            if (def.fx == Fx.Stars) {
+                parts.forEach { p ->
+                    if (p.y > .62f) return@forEach
+                    val a = .35f + .45f * (.5f + .5f * sin(t * p.speed * 2 + p.seed))
+                    val d = if (p.speed > 1.3f) 2 * dp else 1.3f * dp
+                    val x = if (space) (((p.x - t * .004f * sp * (.3f + p.speed)) % 1f) + 1f) % 1f else p.x
+                    drawRect(Color.White.copy(alpha = a), Offset(x * size.width, p.y * size.height), Size(d, d))
+                    if (p.speed > 1.4f) {                                 // the bright ones twinkle with spikes
+                        drawRect(Color.White.copy(alpha = a * .5f), Offset(x * size.width - 2 * dp, p.y * size.height + d / 2 - dp / 2), Size(4 * dp + d, dp))
+                        drawRect(Color.White.copy(alpha = a * .5f), Offset(x * size.width + d / 2 - dp / 2, p.y * size.height - 2 * dp), Size(dp, 4 * dp + d))
+                    }
+                }
+                // a shooting star every few seconds
+                val cyc = 6.5f
+                val tt = t + (seed % 100) / 10f
+                val kk = (tt % cyc) / .7f
+                if (kk < 1f) {
+                    val r = Random(seed + floor(tt / cyc).toInt())
+                    val x0 = (.2f + r.nextFloat() * .6f) * size.width
+                    val y0 = (.04f + r.nextFloat() * .25f) * size.height
+                    val dir = if (r.nextFloat() > .5f) 1 else -1
+                    val x = x0 + dir * kk * size.width * .35f
+                    val y = y0 + kk * size.height * .18f
+                    for (j in 0 until 9) drawRect(Color.White.copy(alpha = (1 - kk) * (1 - j / 9f) * .9f), Offset(x - dir * j * 4 * dp, y - j * 2 * dp), Size(2 * dp, 2 * dp))
+                }
             }
-            if (def.fx == Fx.Birds) parts.forEachIndexed { i, p ->
-                val x = (1f - phase(t + p.seed * 3, (14_000 / p.speed).toInt())) * (size.width + 40 * dp) - 20 * dp
-                val y = size.height * (.15f + p.y * .25f) + sin(t * 2 + p.seed) * 3 * dp
-                val flap = if (sin(t * 8 + i) > 0) 2 * dp else 0f
-                drawRect(Color(0xCC2E2F63), Offset(x - 4 * dp, y - flap), Size(4 * dp, 2 * dp))
-                drawRect(Color(0xCC2E2F63), Offset(x, y - flap), Size(4 * dp, 2 * dp))
-                drawRect(Color(0xCC2E2F63), Offset(x - 1 * dp, y + 1 * dp), Size(2 * dp, 2 * dp))
+            // ---- orbiting matter around the black hole / the galaxy's stars
+            if ((ex.disc || ex.galaxy) && skyC != null) {
+                val gx = skyC!!.x
+                val gy = skyC!!.y
+                parts.forEachIndexed { i, p ->
+                    if (i >= 48) return@forEachIndexed
+                    val r = if (ex.disc) .45f + p.x * .55f else .15f + p.x * .85f
+                    val a = p.seed + t * (if (ex.disc) .4f + 1.6f * (1 - r) else .12f + .3f * (1 - r))
+                    val px = gx + cos(a) * r * (if (ex.disc) 30 else 28) * s
+                    val py = gy + sin(a) * r * (if (ex.disc) 7 else 15) * s
+                    val front = sin(a) > 0
+                    if (ex.disc && !front && abs(px - gx) < 9 * s) return@forEachIndexed      // behind the hole
+                    val col = if (ex.disc) (if (r < .6f) Color(0xFFFFF0C8) else Color(0xFFFFA050)) else (if (i % 3 != 0) Color(0xFFDCC8FF) else Color.White)
+                    val al = if (ex.disc) (if (front) .9f else .4f) else .4f + .5f * (.5f + .5f * sin(t * p.speed * 2 + p.seed))
+                    drawRect(col.copy(alpha = al), Offset(px, py), Size(1.5f * dp, 1.5f * dp))
+                }
             }
-            // landscape (scrolls: far slow, near faster)
-            if (far != null) tileX(far, s, ground - far.height * s, phase(t, 40_000))
-            if (near != null) tileX(near, s, ground - near.height * s, phase(t, 16_000))
+            if (def.fx == Fx.Birds) {
+                // a flock in V formation ...
+                val lead = (1f - phase(t + 2, 22_000)) * (size.width + 80 * dp) - 40 * dp
+                val ly = size.height * .2f + sin(t * 1.3f) * 4 * dp
+                for (i in 0 until 5) {
+                    val x = lead + i * 8 * dp
+                    val y = ly + abs(i - 2) * 6 * dp + sin(t * 2 + i) * 2 * dp
+                    bird(x, y, if (sin(t * 8 + i * .7f) > 0) 2 * dp else 0f, dp)
+                }
+                // ... and two on their own
+                parts.take(2).forEachIndexed { i, p ->
+                    val x = (1f - phase(t + p.seed * 3, (14_000 / p.speed).toInt())) * (size.width + 40 * dp) - 20 * dp
+                    val y = size.height * (.15f + p.y * .25f) + sin(t * 2 + p.seed) * 3 * dp
+                    bird(x, y, if (sin(t * 8 + i) > 0) 2 * dp else 0f, dp)
+                }
+            }
+            // ---- landscape (scrolls: far slow, near faster, both with the vehicle's speed)
+            val farPhase = phase(t, (40_000 / sp).toInt())
+            if (far != null) {
+                if (ex.heat) tileXWavy(far, s, farTop, farPhase) { row -> sin(t * 6 + row * .9f) * s * .5f }
+                else tileX(far, s, farTop, farPhase)
+            }
+            if (ex.lava == "crater" && far != null) {
+                val w = far.width * s
+                val pulse = .35f + .15f * sin(t * 3)
+                var x = -floor(farPhase * w)
+                while (x < size.width + w) {
+                    glowAt(x + 40 * s, farTop + 4 * s, 14f * s, Color(0xFFFF8C3C).copy(alpha = pulse))
+                    x += w
+                }
+            }
+            if (ex.lava == "horizon") {
+                drawRect(
+                    Brush.verticalGradient(listOf(Color(0xFFFF7828).copy(alpha = 0f), Color(0xFFFF7828).copy(alpha = .35f + .12f * sin(t * 2.2f))), ground - 34 * dp, ground),
+                    Offset(0f, ground - 34 * dp), Size(size.width, 34 * dp),
+                )
+            }
+            ex.water?.let { (w0, w1) ->
+                if (far == null) return@let
+                val top = farTop + w0 * s
+                val bottom = farTop + w1 * s
+                parts.forEachIndexed { i, p ->
+                    if (i >= 18 || sin(t * p.speed * 3 + p.seed) < .72f) return@forEachIndexed
+                    val x = ((p.x + t * .01f * sp) % 1f) * size.width
+                    val y = top + p.y * (bottom - top)
+                    drawRect(Color.White.copy(alpha = .75f), Offset(x, y), Size((1 + i % 2) * s.toFloat(), maxOf(1f, dp)))
+                }
+            }
+            if (near != null) tileX(near, s, ground - near.height * s, phase(t, (16_000 / sp).toInt()))
+            if (ex.fog) {
+                val base = if (near != null) ground - near.height * s * .5f else ground - 20 * dp
+                for (j in 0 until 7) {
+                    val x = ((j / 7f + t * .012f * (1 + j % 2)) % 1.3f - .15f) * size.width
+                    val y = base - (j % 3) * 8 * dp + sin(t * .5f + j) * 3 * dp
+                    glowAt(x, y, size.width * .18f, Color(0xFFDCE6F0).copy(alpha = .14f + .05f * sin(t * .7f + j)), (9 + 3 * sin(t * .4f + j)) * dp)
+                }
+            }
+            if (ex.traffic) for (i in 0 until 2) {
+                val dir = if (i == 0) 1 else -1
+                val pr = if (i == 0) 9_000 else 7_000
+                val ph = phase(t + i * 3, pr)
+                val x = (if (dir > 0) ph else 1 - ph) * (size.width + 20 * dp) - 10 * dp
+                val y = ground - 3 * dp
+                drawRect(Color(0xFFFFF0C8).copy(alpha = .95f), Offset(x + (if (dir > 0) 3 * dp else -4 * dp), y), Size(2 * dp, dp))
+                drawRect(Color(0xFFFF505A).copy(alpha = .9f), Offset(x + (if (dir > 0) -4 * dp else 3 * dp), y), Size(2 * dp, dp))
+                drawRect(Color(0xFFFFF0C8).copy(alpha = .08f), Offset(x + (if (dir > 0) 5 * dp else -12 * dp), y - dp), Size(8 * dp, 3 * dp))
+            }
 
             // weather / particles
             when (def.fx) {
-                Fx.Snow -> parts.forEach { p ->
-                    val y = (p.y + t * .05f * p.speed) % 1f
-                    val x = p.x * size.width + sin(t * p.speed + p.seed) * 8 * dp
-                    drawRect(Color.White.copy(alpha = .85f), Offset(x, y * size.height), Size(2 * dp * p.speed.coerceAtMost(1.2f), 2 * dp))
+                Fx.Snow -> parts.forEachIndexed { i, p ->
+                    val nearFlake = i >= 30
+                    val y = (p.y + t * (if (nearFlake) .07f else .03f) * p.speed) % 1f
+                    val x = ((p.x - t * .015f * sp) % 1f + 1f) % 1f * size.width + sin(t * p.speed + p.seed) * (if (nearFlake) 10 else 5) * dp
+                    val d = if (nearFlake) 2.5f * dp else 1.4f * dp
+                    drawRect(Color.White.copy(alpha = if (nearFlake) .9f else .6f), Offset(x, y * size.height), Size(d, d))
                 }
                 Fx.Petals, Fx.Leaves -> parts.take(28).forEachIndexed { i, p ->
+                    val gust = .02f + .03f * (sin(t * .4f) + 1)
                     val y = (p.y + t * .04f * p.speed) % 1f
-                    val x = ((p.x + t * .02f) % 1f) * size.width + sin(t * 1.5f + p.seed) * 14 * dp
+                    val x = ((p.x + t * gust) % 1f) * size.width + sin(t * 1.5f + p.seed) * 14 * dp
                     val c = if (def.fx == Fx.Petals) (if (i % 3 == 0) Color(0xFFFFF0F6) else Color(0xFFFFB0CF))
                     else listOf(Color(0xFFE0832F), Color(0xFFB13E53), Color(0xFFFFCD75))[i % 3]
                     val wobble = sin(t * 3 + p.seed) > 0
                     drawRect(c, Offset(x, y * size.height), Size(if (wobble) 3 * dp else 2 * dp, if (wobble) 2 * dp else 3 * dp))
                 }
-                Fx.Embers -> parts.take(30).forEach { p ->
+                Fx.Embers -> parts.take(36).forEach { p ->
                     val k = (p.y + t * .06f * p.speed) % 1f              // 0 = bottom, 1 = top
                     val x = p.x * size.width + sin(t + p.seed) * 6 * dp
                     val c = if (p.speed > 1f) Color(0xFFFFCD75) else Color(0xFFEF7D57)
                     drawRect(c.copy(alpha = 1f - k), Offset(x, ground - k * ground), Size(2 * dp, 2 * dp))
+                    drawRect(Color(0xFFEF7D57).copy(alpha = (1f - k) * .3f), Offset(x, ground - k * ground + 2 * dp), Size(2 * dp, 4 * dp))
                 }
                 Fx.Fireflies -> parts.take(18).forEach { p ->
                     val a = (sin(t * p.speed * 1.7f + p.seed) * .5f + .5f).let { it * it }
                     val x = p.x * size.width + sin(t * .3f + p.seed) * 16 * dp
                     val y = ground - (.08f + p.y * .45f) * ground + sin(t * .5f + p.seed * 2) * 8 * dp
                     drawRect(Color(0xFFE8FF8A).copy(alpha = a), Offset(x, y), Size(2 * dp, 2 * dp))
-                    drawRect(Color(0xFFE8FF8A).copy(alpha = a * .25f), Offset(x - dp, y - dp), Size(4 * dp, 4 * dp))
+                    glowAt(x + dp, y + dp, 5 * dp, Color(0xFFE8FF8A).copy(alpha = a * .4f))
                 }
                 Fx.Bubbles -> parts.take(22).forEach { p ->
                     val k = (p.y + t * .05f * p.speed) % 1f
@@ -354,11 +575,34 @@ fun BannerBackground(
                         drawRect(c.copy(alpha = a * .6f), Offset(x + dp / 2, y - arm), Size(dp, arm * 2 + 2 * dp))
                     }
                 }
-                Fx.Rain -> rain?.let { tileAll(it, s3, phase(t, 900), .45f) }
-                Fx.Storm -> {
-                    rain?.let { tileAll(it, s3, phase(t, 700), .5f) }
-                    val f = phase(t, 7_000)
-                    if (f < .02f || f in .05f..0.065f) drawRect(Color.White.copy(alpha = .35f))
+                Fx.Rain, Fx.Storm -> {
+                    // slanted by the wind (the faster the vehicle, the more), splashing on the road
+                    val storm = def.fx == Fx.Storm
+                    val slant = .18f + .12f * minOf(sp, 2f)
+                    rain?.let {
+                        val m = Matrix()
+                        m.values[Matrix.SkewX] = -slant
+                        m.values[Matrix.TranslateX] = slant * size.height * .5f
+                        withTransform({ transform(m) }) { tileAll(it, s3, phase(t, if (storm) 700 else 900), if (storm) .5f else .45f) }
+                    }
+                    if (road) parts.forEachIndexed { i, p ->
+                        if (i >= 12 || (t * 2.5f + spread(i)) % 1f > .22f) return@forEachIndexed
+                        val x = p.x * size.width
+                        val c = Color.White.copy(alpha = .6f)
+                        drawRect(c, Offset(x, ground - 2 * dp), Size(dp, dp))
+                        drawRect(c, Offset(x - 2 * dp, ground - dp), Size(dp, dp))
+                        drawRect(c, Offset(x + 2 * dp, ground - dp), Size(dp, dp))
+                    }
+                    if (storm || ex.bolt) {
+                        val f = phase(t, 7_000)
+                        val n = floor(t / 7).toInt()
+                        val flash = if (f < .02f) 1f else if (f in .05f..0.065f) .6f else 0f
+                        if (flash > 0f) {
+                            drawRect(Color.White.copy(alpha = .35f * flash))
+                            val r = Random(seed + n)
+                            bolt(seed + n, (.15f + r.nextFloat() * .7f) * size.width, farTop + farH * .5f, flash, dp)
+                        }
+                    }
                 }
                 else -> {}
             }
@@ -366,10 +610,18 @@ fun BannerBackground(
                 drawRect(Color(0xFF2A2F45), Offset(0f, ground), Size(size.width, 6 * dp))
                 drawRect(Color(0xFF1A1C2C), Offset(0f, ground + 6 * dp), Size(size.width, size.height))
                 val dash = 32 * dp
-                var x = -phase(t, 450) * dash
+                var x = -phase(t, (450 / sp).toInt()) * dash
                 while (x < size.width) {
                     drawRect(Color(0x8CFFCD75), Offset(x, ground + 30 * dp), Size(dash / 2, 4 * dp))
                     x += dash
+                }
+                // roadside posts rushing past
+                val gap = 150 * dp
+                var px = -phase(t, (2_400 / sp).toInt()) * gap
+                while (px < size.width) {
+                    drawRect(Color(0xFF56607A), Offset(px, ground - 12 * dp), Size(3 * dp, 12 * dp))
+                    drawRect(Color(0xFFF4F4F4), Offset(px, ground - 10 * dp), Size(3 * dp, 2 * dp))
+                    px += gap
                 }
             }
         }

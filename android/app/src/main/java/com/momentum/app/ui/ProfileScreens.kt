@@ -263,7 +263,7 @@ private fun ProfileHero(vm: AppViewModel, p: Profile) {
     val land = scene == Scene.Land
     Column(Modifier.padding(horizontal = 16.dp)) {
         Box(Modifier.fillMaxWidth().height(300.dp).competitionGlow(p.competing).clip(CardShape)) {
-            BannerBackground(p.banner ?: defaultBanner(scene), Modifier.matchParentSize(), groundDp = 70f, road = land)
+            BannerBackground(p.banner ?: defaultBanner(scene), Modifier.matchParentSize(), groundDp = 70f, road = land, speed = vehicleSpeed(v.key))
             Column(Modifier.padding(20.dp)) {
                 ScoreLabel(p.competing)
                 FitText(fmt(p.momentum), T.block, 64.sp, Modifier.fillMaxWidth())
@@ -273,7 +273,7 @@ private fun ProfileHero(vm: AppViewModel, p: Profile) {
             // road vehicles stand on the road, planes fly just above the landscape, spaceships stay low
             // (the text block above needs the room)
             val lift = when (scene) { Scene.Land -> 64.dp; Scene.Air -> 44.dp; else -> 20.dp }
-            VehicleSprite(v.key, 2.5f, Modifier.align(Alignment.BottomCenter).padding(bottom = lift))
+            VehicleSprite(v.key, 2.5f, Modifier.align(Alignment.BottomCenter).padding(bottom = lift), night = bannerNight(p.banner ?: defaultBanner(scene)))
         }
         if (next != null && p.nextAt != null) {
             Spacer(Modifier.height(10.dp))

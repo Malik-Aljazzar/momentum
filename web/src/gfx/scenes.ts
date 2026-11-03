@@ -19,7 +19,8 @@ const r = rng(7)
 const STARS = Array.from({ length: 70 }, () => [r(), r(), r()] as const)
 
 /** @param groundDp height of the road in the land scene; vehicles stand on its top edge. */
-export function drawScene(c: Ctx, scene: Scene, groundDp = 120, sun = true) {
+export function drawScene(c: Ctx, scene: Scene, groundDp = 120, sun = true, speed = 1) {
+  const sp = speed
   const s2 = pixelScale(2), s3 = pixelScale(3), s4 = pixelScale(4)
   const dp = c.dp, t = c.t
   drawBands(c, BANDS[scene])
@@ -30,22 +31,22 @@ export function drawScene(c: Ctx, scene: Scene, groundDp = 120, sun = true) {
       const ground = c.h - groundDp * dp
       // the sun sits above the mountains, independent of how tall the card is
       if (sun) blit(c, sunImg, c.w * .64, Math.min(Math.max(c.h * .30, ground - 150 * dp), ground - 70 * dp), s4, .85)
-      tileX(c, far, s4, ground - far.naturalHeight * s4, phase(t, 40_000), .8)
-      tileX(c, near, s4, ground - near.naturalHeight * s4, phase(t, 16_000))
+      tileX(c, far, s4, ground - far.naturalHeight * s4, phase(t, 40_000 / sp), .8)
+      tileX(c, near, s4, ground - near.naturalHeight * s4, phase(t, 16_000 / sp))
       rect(c, "#2A2F45", 0, ground, c.w, 6 * dp)
       rect(c, "#1A1C2C", 0, ground + 6 * dp, c.w, c.h)
       const dash = 32 * dp
-      for (let x = -phase(t, 450) * dash; x < c.w; x += dash) rect(c, "rgba(255,205,117,0.55)", x, ground + 30 * dp, dash / 2, 4 * dp)
+      for (let x = -phase(t, 450 / sp) * dash; x < c.w; x += dash) rect(c, "rgba(255,205,117,0.55)", x, ground + 30 * dp, dash / 2, 4 * dp)
       break
     }
     case "air": {
       const cloud = sprite("icons/scene_cloud.png")
-      tileX(c, cloud, s3, c.h * .26, phase(t, 9_000), .8)
-      tileX(c, cloud, s2, c.h * .62, phase(t, 5_000), .55)
+      tileX(c, cloud, s3, c.h * .26, phase(t, 9_000 / sp), .8)
+      tileX(c, cloud, s2, c.h * .62, phase(t, 5_000 / sp), .55)
       break
     }
     case "space": case "settings": {
-      const slow = phase(t, 40_000), fast = phase(t, 9_000)
+      const slow = phase(t, 40_000 / sp), fast = phase(t, 9_000 / sp)
       for (const [fx, fy, depth] of STARS) {
         const x = (((fx - (depth > .6 ? fast : slow)) % 1) + 1) % 1
         const dot = depth > .85 ? 2 * dp : dp * 1.2

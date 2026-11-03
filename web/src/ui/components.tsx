@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { attach, pixelScale } from "../gfx/engine"
 import { BANNER_GROUPS, bannerKinds, drawBanner, HYPERSPACE, ULTRA_HYPERSPACE } from "../gfx/banners"
 import { drawScene, type Scene } from "../gfx/scenes"
+import { drawVehicle, FRAME_MS, FRAMES, isVehicle, PAD } from "../gfx/vehicles"
 import { textParts } from "../links"
 import type { UserCard } from "../model"
 import { nav } from "../nav"
@@ -44,17 +45,30 @@ export function PixelIcon({ name, size = 32, alpha = 1, tint, color, class: klas
     class={cx("pixel", klass)} style={{ opacity: alpha, filter, flex: "none", ...style }} />
 }
 
-/** Animated vehicle (5-frame sheet, 64x32 per frame). */
-export function VehicleSprite({ vkey, dpPerPixel, animate = true, tint, alpha = 1, style }: {
-  vkey: string; dpPerPixel: number; animate?: boolean; tint?: "black" | "white"; alpha?: number; style?: JSX.CSSProperties
+/**
+ * Animated vehicle (8-frame sheet, 64x32 per frame). A vehicle animates on a canvas with its effects around it
+ * (gfx/vehicles.ts: dust, exhaust, contrails, engine trails ...; [night]: lights on); tinted / still ones and the
+ * other sheets (gauge, friends) stay a plain sprite.
+ */
+export function VehicleSprite({ vkey, dpPerPixel, animate = true, tint, alpha = 1, night = false, style }: {
+  vkey: string; dpPerPixel: number; animate?: boolean; tint?: "black" | "white"; alpha?: number; night?: boolean; style?: JSX.CSSProperties
 }) {
-  const s = pixelScale(dpPerPixel) / (window.devicePixelRatio || 1)
+  const dpr = window.devicePixelRatio || 1
+  const sd = pixelScale(dpPerPixel)
+  const s = sd / dpr
   const w = 64 * s, h = 32 * s
+  if (animate && !tint && isVehicle(vkey)) {
+    return <div class="pixel" style={{ width: w, height: h, flex: "none", position: "relative", opacity: alpha, ...style }}>
+      <LiveCanvas class="vehicle-fx" draw={(c) => drawVehicle(c, vkey, sd, PAD.left * sd, PAD.top * sd, night)} style={{
+        position: "absolute", left: -PAD.left * s, top: -PAD.top * s, width: (64 + PAD.left + PAD.right) * s, height: (32 + PAD.top + PAD.bottom) * s,
+      }} />
+    </div>
+  }
   const filter = tint === "black" ? "brightness(0)" : tint === "white" ? "brightness(0) invert(1)" : undefined
   return <div class="pixel" style={{
     width: w, height: h, flex: "none", opacity: alpha, filter,
-    backgroundImage: `url(/app/sprites/${vkey}/sheet.png)`, backgroundSize: `${w * 5}px ${h}px`, backgroundRepeat: "no-repeat",
-    animation: animate ? "vehicle .5s steps(5) infinite" : undefined, ["--vw" as string]: `-${w * 5}px`, ...style,
+    backgroundImage: `url(/app/sprites/${vkey}/sheet.png)`, backgroundSize: `${w * FRAMES}px ${h}px`, backgroundRepeat: "no-repeat",
+    animation: animate ? `vehicle ${FRAMES * FRAME_MS}ms steps(${FRAMES}) infinite` : undefined, ["--vw" as string]: `-${w * FRAMES}px`, ...style,
   }} />
 }
 
@@ -69,15 +83,19 @@ export function LiveCanvas({ draw, animated = true, class: klass, style }: {
   return <canvas ref={ref} class={klass} style={{ display: "block", width: "100%", height: "100%", ...style }} />
 }
 
-export function SceneBg({ scene, groundDp = 120, sun = true, class: klass }: { scene: Scene; groundDp?: number; sun?: boolean; class?: string }) {
-  return <LiveCanvas class={cx("fill banner-bg", klass)} draw={(c) => drawScene(c, scene, groundDp, sun)} />
+export function SceneBg({ scene, groundDp = 120, sun = true, speed = 1, class: klass }: {
+  scene: Scene; groundDp?: number; sun?: boolean; speed?: number; class?: string
+}) {
+  return <LiveCanvas class={cx("fill banner-bg", klass)} draw={(c) => drawScene(c, scene, groundDp, sun, speed)} />
 }
 
-/** Banner background; [still] for thumbnails (no animation). */
-export function BannerBg({ bkey, groundDp = 0, still = false, class: klass }: { bkey?: string | null; groundDp?: number; still?: boolean; class?: string }) {
+/** Banner background; [still] for thumbnails (no animation); [speed] = the vehicle's (the world passes by that fast). */
+export function BannerBg({ bkey, groundDp = 0, still = false, speed = 1, class: klass }: {
+  bkey?: string | null; groundDp?: number; still?: boolean; speed?: number; class?: string
+}) {
   // "banner-bg": explicitly underneath what follows (iOS Safari drew the animated canvas over the whole card -
   // momentum, vehicle, values - when the card had no glow frame: report #47)
-  return <LiveCanvas class={cx("fill banner-bg", klass)} animated={!still} draw={(c) => drawBanner(c, bkey, groundDp)} />
+  return <LiveCanvas class={cx("fill banner-bg", klass)} animated={!still} draw={(c) => drawBanner(c, bkey, groundDp, speed)} />
 }
 
 // ---------------------------------------------------------------- pixel controls

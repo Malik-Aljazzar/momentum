@@ -64,28 +64,38 @@ fun DrawScope.drawPixels(
     colorFilter = tint?.let { ColorFilter.tint(it, BlendMode.SrcIn) },
 )
 
-private const val FRAMES = 5
-
-/** Animated vehicle (5-frame sheet, 64x32 per frame). */
+/**
+ * Animated vehicle (8-frame sheet, 64x32 per frame). A vehicle animates on a canvas with its effects around it
+ * (VehicleFx.kt: dust, exhaust, contrails, engine trails ...; [night]: lights on); tinted / still ones and the
+ * other sheets (gauge, friends) stay a plain sprite.
+ */
 @Composable
 fun VehicleSprite(
     key: String, dpPerPixel: Float, modifier: Modifier = Modifier,
-    animate: Boolean = true, tint: Color? = null, alpha: Float = 1f,
+    animate: Boolean = true, tint: Color? = null, alpha: Float = 1f, night: Boolean = false,
 ) {
     val sheet = rememberAsset("$key/sheet.png")
     val s = pixelScale(dpPerPixel)
+    val density = LocalDensity.current
+    val w = with(density) { (64 * s).toDp() }
+    val h = with(density) { (32 * s).toDp() }
+    if (animate && tint == null && alpha == 1f && isVehicle(key)) {
+        val clock = rememberClock()
+        // draws beyond its own bounds (the card clips)
+        Canvas(modifier.size(w, h)) {
+            drawVehicle(sheet, key, s, 0f, 0f, night, clock.value)
+        }
+        return
+    }
     var frame by remember { mutableIntStateOf(0) }
     if (animate) {
         LaunchedEffect(key) {
             while (true) {
-                delay(100)
+                delay(FRAME_MS.toLong())
                 frame = (frame + 1) % FRAMES
             }
         }
     }
-    val density = LocalDensity.current
-    val w = with(density) { (64 * s).toDp() }
-    val h = with(density) { (32 * s).toDp() }
     Canvas(modifier.size(w, h)) {
         drawPixels(sheet, IntOffset(frame * 64, 0), IntSize(64, 32), IntOffset.Zero, s, alpha, tint)
     }

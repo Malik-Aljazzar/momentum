@@ -225,7 +225,8 @@ private fun Hero(st: AppState, key: String, label: String, category: String, idx
             .competitionGlow(st.settings.dailyLimit)
             .clip(CardShape),
     ) {
-        BannerBackground(st.user.banner ?: defaultBanner(scene), Modifier.matchParentSize(), groundDp = 120f, road = land)
+        val bkey = st.user.banner ?: defaultBanner(scene)
+        BannerBackground(bkey, Modifier.matchParentSize(), groundDp = 120f, road = land, speed = vehicleSpeed(key))
         Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp)) {
             ScoreLabel(st.settings.dailyLimit)
             Spacer(Modifier.height(4.dp))
@@ -239,7 +240,7 @@ private fun Hero(st: AppState, key: String, label: String, category: String, idx
                 Text("  · ${S.stage(idx + 1, count)}", style = T.body.copy(color = Px.Muted))
             }
         }
-        VehicleSprite(key, 4f, Modifier.align(Alignment.BottomCenter).padding(bottom = if (land) 112.dp else 150.dp))
+        VehicleSprite(key, 4f, Modifier.align(Alignment.BottomCenter).padding(bottom = if (land) 112.dp else 150.dp), night = bannerNight(bkey))
         Row(
             Modifier
                 .align(Alignment.BottomStart)

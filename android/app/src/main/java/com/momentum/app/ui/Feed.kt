@@ -364,9 +364,9 @@ fun MilestoneTile(vm: AppViewModel, vehicle: String, modifier: Modifier, dpPerPi
     val v = vm.meta?.vehicles?.firstOrNull { it.key == vehicle } ?: return
     Box(modifier.clip(RoundedCornerShape(4.dp))) {
         val scene = sceneFor(v.category)
-        SceneBackground(scene, Modifier.matchParentSize(), groundDp = if (scene == Scene.Land) 24f * dpPerPixel else 0f)
+        SceneBackground(scene, Modifier.matchParentSize(), groundDp = if (scene == Scene.Land) 24f * dpPerPixel else 0f, speed = vehicleSpeed(v.key))
         VehicleSprite(v.key, dpPerPixel, Modifier.align(if (scene == Scene.Land) Alignment.BottomCenter else Alignment.Center)
-            .padding(bottom = if (scene == Scene.Land) (22 * dpPerPixel).dp else 0.dp))
+            .padding(bottom = if (scene == Scene.Land) (22 * dpPerPixel).dp else 0.dp), night = scene != Scene.Air)
         PixelIcon("star", (8 * dpPerPixel).dp, Modifier.align(Alignment.TopStart).padding((4 * dpPerPixel).dp))
     }
 }

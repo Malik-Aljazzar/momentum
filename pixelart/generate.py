@@ -5,8 +5,8 @@ side view facing right, and an automatic 1px dark outline.
 Every vehicle has FRAMES animation frames (looping).
 
 Run: python generate.py  ->  writes to ./out/<name>/
-    frame_0..4.png   single frames, native size
-    sheet.png        all frames side by side (320x32), sheet_x8.png scaled
+    frame_0..7.png   single frames, native size
+    sheet.png        all frames side by side (512x32), sheet_x8.png scaled
     anim_x8.gif      animated preview, 8x
 and ./out/_uebersicht.gif / _uebersicht.png for all vehicles at once.
 """
@@ -18,8 +18,8 @@ import zlib
 
 W, H = 64, 32
 SCALE = 8
-FRAMES = 5
-DELAY = 10  # GIF frame delay in 1/100 s
+FRAMES = 8
+DELAY = 8  # GIF frame delay in 1/100 s (the apps show a frame for 80 ms)
 
 # Sweetie 16 palette
 PAL = {
@@ -35,8 +35,14 @@ PAL = {
 OUTLINE = "black"
 
 # per-frame offsets
-BOUNCE = [0, -1, -1, 0, 0]   # ground vehicles: body suspension
-BOB = [0, -1, -1, 1, 1]      # aircraft: gentle up/down wave
+BOUNCE = [0, -1, -1, 0, 0, 0, -1, 0]   # ground vehicles: body suspension over road bumps
+BOB = [0, -1, -1, -1, 0, 1, 1, 1]      # aircraft: gentle up/down wave
+HEAVY = [0, 0, -1, -1, 0, 0, 0, -1]    # tracked vehicles: a rarer, heavier jolt
+
+
+def turn(f, symmetry=360):
+    """Angle (rad) of a part that turns once per loop; symmetry = the part's repeat angle."""
+    return math.radians(symmetry * f / FRAMES)
 
 
 class Canvas:
@@ -231,13 +237,18 @@ def spoke_end(cx, cy, rr, ang):
 
 
 def wheel(cv, cx, cy, f, r=5):
-    """Tire + rim; a spoke through the hub turns 36 deg per frame (clockwise)."""
+    """Tire + rim turning clockwise once per loop: a spoke through the hub, a bright rim bolt and
+    three tread marks on the tire (so the turning shows even at small sizes)."""
     cv.circle(cx, cy, r, "dark")
+    for k in range(3):                                   # tread marks, 120 deg apart
+        cv.set(*spoke_end(cx, cy, r - 0.6, turn(f) + k * 2 * math.pi / 3), "gray")
     cv.circle(cx, cy, r - 1.6, "silver")
-    a = math.radians(36 * f)
+    a = turn(f, 180)
     rr = r - 2.2
     cv.line(*spoke_end(cx, cy, rr, a), *spoke_end(cx, cy, rr, a + math.pi), "gray")
     cv.circle(cx, cy, 1.2, "gray")
+    if r >= 4.5:                                         # rim bolt catching the light
+        cv.set(*spoke_end(cx, cy, r - 2.4, turn(f) + 0.8), "white")
 
 
 def glare(cv, pts):
@@ -260,17 +271,20 @@ def flame(cv, x_end, y0, y1, length):
 
 
 def puff(cv, x, y, f, period=FRAMES):
-    """Small exhaust cloud drifting left/up; drawn after outline."""
-    for phase in (0, 2.5):
+    """Exhaust clouds drifting left and up, growing and fading as they go; drawn after outline."""
+    for phase in (0, period / 3, 2 * period / 3):
         t = ((f + phase) % period) / period
-        px, py = round(x - 6 * t), round(y - 3 * t)
-        c = "white" if t < 0.5 else "silver"
+        px, py = round(x - 8 * t), round(y - 4 * t * t)
+        c = "white" if t < 0.35 else ("silver" if t < 0.7 else "gray")
         cv.set(px, py, c)
-        if t > 0.25:
+        if t > 0.2:
             cv.set(px - 1, py, c)
-        if t > 0.5:
+        if t > 0.45:
             cv.set(px, py - 1, c)
             cv.set(px - 1, py - 1, c)
+        if t > 0.7:
+            cv.set(px - 2, py, c)
+            cv.set(px - 1, py - 2, c)
 
 
 # ---------------------------------------------------------------- vehicles
@@ -280,16 +294,17 @@ def fahrrad(f):
     for cx in (17, 46):
         cv.circle(cx, 22, 8, "dark")
         cv.circle(cx, 22, 6.2, None)
-        a = math.radians(18 * f)
+        a = turn(f, 180)                         # crossed spokes (90 deg symmetric): two turns per loop
         for k in range(2):
             b = a + k * math.pi / 2
             cv.line(*spoke_end(cx, 22, 5.6, b), *spoke_end(cx, 22, 5.6, b + math.pi),
                     "gray")
         cv.circle(cx, 22, 1.3, "silver")
+        cv.set(*spoke_end(cx, 22, 7.2, turn(f) + 1.2), "silver")   # valve on the rim
     frame = "blue"
     rh, bb, seat, head, fh = (17, 22), (30, 23), (27, 13), (42, 12), (46, 22)
-    # crank behind the frame (opposite pedal)
-    a = math.radians(72 * f)
+    # crank behind the frame (opposite pedal), one turn per loop
+    a = turn(f)
     back = (round(30 - 3 * math.cos(a)), round(23 - 3 * math.sin(a)))
     cv.line(*bb, *back, "dark")
     cv.rect(back[0] - 1, back[1], back[0] + 1, back[1], "dark")
@@ -334,6 +349,7 @@ def motorroller(f):
     for cx in (17, 48):
         wheel(cv, cx, 25.5, f, r=4.5)
     cv.outline()
+    cv.set(48, 7 + BOUNCE[f], "white")                           # headlight shine
     puff(cv, 6, 24, f)
     return cv
 
@@ -362,6 +378,8 @@ def kleinwagen(f):
     for cx in (20, 45):
         wheel(cv, cx, 25, f)
     cv.outline()
+    cv.set(53, 17 + BOUNCE[f], "white")                          # headlight shine
+    puff(cv, 9, 25, f)
     return cv
 
 
@@ -393,6 +411,8 @@ def pkw(f):
     for cx in (15, 48):
         wheel(cv, cx, 25, f)
     cv.outline()
+    cv.set(59, 18 + BOUNCE[f], "white")                          # headlight shine
+    puff(cv, 3, 25, f)
     return cv
 
 
@@ -426,6 +446,8 @@ def suv(f):
     for cx in (15, 48):
         wheel(cv, cx, 24, f, r=6)
     cv.outline()
+    cv.set(59, 16 + BOUNCE[f], "white")                          # headlight shine
+    puff(cv, 2, 24, f)
     return cv
 
 
@@ -455,6 +477,11 @@ def lkw(f):
     for cx in (10, 19, 53):
         wheel(cv, cx, 26, f, r=4.6)
     cv.outline()
+    cv.set(61, 19 + BOUNCE[f], "white")                          # headlight shine
+    if f % 4 < 2:                                                # marker lights blinking on the trailer roof
+        for x in (6, 24, 42):
+            cv.set(x, 2 + BOUNCE[f], "orange")
+    puff(cv, 1, 23, f)
     return cv
 
 
@@ -476,17 +503,20 @@ def kleinflugzeug(f):
     cv.rect(44, 9, 46, 10, "red")
     cv.line(31, 11, 37, 17, "gray")                                    # strut
     cv.circle(55, 17.5, 2.2, "silver")                                 # spinner
-    # propeller: two-blade prop seen from the side -> blade length ~ |cos|
-    blade = [8, 7, 3, 3, 7][f]
+    # propeller: two-blade prop seen from the side -> blade length ~ |cos|, two turns per loop
+    blade = [8, 6, 2, 6, 8, 6, 2, 6][f]
     cv.rect(57, 17 - blade, 57, 17 + blade, "gray")
     cv.line(36, 20, 36, 24, "gray")
     cv.line(50, 20, 50, 24, "gray")
     cv.circle(36.5, 26, 2.6, "dark")
     cv.circle(50.5, 26, 2.1, "dark")
     cv.outline()
-    if blade < 7:   # motion blur where the blade swept past
-        for y in (17 - 8, 17 + 8):
-            cv.set(57, y, "silver")
+    # the spinning disc: a shimmer where the blade swept past
+    for y in range(17 - 8, 17 + 9, 2):
+        if abs(y - 17) > blade + 1 and (y + f) % 4 < 2:
+            cv.set(57, y + BOB[f], "silver")
+    if f % 4 == 0:                                                     # wingtip strobe
+        cv.set(23, 9 + BOB[f], "white")
     return cv
 
 
@@ -509,16 +539,18 @@ def passagierflugzeug(f):
     cv.rect(29, 20, 38, 23, "gray")                                    # engine
     cv.rect(29, 20, 38, 20, "silver")
     cv.rect(38, 21, 38, 22, "dark")
-    # blinking lights: tail strobe and belly beacon
-    if f == 0:
+    # blinking lights: tail strobe (double flash), belly beacon, wing tip
+    if f in (0, 2):
         cv.set(6, 2, "white")
-    if f in (2, 3):
+    if f in (4, 5):
         cv.set(33, 20, "red")
+    if f in (6, 7):
+        cv.set(22, 18, "lime")
     cv.outline()
-    # jet exhaust shimmer behind the engine
-    for i, x in enumerate(range(22, 29)):
+    # jet exhaust shimmer behind the engine, rushing left
+    for i, x in enumerate(range(20, 29)):
         if (x + f) % 3 == 0:
-            cv.set(x, 21 + (i % 2), "silver")
+            cv.set(x, 21 + (i % 2), "silver" if x > 23 else "gray")
     return cv
 
 
@@ -546,8 +578,8 @@ def shuttle(f):
     cv.poly([(16, 25), (38, 25), (33, 28), (13, 28)], "gray")          # wing
     cv.rect(3, 20, 5, 23, "gray")                                      # engines
     cv.outline()
-    flame(cv, 8, 4, 7, [5, 7, 6, 8, 6][f])
-    flame(cv, 2, 20, 23, [5, 6, 4, 6, 5][f])
+    flame(cv, 8, 4, 7, [5, 7, 6, 8, 5, 7, 8, 6][f])
+    flame(cv, 2, 20, 23, [5, 6, 4, 6, 5, 7, 4, 6][f])
     return cv
 
 
@@ -584,6 +616,9 @@ def raumschiff(f):
     cv.poly([(29, 12), (31, 10), (34, 10), (37, 12)], "sky")
     cv.set(32, 10, "cyan")
     cv.set(33, 11, "cyan")
+    if f in (0, 1):                                                    # cannon tip lights
+        cv.set(53, 5, "red")
+        cv.set(53, 28, "red")
     # droid dome behind the cockpit
     cv.circle(22, 12, 2.5, "white")
     cv.set(21, 10, "blue")
@@ -591,7 +626,7 @@ def raumschiff(f):
     cv.outline()
     # engine glow
     for y0 in (7, 23):
-        n = [3, 4, 3, 5, 4][(f + (y0 > 15) * 2) % 5]
+        n = [3, 4, 3, 5, 4, 3, 5, 4][(f + (y0 > 15) * 3) % FRAMES]
         for i in range(n):
             x = 5 - i
             for y in range(y0, y0 + 4):
@@ -641,11 +676,14 @@ def kreuzer(f):
     for y0 in (11, 16, 21):
         cv.rect(0, y0, 1, y0 + 3, "sky")
     cv.outline()
-    if f in (0, 1):                                  # position light at the bow
+    if f in (0, 1, 2):                               # position light at the bow
         cv.set(56, 18, "orange")
+    if f in (4, 5):                                  # strobes on the towers
+        cv.set(14, 2, "white")
+        cv.set(9, 3, "white")
     # blue engine trail, flickering
     for k, y0 in enumerate((11, 16, 21)):
-        n = [4, 5, 4, 6, 5][(f + k) % 5]
+        n = [4, 5, 4, 6, 5, 4, 6, 5][(f + k * 3) % FRAMES]
         for i in range(1, n + 1):
             for y in range(y0, y0 + 4):
                 edge = y in (y0, y0 + 3)
@@ -659,7 +697,7 @@ def kreuzer(f):
 def panzer(f):
     cv = Canvas()
     body, light, shade = "green", "lime", "teal"
-    cv.offset(0, BOUNCE[f] if f in (1, 2) else 0)
+    cv.offset(0, HEAVY[f])
     cv.poly([(6, 22), (10, 17), (54, 17), (58, 22)], body)             # hull
     cv.rect(10, 17, 54, 17, light)
     cv.poly([(18, 17), (20, 11), (38, 11), (42, 13), (42, 17)], body)  # turret
@@ -675,9 +713,9 @@ def panzer(f):
     cv.circle(54, 26, 4, "dark")
     cv.rect(10, 22, 54, 29, "dark")
     for x in range(8, 57):
-        if (x + f) % 5 == 0:
+        if (x + f) % 4 == 0:
             cv.set(x, 29, "gray")
-        if (x - f) % 5 == 0 and 10 <= x <= 54:
+        if (x - f) % 4 == 0 and 10 <= x <= 54:
             cv.set(x, 22, "gray")
     for cx in (10, 54):
         wheel(cv, cx, 26, f, r=3)
@@ -685,6 +723,8 @@ def panzer(f):
         cv.circle(cx, 26, 2.4, "gray")
         cv.circle(cx, 26, 0.9, "silver")
     cv.outline()
+    if f in (3, 4):                                                    # antenna light
+        cv.set(17, 1 + HEAVY[f], "red")
     puff(cv, 4, 20, f)
     return cv
 
@@ -711,7 +751,11 @@ def kampfjet(f):
     cv.rect(28, 21, 28, 22, shade)                                     # pylon
     cv.set(61, 17, "white")
     cv.outline()
-    flame(cv, 3 + 0, 15 + BOB[f], 18 + BOB[f], [4, 5, 3, 5, 4][f])
+    if f in (0, 1):                                                    # fin strobe
+        cv.set(12, 3 + BOB[f], "red")
+    if f in (4, 5):                                                    # wing light
+        cv.set(37, 20 + BOB[f], "lime")
+    flame(cv, 3 + 0, 15 + BOB[f], 18 + BOB[f], [4, 5, 3, 5, 4, 6, 3, 5][f])
     return cv
 
 
@@ -1440,9 +1484,9 @@ def _person(cv, x, y, shirt, arm_angle=None):
 def friends(f):
     """A person waving at an outlined 'missing friend' silhouette with a '?'."""
     cv = Canvas()
-    bob = [0, -1, -1, 0, 0][f]
+    bob = [0, -1, -1, -1, 0, 0, 0, 0][f]
     cv.offset(0, bob)
-    _person(cv, 14, 3, "blue", arm_angle=[35, 55, 70, 55, 35][f])
+    _person(cv, 14, 3, "blue", arm_angle=[35, 45, 58, 70, 66, 55, 45, 38][f])
     cv.offset()
     cv.outline()
     # silhouette: draw a person on a scratch canvas and keep only its outline
@@ -1457,7 +1501,7 @@ def friends(f):
             if edge:
                 cv.set(x, y, "gray")
     # bobbing question mark above the silhouette
-    q = [0, -1, -2, -1, 0][f]
+    q = [0, -1, -2, -2, -1, 0, 0, 0][f]
     for x, y in ((51, 2), (52, 1), (53, 1), (54, 2), (54, 3), (53, 4), (52, 5), (52, 6), (52, 8)):
         cv.set(x, y + q + 1, "yellow")
     return cv
@@ -1510,9 +1554,10 @@ def gauge(f):
     cv = Canvas()
     cv.rect(4, 28, 59, 30, "dark")                                   # base plate
     cv.rect(4, 28, 59, 28, "gray")
-    _gauge(cv, 32, 28.5, 26, 18, [138, 158, 146, 170, 152][f])
+    _gauge(cv, 32, 28.5, 26, 18, [138, 150, 162, 148, 170, 156, 145, 160][f])
     # little sparks flying off the red end
-    for (x, y), on in zip(((56, 6), (59, 10), (61, 4)), ([1, 0, 1, 0, 1][f], [0, 1, 0, 1, 1][f], [1, 1, 0, 0, 1][f])):
+    for (x, y), on in zip(((56, 6), (59, 10), (61, 4)),
+                          ([1, 0, 1, 0, 1, 1, 0, 1][f], [0, 1, 0, 1, 1, 0, 1, 0][f], [1, 1, 0, 0, 1, 0, 1, 1][f])):
         if on:
             cv.set(x, y, "yellow")
     cv.outline()

@@ -1,12 +1,38 @@
 // Banners (android/.../ui/Banners.kt): backgrounds for the own vehicle, groups and challenges.
 // Layers come from pixelart/banners.py (far + near strips, sky object). Drawn: bands -> sky object
-// -> far -> near -> particles -> road.
-import { blit, type Bands, type Ctx, dither, drawBands, hash, phase, pixelScale, rect, rng, sprite, tileAll, tileX } from "./engine"
+// -> sky effects (rays, aurora, shooting stars) -> far -> near -> weather / particles -> road.
+// The landscape scrolls with the vehicle's speed (gfx/vehicles.ts vehicleSpeed).
+import { blit, type Bands, type Ctx, dither, drawBands, glowAt, hash, luminance, phase, pixelScale, ready, rect, rng,
+  spread, sprite, tileAll, tileX, tileXWavy } from "./engine"
 
 type Fx = "none" | "stars" | "snow" | "rain" | "petals" | "embers" | "leaves" | "fireflies" | "bubbles" | "storm" |
   "birds" | "clouds" | "sparkles" | "hearts" | "butterflies" | "warp"
 
 type Sky = { kind: "high" } | { kind: "at"; x: number; y: number } | { kind: "horizon"; x: number } | null
+
+/** Extra scene effects on top of the particles (what makes each banner its own place). */
+interface Extras {
+  /** sun rays turning around this point (fractions of the card) */
+  rays?: [number, number]
+  /** drifting fog near the ground */
+  fog?: boolean
+  /** heat shimmer over the far landscape */
+  heat?: boolean
+  /** glittering water: rows of the far strip */
+  water?: [number, number]
+  /** lightning bolts with the flashes */
+  bolt?: boolean
+  /** glowing lava: the volcano's crater or the whole horizon */
+  lava?: "crater" | "horizon"
+  /** curtains of light in the sky */
+  aurora?: boolean
+  /** accretion disc orbiting the sky object */
+  disc?: boolean
+  /** stars slowly turning around the sky object */
+  galaxy?: boolean
+  /** tiny cars passing along the street */
+  traffic?: boolean
+}
 
 interface Def {
   bands: Bands; sky: Sky; fx: Fx
@@ -90,6 +116,20 @@ const DEFS: Record<string, Def> = {
   ultrahyperspace: b([[0, "#0A0602"], [.4, "#1A0F05"], [.75, "#2C1A08"]], null, "warp", { far: null, near: null, skyImg: null }),
 }
 
+/** The extra effects per banner (same table as Banners.kt EXTRAS). */
+export const EXTRAS: Record<string, Extras> = {
+  desert: { rays: [.62, .18], heat: true }, canyon: { rays: [.9, -.05], heat: true }, sunrise: { rays: [.4, .7] },
+  twinsuns: { rays: [.62, .18], heat: true }, beach: { rays: [.66, .4], water: [18, 39] }, strawberry: { rays: [.74, .16] },
+  skyisland: { rays: [.62, .18] }, fields: { rays: [.85, -.05] }, grassroute: { rays: [.85, -.05] }, tournament: { rays: [.8, -.05] },
+  harbor: { water: [22, 39], fog: true }, pirates: { water: [26, 39] }, comet: { water: [32, 39] },
+  forest: { fog: true }, spiritforest: { fog: true }, bathhouse: { fog: true }, jungle: { fog: true }, glacier: { fog: true },
+  volcano: { lava: "crater", heat: true }, lavaplanet: { lava: "horizon", heat: true }, redplanet: { heat: true },
+  storm: { bolt: true }, redclouds: { bolt: true },
+  aurora: { aurora: true }, iceplanet: { aurora: true },
+  blackhole: { disc: true }, galaxy: { galaxy: true },
+  city: { traffic: true }, neotokyo: { traffic: true },
+}
+
 export const HYPERSPACE = "hyperspace"
 export const ULTRA_HYPERSPACE = "ultrahyperspace"
 /** The shining word's colors (cyan, blue, purple) and the golden ones, as r,g,b. */
@@ -127,6 +167,9 @@ export const isBanner = (key?: string | null) => !!key && key in DEFS
 /** The banner used when none is chosen: the classic scene of the vehicle's category. */
 export const defaultBanner = (category: string) => (category === "air" ? "sky" : category === "space" ? "cosmos" : "dusk")
 
+/** Dark banners: vehicles switch their lights on. */
+export const bannerNight = (key?: string | null) => luminance(DEFS[key && key in DEFS ? key : "dusk"].bands[0][1]) < .2
+
 const particles = new Map<string, { x: number; y: number; speed: number; seed: number }[]>()
 function partsFor(key: string, fx: Fx) {
   let p = particles.get(key)
@@ -149,11 +192,39 @@ export function glow(c: Ctx, x: number, y: number, r: number, color: string) {
   c.g.fillStyle = g; c.g.fillRect(0, 0, c.w, c.h)
 }
 
-/** @param groundDp road height (land vehicles stand on its top edge); 0 = no road. */
-export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 0) {
+/** A pixel bird (two wing strokes), flapping. */
+function bird(c: Ctx, x: number, y: number, flap: number, col: string) {
+  const dp = c.dp
+  rect(c, col, x - 4 * dp, y - flap, 4 * dp, 2 * dp)
+  rect(c, col, x, y - flap, 4 * dp, 2 * dp)
+  rect(c, col, x - dp, y + dp, 2 * dp, 2 * dp)
+}
+
+/** A lightning bolt from (x, 0) down to [bottom]: jagged white core with a blue glow. */
+function bolt(c: Ctx, seed: number, x: number, bottom: number, alpha: number) {
+  const r = rng(seed), g = c.g, dp = c.dp
+  const pts: [number, number][] = [[x, 0]]
+  const n = 7
+  for (let i = 1; i <= n; i++) pts.push([x + (r() - .5) * c.w * .22 * (i < n ? 1 : .4), (i / n) * bottom])
+  for (const [w, col] of [[9 * dp, `rgba(140,170,255,${.25 * alpha})`], [4 * dp, `rgba(200,220,255,${.5 * alpha})`], [1.6 * dp, `rgba(255,255,255,${alpha})`]] as const) {
+    g.strokeStyle = col; g.lineWidth = w; g.lineJoin = "round"
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const [px, py] of pts.slice(1)) g.lineTo(px, py); g.stroke()
+  }
+  // a side branch
+  const [bx, by] = pts[3]
+  g.strokeStyle = `rgba(255,255,255,${.7 * alpha})`; g.lineWidth = 1.2 * dp
+  g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + (r() - .5) * c.w * .2, by + bottom * .25); g.stroke()
+}
+
+/**
+ * @param groundDp road height (land vehicles stand on its top edge); 0 = no road.
+ * @param speed how fast the world passes by (the vehicle's; 1 = a car).
+ */
+export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 0, speed = 1) {
   const key = keyIn && keyIn in DEFS ? keyIn : "dusk"
   const def = DEFS[key]
-  const dp = c.dp, t = c.t
+  const ex = EXTRAS[key] ?? {}
+  const dp = c.dp, t = c.t, sp = speed
   const s2 = pixelScale(2), s3 = pixelScale(3)
   const far = layer(def, key, def.far, "far")
   const near = layer(def, key, def.near, "near")
@@ -161,60 +232,174 @@ export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 
   const parts = partsFor(key, def.fx)
   const road = groundDp > 0
   const ground = road ? c.h - groundDp * dp : c.h
+  const space = SPACE.has(key)
   // small cards (thumbnails, avatars) get smaller art pixels so the sky stays visible
   const k = Math.min(1, Math.max(.3, ground / dp / 260))
   const s = Math.max(1, Math.round(def.dpPerPx * dp * k))
   const farH = (far?.naturalHeight ?? 0) * s
+  const farTop = ground - farH
+  const seed = Math.abs(hash(key))
 
   drawBands(c, def.bands)
+  // ---- sky object (and where it ended up, for rays and discs)
+  let skyC: [number, number] | null = null
   if (skyImg && def.sky) {
     if (def.sky.kind === "high") tileX(c, skyImg, s, 4 * dp, phase(t, 60_000))
-    else if (def.sky.kind === "at") blit(c, skyImg, def.sky.x * c.w - skyImg.naturalWidth * s / 2,
-      Math.min(def.sky.y * c.h, ground - farH - skyImg.naturalHeight * s), s, .95)
-    else blit(c, skyImg, def.sky.x * c.w - skyImg.naturalWidth * s / 2, ground - farH / 2 - skyImg.naturalHeight * s, s)
+    else if (def.sky.kind === "at") {
+      const x = def.sky.x * c.w - skyImg.naturalWidth * s / 2, y = Math.min(def.sky.y * c.h, farTop - skyImg.naturalHeight * s)
+      blit(c, skyImg, x, y, s, .95)
+      if (ready(skyImg)) skyC = [x + skyImg.naturalWidth * s / 2, y + skyImg.naturalHeight * s / 2]
+    } else blit(c, skyImg, def.sky.x * c.w - skyImg.naturalWidth * s / 2, ground - farH / 2 - skyImg.naturalHeight * s, s)
+  }
+  // ---- sun rays turning slowly
+  if (ex.rays) {
+    const [rx, ry] = skyC && def.sky?.kind === "at" ? skyC : [ex.rays[0] * c.w, ex.rays[1] * c.h]
+    const g = c.g, len = Math.max(c.w, c.h) * 1.4
+    for (let i = 0; i < 7; i++) {
+      const a = i * Math.PI * 2 / 7 + t * .05
+      const a2 = a + .07 + .03 * Math.sin(t * .8 + i)
+      g.fillStyle = `rgba(255,236,170,${.07 + .035 * Math.sin(t * .9 + i * 1.7)})`
+      g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx + Math.cos(a) * len, ry + Math.sin(a) * len); g.lineTo(rx + Math.cos(a2) * len, ry + Math.sin(a2) * len); g.closePath(); g.fill()
+    }
+  }
+  // ---- aurora curtains
+  if (ex.aurora) {
+    const n = 40, g = c.g
+    for (let i = 0; i < n; i++) {
+      const x = i / n * c.w, w = c.w / n + 1
+      const hgt = (.16 + .1 * Math.sin(t * .6 + i * .4) + .06 * Math.sin(t * 1.3 + i * .9)) * c.h
+      const top = c.h * .04 + .05 * c.h * Math.sin(t * .4 + i * .3)
+      const a = .14 + .1 * Math.sin(t * .9 + i * .5)
+      const col = i % 2 ? "115,239,170" : "65,166,246"
+      const grad = g.createLinearGradient(0, top, 0, top + hgt)
+      grad.addColorStop(0, `rgba(${col},0)`); grad.addColorStop(.3, `rgba(${col},${a})`); grad.addColorStop(1, `rgba(${col},0)`)
+      g.fillStyle = grad; g.fillRect(x, top, w, hgt)
+    }
   }
   if (def.fx === "clouds") {
     const cloud = sprite("icons/scene_cloud.png")
-    tileX(c, cloud, s3, c.h * .12, phase(t, 9_000), .85)
-    tileX(c, cloud, s2, c.h * .40, phase(t, 5_000), .5)
+    tileX(c, cloud, s2, c.h * .02, phase(t, 24_000 / sp), .35)
+    tileX(c, cloud, s3, c.h * .12, phase(t, 9_000 / sp), .85)
+    tileX(c, cloud, s2, c.h * .40, phase(t, 5_000 / sp), .5)
   }
-  if (def.fx === "stars") for (const p of parts) {
-    if (p.y > .62) continue
-    const a = .35 + .45 * (.5 + .5 * Math.sin(t * p.speed * 2 + p.seed))
-    const d = p.speed > 1.3 ? 2 * dp : 1.3 * dp
-    rect(c, `rgba(255,255,255,${a})`, p.x * c.w, p.y * c.h, d, d)
+  if (def.fx === "stars") {
+    for (const p of parts) {
+      if (p.y > .62) continue
+      const a = .35 + .45 * (.5 + .5 * Math.sin(t * p.speed * 2 + p.seed))
+      const d = p.speed > 1.3 ? 2 * dp : 1.3 * dp
+      const x = space ? (((p.x - t * .004 * sp * (.3 + p.speed)) % 1) + 1) % 1 : p.x
+      rect(c, `rgba(255,255,255,${a})`, x * c.w, p.y * c.h, d, d)
+      if (p.speed > 1.4) {                                    // the bright ones twinkle with spikes
+        rect(c, `rgba(255,255,255,${a * .5})`, x * c.w - 2 * dp, p.y * c.h + d / 2 - dp / 2, 4 * dp + d, dp)
+        rect(c, `rgba(255,255,255,${a * .5})`, x * c.w + d / 2 - dp / 2, p.y * c.h - 2 * dp, dp, 4 * dp + d)
+      }
+    }
+    // a shooting star every few seconds
+    const cyc = 6.5, tt = t + (seed % 100) / 10
+    const kk = (tt % cyc) / .7
+    if (kk < 1) {
+      const r = rng(seed + Math.floor(tt / cyc))
+      const x0 = (.2 + r() * .6) * c.w, y0 = (.04 + r() * .25) * c.h, dir = r() > .5 ? 1 : -1
+      const x = x0 + dir * kk * c.w * .35, y = y0 + kk * c.h * .18
+      for (let j = 0; j < 9; j++) rect(c, `rgba(255,255,255,${(1 - kk) * (1 - j / 9) * .9})`, x - dir * j * 4 * dp, y - j * 2 * dp, 2 * dp, 2 * dp)
+    }
   }
-  if (def.fx === "birds") parts.forEach((p, i) => {
-    const x = (1 - phase(t + p.seed * 3, 14_000 / p.speed)) * (c.w + 40 * dp) - 20 * dp
-    const y = c.h * (.15 + p.y * .25) + Math.sin(t * 2 + p.seed) * 3 * dp
-    const flap = Math.sin(t * 8 + i) > 0 ? 2 * dp : 0
+  // ---- orbiting matter around the black hole / the galaxy's stars
+  if ((ex.disc || ex.galaxy) && skyC) {
+    const [gx, gy] = skyC
+    parts.forEach((p, i) => {
+      if (i >= 48) return
+      const r = ex.disc ? .45 + p.x * .55 : .15 + p.x * .85
+      const a = p.seed + t * (ex.disc ? .4 + 1.6 * (1 - r) : .12 + .3 * (1 - r))
+      const px = gx + Math.cos(a) * r * (ex.disc ? 30 : 28) * s, py = gy + Math.sin(a) * r * (ex.disc ? 7 : 15) * s
+      const front = Math.sin(a) > 0
+      if (ex.disc && !front && Math.abs(px - gx) < 9 * s) return          // behind the hole
+      const col = ex.disc ? (r < .6 ? "255,240,200" : "255,160,80") : (i % 3 ? "220,200,255" : "255,255,255")
+      const al = ex.disc ? (front ? .9 : .4) : .4 + .5 * (.5 + .5 * Math.sin(t * p.speed * 2 + p.seed))
+      rect(c, `rgba(${col},${al})`, px, py, 1.5 * dp, 1.5 * dp)
+    })
+  }
+  if (def.fx === "birds") {
     const col = "rgba(46,47,99,0.8)"
-    rect(c, col, x - 4 * dp, y - flap, 4 * dp, 2 * dp)
-    rect(c, col, x, y - flap, 4 * dp, 2 * dp)
-    rect(c, col, x - dp, y + dp, 2 * dp, 2 * dp)
-  })
-  // landscape (scrolls: far slow, near faster)
-  if (far) tileX(c, far, s, ground - far.naturalHeight * s, phase(t, 40_000))
-  if (near) tileX(c, near, s, ground - near.naturalHeight * s, phase(t, 16_000))
+    // a flock in V formation ...
+    const lead = (1 - phase(t + 2, 22_000)) * (c.w + 80 * dp) - 40 * dp
+    const ly = c.h * .2 + Math.sin(t * 1.3) * 4 * dp
+    for (let i = 0; i < 5; i++) {
+      const x = lead + i * 8 * dp, y = ly + Math.abs(i - 2) * 6 * dp + Math.sin(t * 2 + i) * 2 * dp
+      bird(c, x, y, Math.sin(t * 8 + i * .7) > 0 ? 2 * dp : 0, col)
+    }
+    // ... and two on their own
+    parts.slice(0, 2).forEach((p, i) => {
+      const x = (1 - phase(t + p.seed * 3, 14_000 / p.speed)) * (c.w + 40 * dp) - 20 * dp
+      const y = c.h * (.15 + p.y * .25) + Math.sin(t * 2 + p.seed) * 3 * dp
+      bird(c, x, y, Math.sin(t * 8 + i) > 0 ? 2 * dp : 0, col)
+    })
+  }
+  // ---- landscape (scrolls: far slow, near faster, both with the vehicle's speed)
+  const farPhase = phase(t, 40_000 / sp)
+  if (far) {
+    if (ex.heat) tileXWavy(c, far, s, farTop, farPhase, (row) => Math.sin(t * 6 + row * .9) * s * .5)
+    else tileX(c, far, s, farTop, farPhase)
+  }
+  if (ex.lava === "crater" && far && ready(far)) {
+    const w = far.naturalWidth * s, pulse = .35 + .15 * Math.sin(t * 3)
+    for (let x = -Math.floor(farPhase * w); x < c.w + w; x += w) glowAt(c, x + 40 * s, farTop + 4 * s, 14 * s, `rgba(255,140,60,${pulse})`)
+  }
+  if (ex.lava === "horizon") {
+    const g = c.g, grad = g.createLinearGradient(0, ground - 34 * dp, 0, ground)
+    grad.addColorStop(0, "rgba(255,120,40,0)"); grad.addColorStop(1, `rgba(255,120,40,${.35 + .12 * Math.sin(t * 2.2)})`)
+    g.fillStyle = grad; g.fillRect(0, ground - 34 * dp, c.w, 34 * dp)
+  }
+  if (ex.water && far) {
+    const top = farTop + ex.water[0] * s, bottom = farTop + ex.water[1] * s
+    parts.forEach((p, i) => {
+      if (i >= 18) return
+      if (Math.sin(t * p.speed * 3 + p.seed) < .72) return
+      const x = ((p.x + t * .01 * sp) % 1) * c.w, y = top + p.y * (bottom - top)
+      rect(c, "rgba(255,255,255,.75)", x, y, (1 + (i % 2)) * s, Math.max(1, dp))
+    })
+  }
+  if (near) tileX(c, near, s, ground - near.naturalHeight * s, phase(t, 16_000 / sp))
+  if (ex.fog) {
+    const base = near ? ground - near.naturalHeight * s * .5 : ground - 20 * dp
+    for (let j = 0; j < 7; j++) {
+      const x = ((j / 7 + t * .012 * (1 + (j % 2))) % 1.3 - .15) * c.w
+      const y = base - (j % 3) * 8 * dp + Math.sin(t * .5 + j) * 3 * dp
+      glowAt(c, x, y, c.w * .18, `rgba(220,230,240,${.14 + .05 * Math.sin(t * .7 + j)})`, (9 + 3 * Math.sin(t * .4 + j)) * dp)
+    }
+  }
+  if (ex.traffic) for (let i = 0; i < 2; i++) {
+    const dir = i === 0 ? 1 : -1, pr = i === 0 ? 9_000 : 7_000
+    const x = (dir > 0 ? phase(t + i * 3, pr) : 1 - phase(t + i * 3, pr)) * (c.w + 20 * dp) - 10 * dp
+    const y = ground - 3 * dp
+    rect(c, "rgba(255,240,200,.95)", x + (dir > 0 ? 3 * dp : -4 * dp), y, 2 * dp, dp)
+    rect(c, "rgba(255,80,90,.9)", x + (dir > 0 ? -4 * dp : 3 * dp), y, 2 * dp, dp)
+    rect(c, "rgba(255,240,200,.08)", x + (dir > 0 ? 5 * dp : -12 * dp), y - dp, 8 * dp, 3 * dp)
+  }
 
   switch (def.fx) {
-    case "snow": for (const p of parts) {
-      const y = (p.y + t * .05 * p.speed) % 1
-      const x = p.x * c.w + Math.sin(t * p.speed + p.seed) * 8 * dp
-      rect(c, "rgba(255,255,255,0.85)", x, y * c.h, 2 * dp * Math.min(p.speed, 1.2), 2 * dp)
-    } break
+    case "snow": parts.forEach((p, i) => {
+      const nearFlake = i >= 30
+      const y = (p.y + t * (nearFlake ? .07 : .03) * p.speed) % 1
+      const x = ((p.x - t * .015 * sp + 1) % 1) * c.w + Math.sin(t * p.speed + p.seed) * (nearFlake ? 10 : 5) * dp
+      const d = nearFlake ? 2.5 * dp : 1.4 * dp
+      rect(c, `rgba(255,255,255,${nearFlake ? .9 : .6})`, x, y * c.h, d, d)
+    }); break
     case "petals": case "leaves": parts.slice(0, 28).forEach((p, i) => {
+      const gust = .02 + .03 * (Math.sin(t * .4) + 1)
       const y = (p.y + t * .04 * p.speed) % 1
-      const x = ((p.x + t * .02) % 1) * c.w + Math.sin(t * 1.5 + p.seed) * 14 * dp
+      const x = ((p.x + t * gust) % 1) * c.w + Math.sin(t * 1.5 + p.seed) * 14 * dp
       const col = def.fx === "petals" ? (i % 3 === 0 ? "#FFF0F6" : "#FFB0CF") : ["#E0832F", "#B13E53", "#FFCD75"][i % 3]
       const wob = Math.sin(t * 3 + p.seed) > 0
       rect(c, col, x, y * c.h, wob ? 3 * dp : 2 * dp, wob ? 2 * dp : 3 * dp)
     }); break
-    case "embers": for (const p of parts.slice(0, 30)) {
+    case "embers": for (const p of parts.slice(0, 36)) {
       const kk = (p.y + t * .06 * p.speed) % 1              // 0 = bottom, 1 = top
       const x = p.x * c.w + Math.sin(t + p.seed) * 6 * dp
       c.g.globalAlpha = 1 - kk
       rect(c, p.speed > 1 ? "#FFCD75" : "#EF7D57", x, ground - kk * ground, 2 * dp, 2 * dp)
+      c.g.globalAlpha = (1 - kk) * .3
+      rect(c, "#EF7D57", x, ground - kk * ground + 2 * dp, 2 * dp, 4 * dp)
       c.g.globalAlpha = 1
     } break
     case "fireflies": for (const p of parts.slice(0, 18)) {
@@ -222,7 +407,7 @@ export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 
       const x = p.x * c.w + Math.sin(t * .3 + p.seed) * 16 * dp
       const y = ground - (.08 + p.y * .45) * ground + Math.sin(t * .5 + p.seed * 2) * 8 * dp
       rect(c, `rgba(232,255,138,${a})`, x, y, 2 * dp, 2 * dp)
-      rect(c, `rgba(232,255,138,${a * .25})`, x - dp, y - dp, 4 * dp, 4 * dp)
+      glowAt(c, x + dp, y + dp, 5 * dp, `rgba(232,255,138,${a * .4})`)
     } break
     case "bubbles": for (const p of parts.slice(0, 22)) {
       const kk = (p.y + t * .05 * p.speed) % 1
@@ -306,11 +491,26 @@ export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 
         c.g.globalAlpha = 1
       })
     } break
-    case "rain": tileAll(c, sprite("icons/scene_rain.png"), s3, phase(t, 900), .45); break
-    case "storm": {
-      tileAll(c, sprite("icons/scene_rain.png"), s3, phase(t, 700), .5)
-      const f = phase(t, 7_000)
-      if (f < .02 || (f >= .05 && f <= .065)) rect(c, "rgba(255,255,255,0.35)", 0, 0, c.w, c.h)
+    case "rain": case "storm": {
+      // slanted by the wind (the faster the vehicle, the more), splashing on the road
+      const g = c.g, slant = .18 + .12 * Math.min(sp, 2)
+      g.save(); g.transform(1, 0, -slant, 1, slant * c.h * .5, 0)
+      tileAll(c, sprite("icons/scene_rain.png"), s3, phase(t, def.fx === "storm" ? 700 : 900), def.fx === "storm" ? .5 : .45)
+      g.restore()
+      if (road) parts.forEach((p, i) => {
+        if (i >= 12 || (t * 2.5 + spread(i)) % 1 > .22) return
+        const x = p.x * c.w, col = "rgba(255,255,255,.6)"
+        rect(c, col, x, ground - 2 * dp, dp, dp); rect(c, col, x - 2 * dp, ground - dp, dp, dp); rect(c, col, x + 2 * dp, ground - dp, dp, dp)
+      })
+      if (def.fx === "storm" || ex.bolt) {
+        const f = phase(t, 7_000), n = Math.floor(t / 7)
+        const flash = f < .02 ? 1 : f >= .05 && f <= .065 ? .6 : 0
+        if (flash > 0) {
+          rect(c, `rgba(255,255,255,${.35 * flash})`, 0, 0, c.w, c.h)
+          const r = rng(seed + n)
+          bolt(c, seed + n, (.15 + r() * .7) * c.w, farTop + farH * .5, flash)
+        }
+      }
       break
     }
   }
@@ -318,7 +518,13 @@ export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 
     rect(c, "#2A2F45", 0, ground, c.w, 6 * dp)
     rect(c, "#1A1C2C", 0, ground + 6 * dp, c.w, c.h)
     const dash = 32 * dp
-    for (let x = -phase(t, 450) * dash; x < c.w; x += dash) rect(c, "rgba(255,205,117,0.55)", x, ground + 30 * dp, dash / 2, 4 * dp)
+    for (let x = -phase(t, 450 / sp) * dash; x < c.w; x += dash) rect(c, "rgba(255,205,117,0.55)", x, ground + 30 * dp, dash / 2, 4 * dp)
+    // roadside posts rushing past
+    const gap = 150 * dp
+    for (let x = -phase(t, 2_400 / sp) * gap; x < c.w; x += gap) {
+      rect(c, "#56607A", x, ground - 12 * dp, 3 * dp, 12 * dp)
+      rect(c, "#F4F4F4", x, ground - 10 * dp, 3 * dp, 2 * dp)
+    }
   }
   dither(c)
 }

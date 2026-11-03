@@ -6,6 +6,20 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-03 e
+
+### DE
+- Fahrzeuge in Bewegung: 8 statt 5 Bilder pro Animation, drehende Felgen mit Profil, Federung, Abgaswolken, flackernde Flammen und Blinklichter.
+- Effekte rund ums Fahrzeug: Staub und Abgas hinter Autos, Scheinwerfer und Rücklichter bei Nacht, Kondensstreifen und Nachbrenner bei Flugzeugen, Triebwerksspuren und Sternstreifen bei Raumschiffen, ab und zu ein Glanz über dem Rumpf.
+- Hintergründe leben: Sternschnuppen, Sonnenstrahlen, Hitzeflimmern, Nebel, glitzerndes Wasser, echte Blitze im Gewitter, Lava-Glut, Polarlicht-Vorhänge, die Akkretionsscheibe am Schwarzen Loch, Verkehr in der Stadt, Vogelschwärme, Regen im Wind mit Spritzern, Pfosten am Straßenrand.
+- Die Landschaft zieht so schnell vorbei, wie das Fahrzeug fährt: gemütlich auf dem Fahrrad, rasant im Kampfjet.
+
+### EN
+- Vehicles in motion: 8 instead of 5 frames per animation, turning rims with tread, suspension, exhaust clouds, flickering flames and blinking lights.
+- Effects around the vehicle: dust and exhaust behind cars, headlights and taillights at night, contrails and afterburners on aircraft, engine trails and star streaks on spaceships, now and then a glint over the hull.
+- Backgrounds come alive: shooting stars, sun rays, heat shimmer, fog, glittering water, real lightning in the storm, lava glow, aurora curtains, the accretion disc at the black hole, traffic in the city, flocks of birds, rain in the wind with splashes, roadside posts.
+- The landscape passes by as fast as the vehicle goes: leisurely on the bicycle, breakneck in the fighter jet.
+
 ## 2026-11-03 d
 
 ### DE

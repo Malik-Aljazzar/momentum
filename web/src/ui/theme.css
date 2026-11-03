@@ -175,6 +175,7 @@ textarea.field { resize: none; line-height: 21px; }
 @keyframes rise { from { transform: translateY(0); opacity: 1 } to { transform: translateY(-48px); opacity: 0 } }
 .pop { position: absolute; pointer-events: none; font: 700 26px Silkscreen, "Pixel Emoji"; animation: rise .9s ease-out forwards; }
 @keyframes vehicle { to { background-position: var(--vw) 0 } }
+.vehicle-fx { pointer-events: none; }
 @keyframes spin { to { transform: rotate(360deg) } }
 
 /* a rule that can't be tapped: grey for a moment, the "no tap" finger on top */

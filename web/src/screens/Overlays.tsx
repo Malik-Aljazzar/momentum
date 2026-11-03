@@ -1,6 +1,7 @@
 // Full-screen moments (android/.../ui/App.kt): milestone reached, hyperspace jump, update needed.
 import { useEffect, useMemo, useState } from "preact/hooks"
 import { sceneFor } from "../gfx/scenes"
+import { vehicleSpeed } from "../gfx/vehicles"
 import { glow, GOLD_RGB, HYPER_RGB, HYPERSPACE, ULTRA_HYPERSPACE } from "../gfx/banners"
 import { phase, rect, type Ctx } from "../gfx/engine"
 import { meta, req, save, showToast, state } from "../store"
@@ -33,12 +34,12 @@ export function MilestoneOverlay({ onClose }: { onClose: () => void }) {
   const v = m.vehicles[st.vehicle.index]
   if (!v) return null
   return <div class="fill banner-card" role="dialog" aria-label={s.levelUp} style={{ zIndex: 80, background: "#000" }}>
-    <SceneBg scene={sceneFor(v.category)} groundDp={0} />
+    <SceneBg scene={sceneFor(v.category)} groundDp={0} speed={vehicleSpeed(v.key)} />
     <div class="fill col center" style={{ flexDirection: "column", padding: 24, textAlign: "center" }}>
       <Label text={s.milestoneReached} />
       <div class="t-block" style={{ fontSize: 52, lineHeight: "54px" }}>{s.levelUp}</div>
       <div style={{ height: 28 }} />
-      <VehicleSprite vkey={v.key} dpPerPixel={5} />
+      <VehicleSprite vkey={v.key} dpPerPixel={5} night={v.category !== "air"} />
       <div style={{ height: 28 }} />
       <div class="t-strong" style={{ fontSize: 18 }}>{s.nowDriving} {s.vehicle(v.key, v.label)}</div>
       <div style={{ height: 20 }} />
@@ -69,7 +70,7 @@ export function HyperspaceOverlay({ onClose }: { onClose: () => void }) {
   return <div class="fill" role="dialog" style={{ zIndex: 81, background: "#000" }}>
     <BannerBg bkey={sec < 1.6 ? "cosmos" : HYPERSPACE} />
     <div class="fill center" style={{ transform: `translateX(${shake}px)` }}>
-      <VehicleSprite vkey={meta.value?.vehicles.at(-1)?.key ?? "kreuzer"} dpPerPixel={Math.max(1, scale)} />
+      <VehicleSprite vkey={meta.value?.vehicles.at(-1)?.key ?? "kreuzer"} dpPerPixel={Math.max(1, scale)} night />
     </div>
     {flash > 0 && <div class="fill" style={{ background: `rgba(255,255,255,${Math.min(1, flash)})` }} />}
     {sec > 2.4 && <div class="col" style={{
@@ -191,8 +192,8 @@ export function WhatsNewOverlay({ releases, onClose }: { releases: Release[]; on
 export function UpdateScreen() {
   const s = S.value
   return <div class="fill" style={{ zIndex: 95, background: "var(--bg)" }}>
-    <BannerBg bkey="dusk" groundDp={160} />
-    <div style={{ position: "absolute", left: 0, right: 0, bottom: 150, display: "flex", justifyContent: "center" }}><VehicleSprite vkey="motorroller" dpPerPixel={4} /></div>
+    <BannerBg bkey="dusk" groundDp={160} speed={vehicleSpeed("motorroller")} />
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 150, display: "flex", justifyContent: "center" }}><VehicleSprite vkey="motorroller" dpPerPixel={4} night /></div>
     <div class="col" style={{ position: "absolute", left: 28, right: 28, top: "calc(var(--safe-top) + 72px)", alignItems: "center", textAlign: "center" }}>
       <Label text={s.updateTag} color="var(--yellow)" />
       <div style={{ height: 10 }} />

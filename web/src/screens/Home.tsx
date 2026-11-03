@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "preact/hooks"
 import { ConfirmReminder } from "./Login"
 import { fmt, fmtShort, secondsSince, signed } from "../format"
-import { defaultBanner } from "../gfx/banners"
+import { bannerNight, defaultBanner } from "../gfx/banners"
+import { vehicleSpeed } from "../gfx/vehicles"
 import { type AppState, type Event, vehicleProgress } from "../model"
 import { meta, undo } from "../store"
 import { S } from "../strings"
@@ -153,8 +154,9 @@ function Hero({ st, vkey, label, category, idx, count }: { st: AppState; vkey: s
   const shown = useCountUp(st.momentum)
   const d = st.decay
   const competing = st.settings.daily_limit !== false
+  const bkey = st.user.banner ?? defaultBanner(category)
   return <div class={competing ? "banner-card glow" : "banner-card"} style={{ position: "relative", height: 440, borderRadius: "var(--card-radius)", overflow: "hidden", flex: "none" }}>
-    <BannerBg bkey={st.user.banner ?? defaultBanner(category)} groundDp={land ? 120 : 0} />
+    <BannerBg bkey={bkey} groundDp={land ? 120 : 0} speed={vehicleSpeed(vkey)} />
     <div class="col" style={{ position: "relative", padding: "22px 22px 0" }}>
       <ScoreLabel competing={competing} />
       <div style={{ height: 4 }} />
@@ -168,7 +170,7 @@ function Hero({ st, vkey, label, category, idx, count }: { st: AppState; vkey: s
       </div>
     </div>
     <div style={{ position: "absolute", left: 0, right: 0, bottom: land ? 112 : 150, display: "flex", justifyContent: "center" }}>
-      <VehicleSprite vkey={vkey} dpPerPixel={4} />
+      <VehicleSprite vkey={vkey} dpPerPixel={4} night={bannerNight(bkey)} />
     </div>
     <div class="row" style={{
       position: "absolute", left: 0, right: 0, bottom: 0, padding: `${land ? 0 : 40}px 22px 18px`,

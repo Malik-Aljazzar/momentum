@@ -2,7 +2,8 @@
 import { useEffect, useState } from "preact/hooks"
 import { fmt, fmtVal, secondsSince, signed } from "../format"
 import { activityText } from "../lines"
-import { defaultBanner } from "../gfx/banners"
+import { bannerNight, defaultBanner } from "../gfx/banners"
+import { vehicleSpeed } from "../gfx/vehicles"
 import type { GroupHit, HistoryItem, NotificationItem, Post, Profile, ProfileBadge, PublicRule, Story, UserCard } from "../model"
 import { nav } from "../nav"
 import { clearNotifications } from "../push"
@@ -193,14 +194,14 @@ function ProfileHero({ p }: { p: Profile }) {
   const reached = p.reached_at ?? 0
   return <div class="col" style={{ padding: "0 16px" }}>
     <div class={competing ? "banner-card glow" : "banner-card"} style={{ position: "relative", height: 300, borderRadius: "var(--card-radius)", overflow: "hidden" }}>
-      <BannerBg bkey={p.banner ?? defaultBanner(v.category)} groundDp={land ? 70 : 0} />
+      <BannerBg bkey={p.banner ?? defaultBanner(v.category)} groundDp={land ? 70 : 0} speed={vehicleSpeed(v.key)} />
       <div class="col" style={{ position: "relative", padding: 20 }}>
         <ScoreLabel competing={competing} />
         <FitText text={fmt(p.momentum)} max={64} class="t-block" />
         <span class="t-small" style={{ color: "var(--text)" }}>{s.vehicle(v.key, v.label)} · {s.stage(idx + 1, vs.length)}</span>
         {!competing && <span class="t-small" style={{ fontSize: 12 }}>{s.rankedPaused(fmt(p.ranked_momentum ?? 0))}</span>}
       </div>
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: lift, display: "flex", justifyContent: "center" }}><VehicleSprite vkey={v.key} dpPerPixel={2.5} /></div>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: lift, display: "flex", justifyContent: "center" }}><VehicleSprite vkey={v.key} dpPerPixel={2.5} night={bannerNight(p.banner ?? defaultBanner(v.category))} /></div>
     </div>
     {next && p.next_at != null && <>
       <div style={{ height: 10 }} />

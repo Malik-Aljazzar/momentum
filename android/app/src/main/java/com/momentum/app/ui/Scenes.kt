@@ -24,6 +24,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.floor
@@ -79,14 +81,46 @@ internal fun DrawScope.tileX(img: ImageBitmap, scale: Int, y: Float, phase: Floa
     }
 }
 
+/** Like tileX, but every art row is shifted sideways by [offset](row) pixels (heat shimmer). */
+internal fun DrawScope.tileXWavy(img: ImageBitmap, scale: Int, y: Float, phase: Float, offset: (Int) -> Float) {
+    val w = img.width * scale
+    val x0 = -floor(phase * w)
+    for (r in 0 until img.height) {
+        val o = offset(r).roundToInt()
+        var x = x0 - w
+        while (x < size.width + w) {
+            drawImage(
+                img, srcOffset = IntOffset(0, r), srcSize = IntSize(img.width, 1),
+                dstOffset = IntOffset(x.toInt() + o, y.toInt() + r * scale), dstSize = IntSize(w, scale),
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.None,
+            )
+            x += w
+        }
+    }
+}
+
+/** A soft round glow (an ellipse with [ry]), drawn only within its own box. */
+internal fun DrawScope.glowAt(x: Float, y: Float, r: Float, color: Color, ry: Float = r) {
+    if (r <= 0f || ry <= 0f) return
+    withTransform({ translate(x, y); scale(1f, ry / r, Offset.Zero) }) {
+        drawRect(
+            Brush.radialGradient(listOf(color, Color.Transparent), Offset.Zero, r),
+            Offset(-r, -r), Size(2 * r, 2 * r),
+        )
+    }
+}
+
+/** Relative luminance (0..1). */
+internal fun luminance(c: Color) = .2126f * c.red + .7152f * c.green + .0722f * c.blue
+
 /** Repeat an image over the whole area, shifted vertically by phase (0..1) of one tile. */
 internal fun DrawScope.tileAll(img: ImageBitmap, scale: Int, phase: Float, alpha: Float) {
     val w = img.width * scale
     val h = img.height * scale
     var y = -h + phase * h
     while (y < size.height) {
-        var x = 0f
-        while (x < size.width) {
+        var x = -w.toFloat()
+        while (x < size.width + w) {
             blit(img, x, y, scale, alpha)
             x += w
         }
@@ -107,9 +141,10 @@ internal fun ditherBrush(density: Float): ShaderBrush {
 
 /**
  * @param groundDp height of the road in the land scene; vehicles stand on its top edge.
+ * @param speed how fast the world passes by (the vehicle's, vehicleSpeed; 1 = a car).
  */
 @Composable
-fun SceneBackground(scene: Scene, modifier: Modifier = Modifier, groundDp: Float = 120f, sun: Boolean = true) {
+fun SceneBackground(scene: Scene, modifier: Modifier = Modifier, groundDp: Float = 120f, sun: Boolean = true, speed: Float = 1f) {
     // device pixels per art pixel for the different layer sizes (~2x, 3x, 4x in dp)
     val s2 = pixelScale(2f)
     val s3 = pixelScale(3f)
@@ -144,24 +179,24 @@ fun SceneBackground(scene: Scene, modifier: Modifier = Modifier, groundDp: Float
                     val ground = size.height - groundDp * dp
                     // sun sits above the mountains, independent of how tall the card is
                     if (sun) blit(sunImg, size.width * .64f, maxOf(size.height * .30f, ground - 150 * dp).coerceAtMost(ground - 70 * dp), s4, .85f)
-                    tileX(far, s4, ground - far.height * s4, phase(t, 40_000), .8f)
-                    tileX(near, s4, ground - near.height * s4, phase(t, 16_000))
+                    tileX(far, s4, ground - far.height * s4, phase(t, (40_000 / speed).toInt()), .8f)
+                    tileX(near, s4, ground - near.height * s4, phase(t, (16_000 / speed).toInt()))
                     drawRect(Color(0xFF2A2F45), Offset(0f, ground), Size(size.width, 6 * dp))
                     drawRect(Color(0xFF1A1C2C), Offset(0f, ground + 6 * dp), Size(size.width, size.height))
                     val dash = 32 * dp
-                    var x = -phase(t, 450) * dash
+                    var x = -phase(t, (450 / speed).toInt()) * dash
                     while (x < size.width) {
                         drawRect(Color(0x8CFFCD75), Offset(x, ground + 30 * dp), Size(dash / 2, 4 * dp))
                         x += dash
                     }
                 }
                 Scene.Air -> {
-                    tileX(cloud, s3, size.height * .26f, phase(t, 9_000), .8f)
-                    tileX(cloud, s2, size.height * .62f, phase(t, 5_000), .55f)
+                    tileX(cloud, s3, size.height * .26f, phase(t, (9_000 / speed).toInt()), .8f)
+                    tileX(cloud, s2, size.height * .62f, phase(t, (5_000 / speed).toInt()), .55f)
                 }
                 Scene.Space, Scene.Settings -> {
-                    val slow = phase(t, 40_000)
-                    val fast = phase(t, 9_000)
+                    val slow = phase(t, (40_000 / speed).toInt())
+                    val fast = phase(t, (9_000 / speed).toInt())
                     stars.forEach { (fx, fy, depth) ->
                         val x = ((fx - if (depth > .6f) fast else slow) % 1f + 1f) % 1f
                         val dot = if (depth > .85f) 2 * dp else dp * 1.2f
