@@ -79,6 +79,14 @@ def latest_app():
 DEFAULT_DB = f"sqlite+aiosqlite:///{(Path(__file__).parent / 'momentum.db').as_posix()}"
 
 
+class App(Quart):
+    async def handle_request(self, request):
+        """A client that hangs up cancels its request (Quart: http.disconnect); the handler still runs to its
+        end, its answer is dropped. Cancelled in the middle of a query, a DB connection kept its SQLite lock and
+        every write failed with "database is locked" until a restart (2026-11-03)."""
+        return await asyncio.shield(asyncio.ensure_future(super().handle_request(request)))
+
+
 class ApiError(Exception):
     """Error with a German and an English message; the client's Accept-Language picks one."""
 
@@ -175,7 +183,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     if e2e_default is None:
         e2e_default = blobs is None
     # clients: the Android app (APK at /app.apk) and the PWA (web/dist at /app/)
-    app = Quart(__name__, static_folder=None)
+    app = App(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024   # raw photo/video uploads
     app.config["E2E_DEFAULT"] = bool(e2e_default)
     db_url = db_url or os.environ.get("MOMENTUM_DB", DEFAULT_DB)

@@ -222,6 +222,9 @@ https://momentum.mal-zeta.de, builds the PWA, uploads to `sz-dev-environments:/o
   volume `momentum_app-data` (/data/momentum.db), MinIO internal. Ports registry: /opt/USED_PORTS.md.
 - Data migrations: add a config-flag step to `db._migrate_data`; test it on a copy of the
   production DB when it rewrites data.
+- SQLite runs in WAL mode (`db._sqlite_wal`): a copy of the DB needs `momentum.db-wal` too (or
+  `sqlite3 momentum.db ".backup copy.db"`). Requests run to their end when the client hangs up
+  (`app.App.handle_request`): cancelled mid-query, a connection once kept SQLite locked for everyone.
 
 ## Play Store and Google sign-in
 

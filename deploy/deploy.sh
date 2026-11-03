@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 (cd web && npm ci --no-audit --no-fund --silent && npm run build --silent)
 
 tar czf /tmp/momentum-deploy.tgz \
-    --exclude='__pycache__' --exclude='server/tests' --exclude='server/momentum.db' \
+    --exclude='__pycache__' --exclude='server/tests' --exclude='server/momentum.db' --exclude='server/momentum.db-*' \
     -C deploy Dockerfile docker-compose.yml \
     -C .. server pixelart/out web/dist
 ssh "$HOST" "mkdir -p $DIR/apk $DIR/apk-admin"

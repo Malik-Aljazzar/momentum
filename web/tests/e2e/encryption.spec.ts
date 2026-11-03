@@ -51,7 +51,9 @@ test("encrypted chat: text and photo readable only in the apps, a new device unl
   // safety codes: what ben sees as ann's code is what ann sees as her own
   await b.locator("button[aria-label='chat info']").click()
   await expect(b.getByText("Sicherheitscodes")).toBeVisible()
-  const annOnBen = await b.locator(".safety-code", { hasText: ann.name }).locator("span").nth(1).innerText()
+  const annCode = b.locator(".safety-code", { hasText: ann.name }).locator("span").nth(1)
+  await expect(annCode).not.toHaveText("—")                 // "—" until the code is computed
+  const annOnBen = await annCode.innerText()
   await a.locator("button[aria-label='chat info']").click()
   await expect(a.locator(".safety-code", { hasText: "Dein Code" }).locator("span").nth(1)).toHaveText(annOnBen)
 

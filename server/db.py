@@ -4,7 +4,7 @@ All datetimes are stored as naive UTC.
 """
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, inspect
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, event, inspect
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -505,9 +505,19 @@ class AuthToken(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+def _sqlite_wal(dbapi_conn, _record):
+    """WAL: readers and the writer don't wait for each other. With the default rollback journal a commit
+    waits for every reader and meanwhile locks out new ones - one stuck reader stopped all writes."""
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.close()
+
+
 class Database:
     def __init__(self, url):
         self.engine = create_async_engine(url)
+        if url.startswith("sqlite") and ":memory:" not in url:
+            event.listen(self.engine.sync_engine, "connect", _sqlite_wal)
         self.session = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def create_all(self):

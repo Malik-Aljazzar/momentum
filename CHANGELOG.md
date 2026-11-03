@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-03
+
+### DE
+- Behoben: Nach einem abgebrochenen Laden konnte der Server minutenlang nichts mehr speichern („Die Datenbank ist gerade beschäftigt“) – auch keine Reports.
+
+### EN
+- Fixed: after an interrupted load the server could stop saving anything for minutes ("The database is busy right now") – reports included.
+
 ## 2026-11-02
 
 ### DE
