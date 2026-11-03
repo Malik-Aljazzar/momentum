@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
-import { api, longPress, newUser, openApp, tab } from "./helpers"
+import { api, longPress, mailedCode, newUser, openApp, tab } from "./helpers"
 
-test("sign up, choose a username, see the start screen", async ({ page }) => {
+test("sign up, confirm the e-mail address with the mailed code, choose a username, see the start screen", async ({ page, request }) => {
   await page.addInitScript(() => localStorage.setItem("language", "de"))
   await page.goto("/app/")
   await page.getByText("Neu hier? Konto erstellen").click()
@@ -9,6 +9,16 @@ test("sign up, choose a username, see the start screen", async ({ page }) => {
   await page.getByPlaceholder("E-Mail").fill(`${name}@example.com`)
   await page.getByPlaceholder("Passwort").fill("geheim1")
   await page.getByRole("button", { name: "Konto erstellen", exact: true }).click()
+  // the code is on its way: required before anything else (server/mail.py)
+  const confirm = page.locator(".confirm-email")
+  await expect(confirm).toContainText(`${name}@example.com`)
+  await expect(confirm.getByRole("button", { name: /Neuer Code in \d+ s/ })).toBeDisabled()
+  await page.screenshot({ path: test.info().outputPath("confirm-email.png") })
+  await page.getByPlaceholder("6-stelliger Code").fill("000000" === await mailedCode(request, `${name}@example.com`) ? "111111" : "000000")
+  await page.getByRole("button", { name: "Bestätigen" }).click()
+  await expect(page.getByText("Der Code stimmt nicht")).toBeVisible()
+  await page.getByPlaceholder("6-stelliger Code").fill(await mailedCode(request, `${name}@example.com`))
+  await page.getByRole("button", { name: "Bestätigen" }).click()
   await page.getByPlaceholder("@name").fill(name)
   await page.getByRole("button", { name: "Weiter" }).click()
   await expect(page.locator("nav.tabbar")).toBeVisible()

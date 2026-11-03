@@ -82,7 +82,9 @@ fun MomentumApp(vm: AppViewModel) {
                     Screen.Loading -> Box(Modifier.fillMaxSize())
                     Screen.Offline -> OfflineScreen(vm)
                     Screen.Login -> LoginScreen(vm)
-                    Screen.Main -> if (vm.state?.user?.needsUsername == true) UsernameScreen(vm) else MainScreen(vm)
+                    // the e-mail address first (required: server/mail.py), then the username, then the app
+                    Screen.Main -> if (vm.state?.user?.emailConfirm?.required == true) ConfirmEmailScreen(vm)
+                        else if (vm.state?.user?.needsUsername == true) UsernameScreen(vm) else MainScreen(vm)
                 }
             }
             ToastHost(
@@ -245,6 +247,7 @@ private fun RouteScreen(vm: AppViewModel, state: com.momentum.app.data.AppState,
         is Route.ChatInfo -> ChatInfoScreen(vm, route.id)
         Route.E2ERecovery -> RecoveryScreen(vm)
         Route.E2EUnlock -> UnlockScreen(vm)
+        Route.ConfirmEmail -> ConfirmEmailScreen(vm, opened = true)
         Route.Settings -> Column(Modifier.fillMaxSize()) {
             // fixed banner; only the settings below scroll
             Box(

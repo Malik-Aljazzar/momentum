@@ -19,6 +19,8 @@ from . import momentum as m
 from . import adminapi, security, challenges, chat, community, decays, e2e, emoji, limits, mentions, posts, push, service, social, stories, storage, updates
 from . import google as google_mod
 from . import github as github_mod
+from . import mail as mail_mod
+from .clients import CONFIRM_APP, knows
 from sqlalchemy.exc import DBAPIError
 from werkzeug.exceptions import HTTPException
 
@@ -77,6 +79,20 @@ def latest_app():
 
 
 DEFAULT_DB = f"sqlite+aiosqlite:///{(Path(__file__).parent / 'momentum.db').as_posix()}"
+
+
+class AccountLocked(Exception):
+    """Too many wrong passwords (server/mail.py LOCK_AFTER): a reset code is mailed, only a new password opens it."""
+
+
+class ConfirmRequired(Exception):
+    """The account's e-mail address isn't confirmed yet and it's due (server/mail.py): only the confirm screen."""
+
+
+# what an account that still has to confirm its address may call: the state (tells the app), the confirm / password
+# calls, logging out, deleting the account, the background checks
+CONFIRM_FREE = ("/api/state", "/api/account", "/api/updates")
+CONFIRM_FREE_PREFIXES = ("/api/auth/", "/api/push/")
 
 
 class App(Quart):
@@ -172,12 +188,13 @@ def parse_decay(data):
 
 # ---------------------------------------------------------------- app
 
-def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, google=None, github=None):
+def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, google=None, github=None, mail=None):
     """push_enabled: send real-time pushes (default: only the real server - tests and the e2e server
     pass their own blob store and stay quiet). e2e_default: new chats are end-to-end encrypted (default:
     the real server; the tests' chats are plain unless a test switches it on). google: the Google sign-in
     (server/google.py; default: configured from the environment). github: the reports' issues
-    (server/github.py; default: from the environment, off without GITHUB_REPO + GITHUB_TOKEN)."""
+    (server/github.py; default: from the environment, off without GITHUB_REPO + GITHUB_TOKEN). mail: e-mails with
+    codes (server/mail.py; default: from the environment, off without MAIL_*)."""
     if push_enabled is None:
         push_enabled = blobs is None
     if e2e_default is None:
@@ -196,6 +213,8 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     google = google or Google()
     github = github or github_mod.GitHub()
     app.github = github
+    mailer = mail or mail_mod.Mailer()
+    app.mail = mailer
     icon_dir = SPRITE_DIR / "icons"
     icons = sorted(p.stem for p in icon_dir.glob("*.png")
                    if not p.stem.startswith(("ui_", "scene_")))
@@ -211,6 +230,10 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         await blobs.setup()
         async with db.session() as s:          # one-off: older report screenshots leave the public path
             await posts.protect_old_reports(s, blobs)
+        if mailer.enabled:
+            async with db.session() as s:      # mails on for the first time: accounts from before get time to confirm
+                await mail_mod.start_deadlines(s)
+                await s.commit()
         loop = asyncio.get_running_loop()
         app.background = [loop.create_task(archive_loop())]
         if github.enabled:
@@ -289,6 +312,21 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
                "en": "The server storage is full. Please try again later."}[lang]
         return jsonify(error=msg, storage_full=True), 507
 
+    @app.errorhandler(AccountLocked)
+    async def account_locked(e):
+        lang = request.accept_languages.best_match(["en", "de"]) or "en"
+        msg = {"de": f"Dein Konto ist nach {mail_mod.LOCK_AFTER} falschen Passwörtern gesperrt. Wir haben dir einen Code per "
+                     "E-Mail geschickt – leg damit ein neues Passwort fest.",
+               "en": f"Your account is locked after {mail_mod.LOCK_AFTER} wrong passwords. We've e-mailed you a code – "
+                     "use it to set a new password."}[lang]
+        return jsonify(error=msg, locked=True), 423
+
+    @app.errorhandler(ConfirmRequired)
+    async def confirm_required(e):
+        lang = request.accept_languages.best_match(["en", "de"]) or "en"
+        msg = {"de": "Bitte bestätige zuerst deine E-Mail-Adresse.", "en": "Please confirm your e-mail address first."}[lang]
+        return jsonify(error=msg, confirm_email=True), 403
+
     @app.errorhandler(ApiError)
     async def api_error(e):
         lang = request.accept_languages.best_match(["en", "de"]) or "en"
@@ -332,6 +370,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             async with db.session() as s:
                 user = await session_user(s, token)
                 g.s, g.user, g.token = s, user, token
+                confirm_gate(user)
                 await limits.mark_active(s, user.id)      # online today (admin statistics; the limit counts active taps)
                 await service.catch_up(s, user)
                 await challenges.tick(s)                  # start / finish group challenges
@@ -341,6 +380,30 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
                 await s.commit()
                 return result
         return wrapper
+
+    def confirm_gate(user):
+        """Not confirmed and due: only the confirm screen's calls (apps that can show it; older APKs aren't locked out)."""
+        path = request.path
+        if path in CONFIRM_FREE or path.startswith(CONFIRM_FREE_PREFIXES) or not knows(CONFIRM_APP):
+            return
+        st = mail_mod.confirm_state(user, mailer.enabled)
+        if st and st["required"]:
+            raise ConfirmRequired()
+
+    def lang_of_request():
+        return "de" if (request.accept_languages.best_match(["en", "de"]) or "de") == "de" else "en"
+
+    async def send_code(s, user, purpose):
+        """A new code to the account's address (429 while the last one is too fresh, 503 when the mail doesn't go out)."""
+        code, wait = await mail_mod.new_code(s, user, purpose, user.email)
+        if code is None:
+            raise ApiError(f"Du bekommst gleich wieder einen Code – warte noch {wait} s.", f"You'll get another code shortly – wait {wait} s.", 429)
+        try:
+            await mailer.send(user.email, *mail_mod.render(purpose, lang_of_request(), code, user.username if user.username_set else ""))
+        except mail_mod.MailError as e:
+            logging.getLogger(__name__).warning("mail to user %s failed: %s", user.id, e)
+            raise ApiError("Die E-Mail konnte gerade nicht gesendet werden – versuch es gleich nochmal.",
+                           "The e-mail couldn't be sent right now – try again in a moment.", 503)
 
     async def state_response(**extra):
         await g.s.flush()
@@ -474,7 +537,9 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             # newest app version; older apps ask the user to update (download on the welcome page)
             app=dict(latest_app() or {}, update_url="/"),
             # sign in with Google: the web client id (Android's serverClientId); google_web = the PWA's flow works
-            google_client_id=google.client_id or None, google_web=google.web)
+            google_client_id=google.client_id or None, google_web=google.web,
+            # e-mails with codes work: "forgot password" is offered (server/mail.py)
+            mail=mailer.enabled)
 
     # ---- auth
 
@@ -500,11 +565,27 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         await s.commit()
         return token
 
+    def lockable(user):
+        """Wrong passwords can lock it: mails work and the address is confirmed (a reset code can open it again)."""
+        return mailer.enabled and bool(user.password_hash) and bool(user.email) and user.email_confirmed_at is not None
+
+    async def prompt_reset(s, user):
+        """A locked account: the reset code to its address (unless one just went), kept even though the login fails."""
+        try:
+            await send_code(s, user, "reset")
+        except ApiError:
+            pass                               # sent a moment ago / mail down: the reset screen can ask again
+        await s.commit()
+
     async def check_password_login(s, data):
-        """The account for {"login": e-mail or username, "password"}; failed tries lock it (and the IP) for a while."""
+        """The account for {"login": e-mail or username, "password"}; failed tries lock it (and the IP) for a while,
+        LOCK_AFTER wrong passwords in a row lock the account until a new password is set (server/mail.py)."""
         login_id = str(data.get("login", data.get("username", ""))).strip().lower()[:254]
         column = User.email if "@" in login_id else User.username
         user = await s.scalar(select(User).where(column == login_id)) if login_id else None
+        if user is not None and user.locked_at is not None and lockable(user):
+            await prompt_reset(s, user)
+            raise AccountLocked()
         keys = security.login_keys(f"u{user.id}" if user else login_id)
         wait = await security.locked_minutes(s, keys)
         if wait:
@@ -513,8 +594,20 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         # Google-only accounts have no password (""): never a password login
         if user is None or not user.password_hash or not check_password_hash(user.password_hash, str(data.get("password", ""))):
             await security.record_failure(s, keys)
+            left = None
+            if user is not None and lockable(user):
+                user.failed_logins = (user.failed_logins or 0) + 1
+                if user.failed_logins >= mail_mod.LOCK_AFTER:
+                    user.locked_at = mail_mod.utcnow()
+                    await prompt_reset(s, user)
+                    raise AccountLocked()
+                left = mail_mod.LOCK_AFTER - user.failed_logins
             await s.commit()
+            if left is not None and left <= 2:
+                raise ApiError(f"Passwort falsch – noch {left} {'Versuch' if left == 1 else 'Versuche'}, dann wird dein Konto gesperrt.",
+                               f"Wrong password – {left} more {'try' if left == 1 else 'tries'}, then your account locks.", 401)
             raise ApiError("Login oder Passwort falsch", "Wrong login or password", 401)
+        user.failed_logins = 0
         return user, keys
 
     @app.post("/api/auth/register")
@@ -530,6 +623,12 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
                 raise ApiError("Für diese E-Mail gibt es schon ein Konto", "An account with this e-mail already exists")
             lang = "de" if data.get("language") == "de" else "en"
             user = await service.create_user(s, email, generate_password_hash(password), lang)
+            if mailer.enabled:                 # confirming is required at once; the code is on its way
+                user.email_due_at = mail_mod.utcnow()
+                try:
+                    await send_code(s, user, "confirm")
+                except ApiError:
+                    pass                       # the confirm screen offers to send it again
             return jsonify(token=await issue_token(s, user))
 
     @app.post("/api/auth/login")
@@ -592,6 +691,101 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         response.headers["Cache-Control"] = "no-store"
         response.delete_cookie("g_login", path="/api/auth/google")
         return response
+
+    # ---- e-mail: confirm the address (required), a new password by code (server/mail.py)
+
+    @app.post("/api/auth/email/send")
+    @authed
+    async def send_confirm_code():
+        """{"email"?: a new address first}: a code to the account's address. Answers the state, sent_to, resend_in."""
+        if not mailer.enabled:
+            raise ApiError("E-Mails sind nicht eingerichtet", "E-mail is not set up", 404)
+        data = await request.get_json(force=True, silent=True) or {}
+        user = g.user
+        if not user.password_hash:
+            raise ApiError("Dein Konto meldet sich mit Google an", "Your account signs in with Google")
+        if data.get("email") and str(data["email"]).strip().lower() != user.email:
+            email = parse_email(data)
+            if await g.s.scalar(select(func.count()).where(User.email == email, User.id != user.id)):
+                raise ApiError("Für diese E-Mail gibt es schon ein Konto", "An account with this e-mail already exists")
+            # another address: it has to be confirmed (at once)
+            user.email, user.email_confirmed_at, user.email_due_at = email, None, mail_mod.utcnow()
+        if user.email_confirmed_at is None:
+            await send_code(g.s, user, "confirm")
+        return await state_response(sent_to=user.email, resend_in=mail_mod.RESEND_SECONDS)
+
+    @app.post("/api/auth/email/confirm")
+    @authed
+    async def confirm_email():
+        """{"code"}: the address is confirmed, the app opens up."""
+        data = await request.get_json(force=True) or {}
+        user = g.user
+        if user.email_confirmed_at is None:
+            result = await mail_mod.check_code(g.s, user, "confirm", user.email, data.get("code", ""))
+            if result != "ok":
+                await g.s.commit()             # a wrong try counts
+                raise code_error(result)
+            user.email_confirmed_at, user.email_due_at = mail_mod.utcnow(), None
+        return await state_response()
+
+    def code_error(result):
+        if result == "wrong":
+            return ApiError("Der Code stimmt nicht", "That code is wrong")
+        return ApiError("Der Code ist abgelaufen – fordere einen neuen an", "The code has expired – ask for a new one")
+
+    async def account_of(s, data):
+        login_id = str(data.get("login", "")).strip().lower()[:254]
+        if not login_id:
+            return None, login_id
+        column = User.email if "@" in login_id else User.username
+        return await s.scalar(select(User).where(column == login_id)), login_id
+
+    @app.post("/api/auth/password/forgot")
+    async def forgot_password():
+        """{"login": e-mail or username}: a code to the account's confirmed address. Always "ok" - it never tells
+        whether there is such an account."""
+        if not mailer.enabled:
+            raise ApiError("E-Mails sind nicht eingerichtet", "E-mail is not set up", 404)
+        data = await request.get_json(force=True) or {}
+        async with db.session() as s:
+            user, _ = await account_of(s, data)
+            if user is not None and user.password_hash and user.email and user.email_confirmed_at is not None:
+                try:
+                    await send_code(s, user, "reset")
+                except ApiError as e:
+                    if e.status != 429:        # too soon: quietly the same answer
+                        raise
+                await s.commit()
+        return jsonify(ok=True)
+
+    @app.post("/api/auth/password/reset")
+    async def reset_password():
+        """{"login", "code", "password"}: the new password; every other session ends, this one starts."""
+        data = await request.get_json(force=True) or {}
+        password = str(data.get("password", ""))
+        if len(password) < 6:
+            raise ApiError("Passwort: mindestens 6 Zeichen", "Password: at least 6 characters")
+        async with db.session() as s:
+            user, login_id = await account_of(s, data)
+            # its own limit: a password lockout mustn't block the way out of it
+            keys = security.login_keys(f"reset:u{user.id}" if user else f"reset:{login_id}")
+            wait = await security.locked_minutes(s, keys)
+            if wait:
+                raise ApiError(f"Zu viele Fehlversuche. Versuch es in {wait} Min. nochmal.",
+                               f"Too many failed attempts. Try again in {wait} min.", 429)
+            result = "expired"
+            if user is not None and user.password_hash and user.email_confirmed_at is not None:
+                result = await mail_mod.check_code(s, user, "reset", user.email, data.get("code", ""))
+            if result != "ok":
+                await security.record_failure(s, keys)
+                await s.commit()
+                raise code_error(result)
+            user.password_hash = generate_password_hash(password)
+            user.failed_logins, user.locked_at = 0, None          # a locked account opens again
+            await s.execute(delete(AuthToken).where(AuthToken.user_id == user.id))
+            await security.clear_failures(s, keys)
+            await security.clear_failures(s, security.login_keys(f"u{user.id}"))   # logging in works again from here
+            return jsonify(token=await issue_token(s, user))
 
     @app.post("/api/auth/logout")
     @authed
@@ -949,6 +1143,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         await stories.delete_user_stories(g.s, blobs, g.user.id)
         await posts.delete_user_content(g.s, blobs, g.user.id)
         await g.s.execute(delete(AuthToken).where(AuthToken.user_id == g.user.id))
+        await mail_mod.delete_user_codes(g.s, g.user.id)
         await g.s.execute(delete(UserActivity).where(UserActivity.user_id == g.user.id))   # no longer a player
         # challenge templates stay: the challenge goes on for the others
         await g.s.execute(delete(Rule).where(Rule.user_id == g.user.id,

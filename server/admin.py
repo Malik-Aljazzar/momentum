@@ -8,6 +8,7 @@
     python -m server.admin report-done <id>      # mark a report as done
     python -m server.admin report-status <id> new|todo|done
     python -m server.admin report-note <id> <text>   # the owner's (reworded) task for a report
+    python -m server.admin mail-test <address>   # a test e-mail with the server's MAIL_* config (server/mail.py)
     python -m server.admin issues              # send changed reports to their GitHub issues now (server/github.py)
     python -m server.admin grant <username>      # may use the admin app; prints the authenticator key (2FA)
     python -m server.admin revoke <username>     # no admin any more, its admin sessions end
@@ -90,6 +91,16 @@ async def main(argv):
                 raise SystemExit("unknown report")
             r.status, r.status_at = argv[2], utcnow()
             print(f"#{r.id} {r.status}")
+        elif argv[:1] == ["mail-test"] and len(argv) == 2:
+            from .mail import MailError, Mailer, render
+            mailer = Mailer()
+            if not mailer.enabled:
+                raise SystemExit("set MAIL_TENANT_ID, MAIL_CLIENT_ID, MAIL_CLIENT_SECRET and MAIL_FROM in .env")
+            try:
+                await mailer.send(argv[1], *render("test", "de"))
+            except MailError as e:
+                raise SystemExit(f"not sent: {e}")
+            print(f"sent from {mailer.sender} to {argv[1]}")
         elif argv[:1] == ["report-note"] and len(argv) == 3:
             from .db import Report
             r = await s.get(Report, int(argv[1]))

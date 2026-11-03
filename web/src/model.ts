@@ -11,6 +11,8 @@ export interface Meta {
   /** sign in with Google (server/google.py); google_web: the PWA's redirect flow is set up */
   google_client_id?: string | null
   google_web?: boolean
+  /** e-mails with codes work: "forgot password" is offered (server/mail.py) */
+  mail?: boolean
 }
 
 export interface DailyLimit {
@@ -28,6 +30,8 @@ export interface UserInfo {
   /** signed in with Google: its address (shown only, never a login); has_password false = Google-only account */
   google_email?: string | null; has_password?: boolean
   needs_username?: boolean; private?: boolean; banner?: string | null; banners?: OwnBanners
+  /** the address still to confirm: when it's due, and whether the app waits for it now (server/mail.py) */
+  email_confirm?: { due: string; required: boolean } | null
   hyperspace?: boolean; ultra?: boolean; followers?: number; following?: number
 }
 

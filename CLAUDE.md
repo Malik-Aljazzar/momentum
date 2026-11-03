@@ -295,6 +295,26 @@ Read notifications disappear: tags `chat:<id>` / `activity` (Android) and `chat-
 (PWA) are cleared when the chat / activity list is opened; Android also clears what
 `/api/updates` no longer lists in `unread_chats` / `unread_notifications` (read on another device).
 
+## E-mail: confirming the address, new password, lock (`server/mail.py`)
+
+Sent with Microsoft Graph as the app (client credentials) from `MAIL_FROM` (momentum@scriptum-zeta.com, a shared
+mailbox); the Entra app may only send as that mailbox (Exchange "RBAC for Applications": role `Application Mail.Send`
+with a management scope - no Mail.Send permission in Entra). Config `MAIL_TENANT_ID`, `MAIL_CLIENT_ID`,
+`MAIL_CLIENT_SECRET`, `MAIL_FROM` in the server's `.env` (empty = everything below is off);
+`python -m server.admin mail-test <address>` sends a test mail. Codes: 6 digits, only their hash stored, 30 min,
+5 tries, a new one per address after 60 s, 6 an hour.
+
+- Confirming is required: new accounts at once (the confirm screen comes before the username), accounts from before
+  mails were on get 14 days once (`start_deadlines`, config flag `email_confirm_since`), the apps remind them on the
+  home tab. Locked meanwhile: only `app.CONFIRM_FREE`; Android apps older than `clients.CONFIRM_APP` aren't locked
+  (they can't show the screen). Google-only accounts are exempt. State: `user.email_confirm` ({due, required} or null).
+- New password only to a confirmed address; reset ends every session. 5 wrong passwords in a row (`LOCK_AFTER`) lock a
+  confirmed account: logins answer 423 + mail the reset code, the apps open "new password". Unconfirmed / mails off:
+  only security.py's 15-minute lockout. `security.clear_failures` clears only the first key of its list.
+- Tests: `create_app(mail=...)` (default from env = off in tests); the e2e server keeps codes (`/api/test/mail`) and
+  `newUser` confirms like a player. The test server runs with Quart's reloader: editing server code restarts it with
+  an empty database.
+
 ## End-to-end encrypted chats
 
 Scheme in `server/e2e.py` (docstring); the same code three times: `web/src/e2ecrypto.ts`, `android/.../data/E2E.kt`,

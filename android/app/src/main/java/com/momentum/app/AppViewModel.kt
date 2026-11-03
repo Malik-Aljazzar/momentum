@@ -358,7 +358,53 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             put("password", password)
             put("language", lang.code)
         }
-        return login { api.call<TokenResponse>("POST", if (register) "/auth/register" else "/auth/login", body).token }
+        val ok = login(onLocked = { lockedLogin = username.trim() to it }) {
+            api.call<TokenResponse>("POST", if (register) "/auth/register" else "/auth/login", body).token
+        }
+        if (ok && register) confirmSentTo = username.trim().lowercase()      // the code is on its way
+        return ok
+    }
+
+    // ---------------------------------------------------------------- e-mail: confirm the address, new password (server/mail.py)
+
+    /** Where the last confirm code went (this session): the confirm screen says so instead of offering to send one. */
+    var confirmSentTo by mutableStateOf<String?>(null)
+
+    /** A code to the account's address ([email]: first change it to that one); the seconds until another may be sent. */
+    suspend fun sendConfirmCode(email: String? = null): Int? = try {
+        val r = api.call<com.momentum.app.data.ConfirmSentResponse>("POST", "/auth/email/send", buildJsonObject { email?.let { put("email", it) } })
+        putState(r.state)
+        confirmSentTo = r.sentTo
+        r.resendIn
+    } catch (e: ApiException) {
+        showToast(message(e), error = true)
+        null
+    }
+
+    suspend fun confirmEmail(code: String): Boolean = try {
+        putState(api.call<StateResponse>("POST", "/auth/email/confirm", buildJsonObject { put("code", code) }).state)
+        confirmSentTo = null
+        showToast(strings.emailConfirmed)
+        true
+    } catch (e: ApiException) {
+        showToast(message(e), error = true)
+        false
+    }
+
+    /** "Forgot password": a code to the account's confirmed address (the answer never tells whether it exists). */
+    suspend fun forgotPassword(loginId: String): Boolean = try {
+        api.raw("POST", "/auth/password/forgot", buildJsonObject { put("login", loginId) })
+        true
+    } catch (e: ApiException) {
+        showToast(message(e), error = true)
+        false
+    }
+
+    /** The new password with the mailed code; logged in right away (other devices are logged out). */
+    suspend fun resetPassword(loginId: String, code: String, password: String): Boolean = login {
+        api.call<TokenResponse>("POST", "/auth/password/reset", buildJsonObject {
+            put("login", loginId); put("code", code); put("password", password)
+        }).token.also { lockedLogin = null }
     }
 
     /** Sign in with Google: the ID token from the Credential Manager (data/GoogleSignIn.kt). */
@@ -369,7 +415,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }).token
     }
 
-    private suspend fun login(getToken: suspend () -> String): Boolean {
+    /** A login answered "locked" (server/mail.py LOCK_AFTER): which one, and the server's explanation; the login
+     *  screen opens "new password" (the code is mailed). */
+    var lockedLogin by mutableStateOf<Pair<String, String>?>(null)
+
+    private suspend fun login(onLocked: ((String) -> Unit)? = null, getToken: suspend () -> String): Boolean {
         return try {
             if (meta == null) meta = api.call<Meta>("GET", "/meta")
             val token = getToken()
@@ -381,7 +431,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             screen = Screen.Main
             true
         } catch (e: ApiException) {
-            showToast(message(e), error = true)
+            // locked: the last warning goes, the login screen explains it
+            if (e.status == 423 && onLocked != null) { toast = null; onLocked(e.message.orEmpty()) } else showToast(message(e), error = true)
             false
         }
     }

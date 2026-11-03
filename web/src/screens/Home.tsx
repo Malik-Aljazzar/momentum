@@ -1,5 +1,6 @@
 // Start screen: momentum hero, next milestone, garage, history (android/.../ui/Home.kt).
 import { useEffect, useRef, useState } from "preact/hooks"
+import { ConfirmReminder } from "./Login"
 import { fmt, fmtShort, secondsSince, signed } from "../format"
 import { defaultBanner } from "../gfx/banners"
 import { type AppState, type Event, vehicleProgress } from "../model"
@@ -54,6 +55,7 @@ export function HomeScreen({ st }: { st: AppState }) {
         </div>
       </div>
 
+      <ConfirmReminder />
       <Hero st={st} vkey={v.key} label={s.vehicle(v.key, v.label)} category={v.category} idx={idx} count={vs.length} />
 
       <PxCard>

@@ -27,6 +27,11 @@ services:
       # bug reports / feature requests as issues of the public repo (server/github.py) - empty = off
       GITHUB_REPO: ${GITHUB_REPO:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # e-mails with codes: confirm the address, new password (server/mail.py) - empty = off
+      MAIL_TENANT_ID: ${MAIL_TENANT_ID:-}
+      MAIL_CLIENT_ID: ${MAIL_CLIENT_ID:-}
+      MAIL_CLIENT_SECRET: ${MAIL_CLIENT_SECRET:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     volumes:
       - app-data:/data
       # the release APK offered at /app.apk (copied here on deploy)

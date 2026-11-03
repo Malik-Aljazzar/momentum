@@ -77,6 +77,7 @@ fun HomeScreen(vm: AppViewModel, st: AppState, list: LazyListState) {
             }
         }
 
+        item { ConfirmReminder(vm) }
         item { Hero(st, v.key, S.vehicle(v.key, v.label), v.category, idx, vs.size) }
 
         item {

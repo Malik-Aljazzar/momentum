@@ -190,12 +190,76 @@ export async function auth(login: string, password: string, register: boolean): 
     meta.value ??= await api.call<Meta>("GET", "/meta")
     const body = { [register ? "email" : "login"]: login, password, language: lang.value }
     const { token } = await api.call<{ token: string }>("POST", register ? "/auth/register" : "/auth/login", body)
-    api.token = token
-    local.set("token", token)
-    putState((await api.call<StateResponse>("GET", "/state")).state)
-    online.value = true
-    screen.value = "main"
-    if (notifications.value) void pushSubscribe(lang.value)
+    if (register) confirmSentTo.value = login.trim().toLowerCase()      // the code is on its way
+    await startSession(token)
+    return true
+  } catch (e) {
+    // locked after too many wrong passwords: the login screen opens "new password" (the code is mailed)
+    if (e instanceof ApiError && e.status === 423) { toast.value = null; lockedLogin.value = { login: login.trim(), message: e.message } }
+    else if (e instanceof ApiError) showToast(message(e), true)
+    return false
+  }
+}
+
+/** A login answered "locked" (server/mail.py LOCK_AFTER): which one, and the server's explanation. */
+export const lockedLogin = signal<{ login: string; message: string } | null>(null)
+
+async function startSession(token: string) {
+  api.token = token
+  local.set("token", token)
+  putState((await api.call<StateResponse>("GET", "/state")).state)
+  online.value = true
+  screen.value = "main"
+  if (notifications.value) void pushSubscribe(lang.value)
+}
+
+// ---------------------------------------------------------------- e-mail: confirm the address, new password (server/mail.py)
+
+/** Where the last confirm code went (this session): the confirm screen says so instead of offering to send one. */
+export const confirmSentTo = signal<string | null>(null)
+
+/** A code to the account's address ([email]: first change it to this one); the seconds until another may be sent. */
+export async function sendConfirmCode(email?: string): Promise<number | null> {
+  try {
+    const r = await api.call<StateResponse & { sent_to: string; resend_in: number }>("POST", "/auth/email/send", email ? { email } : {})
+    putState(r.state)
+    confirmSentTo.value = r.sent_to
+    return r.resend_in
+  } catch (e) {
+    if (e instanceof ApiError) showToast(message(e), true)
+    return null
+  }
+}
+
+export async function confirmEmail(code: string): Promise<boolean> {
+  try {
+    putState((await api.call<StateResponse>("POST", "/auth/email/confirm", { code })).state)
+    confirmSentTo.value = null
+    showToast(S.value.emailConfirmed)
+    return true
+  } catch (e) {
+    if (e instanceof ApiError) showToast(message(e), true)
+    return false
+  }
+}
+
+/** "Forgot password": a code to the account's confirmed address (the answer never tells whether it exists). */
+export async function forgotPassword(login: string): Promise<boolean> {
+  try {
+    await api.call("POST", "/auth/password/forgot", { login })
+    return true
+  } catch (e) {
+    if (e instanceof ApiError) showToast(message(e), true)
+    return false
+  }
+}
+
+/** The new password with the mailed code; logged in right away (other devices are logged out). */
+export async function resetPassword(login: string, code: string, password: string): Promise<boolean> {
+  try {
+    const { token } = await api.call<{ token: string }>("POST", "/auth/password/reset", { login, code, password })
+    lockedLogin.value = null
+    await startSession(token)
     return true
   } catch (e) {
     if (e instanceof ApiError) showToast(message(e), true)

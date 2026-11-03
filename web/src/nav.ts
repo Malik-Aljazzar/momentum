@@ -28,6 +28,7 @@ export type Route =
   | { r: "chatInfo"; id: number }
   | { r: "e2eRecovery" }
   | { r: "e2eUnlock" }
+  | { r: "confirmEmail" }
 
 export const tab = signal<Tab>("home")
 export const stack = signal<Route[]>([])

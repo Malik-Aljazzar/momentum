@@ -56,6 +56,7 @@ sealed interface Route {
     data class ChatInfo(val id: Int) : Route
     data object E2ERecovery : Route
     data object E2EUnlock : Route
+    data object ConfirmEmail : Route
 }
 
 class Nav(val push: (Route) -> Unit, val pop: () -> Unit, val replace: (Route) -> Unit)

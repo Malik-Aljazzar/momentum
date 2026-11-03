@@ -6,12 +6,22 @@ export const NEWEST_RELEASE = readFileSync(new URL("../../../CHANGELOG.md", impo
 
 let counter = 0
 
-/** A fresh account (sign-up + username) via the API; returns its token and name. */
+/** The last code the test server "mailed" to [email] (server/testserver.py). */
+export async function mailedCode(request: APIRequestContext, email: string): Promise<string> {
+  let code: string | null = null
+  await expect.poll(async () => (code = (await (await request.get(`/api/test/mail?to=${encodeURIComponent(email)}`)).json()).code)).toBeTruthy()
+  return code!
+}
+
+/** A fresh account (sign-up, the mailed code, username) via the API; returns its token and name. */
 export async function newUser(request: APIRequestContext, prefix = "u"): Promise<{ token: string; name: string }> {
   const name = `${prefix}${Date.now().toString(36)}${counter++}`.slice(0, 30)
-  const r = await request.post("/api/auth/register", { data: { email: `${name}@example.com`, password: "geheim1", language: "de" } })
+  const email = `${name}@example.com`
+  const r = await request.post("/api/auth/register", { data: { email, password: "geheim1", language: "de" } })
   expect(r.ok(), await r.text()).toBeTruthy()
   const { token } = await r.json()
+  const confirmed = await request.post("/api/auth/email/confirm", { headers: { Authorization: `Bearer ${token}` }, data: { code: await mailedCode(request, email) } })
+  expect(confirmed.ok(), await confirmed.text()).toBeTruthy()
   const s = await request.put("/api/settings", { headers: { Authorization: `Bearer ${token}` }, data: { username: name } })
   expect(s.ok(), await s.text()).toBeTruthy()
   return { token, name }

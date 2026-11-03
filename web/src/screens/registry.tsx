@@ -9,6 +9,7 @@ import { LeaderboardScreen } from "./Leaderboard"
 import { BlockedListScreen, FollowListScreen, NotificationsScreen, ProfileScreen, SearchScreen } from "./Profile"
 import { ReportScreen } from "./Report"
 import { ChatInfoScreen, RecoveryScreen, UnlockScreen } from "./Secure"
+import { ConfirmEmailScreen } from "./Login"
 import { SettingsPage } from "./Settings"
 
 export function TabScreen({ tab }: { tab: Tab }) {
@@ -47,5 +48,6 @@ export function RouteScreen({ route }: { route: Route }) {
     case "chatInfo": return <ChatInfoScreen id={route.id} />
     case "e2eRecovery": return <RecoveryScreen />
     case "e2eUnlock": return <UnlockScreen />
+    case "confirmEmail": return <ConfirmEmailScreen opened />
   }
 }

@@ -12,6 +12,8 @@ data class Meta(
     val app: AppRelease = AppRelease(),
     /** sign in with Google (server/google.py): the web client id = the Credential Manager's serverClientId */
     @SerialName("google_client_id") val googleClientId: String? = null,
+    /** e-mails with codes work: "forgot password" is offered (server/mail.py) */
+    val mail: Boolean = false,
 )
 
 @Serializable
@@ -91,6 +93,8 @@ data class UserInfo(
     /** false for Google-only accounts: no password to change */
     @SerialName("has_password") val hasPassword: Boolean = true,
     @SerialName("needs_username") val needsUsername: Boolean = false,
+    /** the address still to confirm: when it's due, and whether the app waits for it now (server/mail.py) */
+    @SerialName("email_confirm") val emailConfirm: EmailConfirm? = null,
     val private: Boolean = false,
     /** banner behind the current vehicle */
     val banner: String? = null,
@@ -222,3 +226,10 @@ data class StateResponse(
 
 @Serializable
 data class TokenResponse(val token: String)
+
+@Serializable
+data class EmailConfirm(val due: String, val required: Boolean)
+
+/** A confirm code went out: the state (maybe with a new address), where to, when another may be sent. */
+@Serializable
+data class ConfirmSentResponse(val state: AppState, @SerialName("sent_to") val sentTo: String, @SerialName("resend_in") val resendIn: Int = 60)

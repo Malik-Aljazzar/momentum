@@ -255,6 +255,25 @@ interface Strings {
     val limitReached: String
     val bioHint: String
     val emailOrUsername: String
+    /** confirming the e-mail address (required) and a new password by code (server/mail.py) */
+    val confirmEmailTitle: String
+    fun confirmEmailSent(email: String): String
+    fun confirmEmailAsk(email: String): String
+    val confirmCode: String
+    val confirmButton: String
+    val sendCode: String
+    val resendCode: String
+    fun resendIn(seconds: Int): String
+    val otherAddress: String
+    val newEmail: String
+    val checkSpam: String
+    fun confirmDue(date: String): String
+    val confirmNow: String
+    val emailConfirmed: String
+    val forgotPassword: String
+    val forgotHint: String
+    val forgotSent: String
+    val backToLogin: String
     val googleSignIn: String
     val googleFailed: String
     val googleAccount: String
@@ -954,6 +973,24 @@ object De : Strings {
     override val limitZeroTap = "Tageslimit erreicht – zählt mit +0, aber die automatische Regel startet neu"
     override val limitReached = "Tageslimit erreicht – morgen geht's weiter"
     override val emailOrUsername = "E-Mail oder Benutzername"
+    override val confirmEmailTitle = "E-Mail bestätigen"
+    override fun confirmEmailSent(email: String) = "Wir haben dir einen Code an $email geschickt. Gib ihn hier ein."
+    override fun confirmEmailAsk(email: String) = "Bestätige deine E-Mail-Adresse: Wir schicken dir einen Code an $email."
+    override val confirmCode = "6-stelliger Code"
+    override val confirmButton = "Bestätigen"
+    override val sendCode = "Code senden"
+    override val resendCode = "Code erneut senden"
+    override fun resendIn(seconds: Int) = "Neuer Code in $seconds s"
+    override val otherAddress = "Andere Adresse verwenden"
+    override val newEmail = "Neue E-Mail-Adresse"
+    override val checkSpam = "Nichts angekommen? Schau auch im Spam-Ordner nach."
+    override fun confirmDue(date: String) = "Bitte bestätige deine E-Mail-Adresse bis $date – danach geht es erst nach der Bestätigung weiter."
+    override val confirmNow = "Jetzt bestätigen"
+    override val emailConfirmed = "E-Mail-Adresse bestätigt"
+    override val forgotPassword = "Passwort vergessen?"
+    override val forgotHint = "Gib deine E-Mail-Adresse oder deinen Benutzernamen ein. Wir schicken dir einen Code an deine bestätigte Adresse."
+    override val forgotSent = "Wenn es dazu ein Konto mit bestätigter E-Mail-Adresse gibt, ist jetzt ein Code unterwegs."
+    override val backToLogin = "Zurück zum Login"
     override val googleSignIn = "Mit Google fortfahren"
     override val googleFailed = "Google-Anmeldung fehlgeschlagen"
     override val googleAccount = "Google-Konto"
@@ -1686,6 +1723,24 @@ object En : Strings {
     override val limitZeroTap = "Daily limit reached – counts +0, but the automatic rule starts over"
     override val limitReached = "Daily limit reached – more tomorrow"
     override val emailOrUsername = "E-mail or username"
+    override val confirmEmailTitle = "Confirm your e-mail"
+    override fun confirmEmailSent(email: String) = "We sent a code to $email. Enter it here."
+    override fun confirmEmailAsk(email: String) = "Confirm your e-mail address: we'll send a code to $email."
+    override val confirmCode = "6-digit code"
+    override val confirmButton = "Confirm"
+    override val sendCode = "Send code"
+    override val resendCode = "Send the code again"
+    override fun resendIn(seconds: Int) = "New code in $seconds s"
+    override val otherAddress = "Use another address"
+    override val newEmail = "New e-mail address"
+    override val checkSpam = "Nothing there? Check your spam folder too."
+    override fun confirmDue(date: String) = "Please confirm your e-mail address by $date – after that the app waits for it."
+    override val confirmNow = "Confirm now"
+    override val emailConfirmed = "E-mail address confirmed"
+    override val forgotPassword = "Forgot your password?"
+    override val forgotHint = "Enter your e-mail address or username. We'll send a code to your confirmed address."
+    override val forgotSent = "If there's an account with a confirmed e-mail address, a code is on its way now."
+    override val backToLogin = "Back to login"
     override val googleSignIn = "Continue with Google"
     override val googleFailed = "Google sign-in failed"
     override val googleAccount = "Google account"

@@ -6,6 +6,18 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-03 c
+
+### DE
+- Neue Konten bestätigen ihre E-Mail-Adresse mit einem Code, den wir per Mail schicken – bestehende Konten haben dafür 14 Tage Zeit.
+- Passwort vergessen? Lass dir einen Code an deine bestätigte Adresse schicken und leg damit ein neues Passwort fest.
+- Nach 5 falschen Passwörtern hintereinander wird das Konto gesperrt – ein Code per Mail und ein neues Passwort öffnen es wieder.
+
+### EN
+- New accounts confirm their e-mail address with a code we e-mail them – existing accounts have 14 days for it.
+- Forgot your password? Get a code at your confirmed address and use it to set a new one.
+- After 5 wrong passwords in a row the account locks – a code by e-mail and a new password open it again.
+
 ## 2026-11-03 b
 
 ### DE

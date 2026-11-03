@@ -22,6 +22,12 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)       # login + account, never public
+    # the address confirmed with a mailed code (server/mail.py); from email_due_at on the app is locked until then
+    email_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    email_due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # wrong passwords in a row; at mail.LOCK_AFTER the account locks until a new password is set by mailed code
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     username_set: Mapped[bool] = mapped_column(Boolean, default=True)          # False until chosen after signup
     password_hash: Mapped[str] = mapped_column(String(255))     # "" = Google-only account (no password login)
     # Sign in with Google (server/google.py): Google's account id; its e-mail is shown only, never a login

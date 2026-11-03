@@ -10,6 +10,8 @@ from quart import has_request_context, request
 # (report #56) and subscription activity (report #54)
 MEMBER_LINES_APP = 888_050
 MEMBER_KINDS = ("member_join", "member_add", "member_remove", "member_leave")
+# Android builds from 2026-11-03 on show the confirm-your-e-mail screen; older ones aren't locked out (server/mail.py)
+CONFIRM_APP = 895_206
 SUBSCRIPTION_KINDS = ("sub_rule", "sub_decay")
 
 

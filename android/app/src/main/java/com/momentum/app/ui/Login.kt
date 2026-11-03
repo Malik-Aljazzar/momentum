@@ -1,6 +1,7 @@
 package com.momentum.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,6 +74,7 @@ fun LanguageSwitch(vm: AppViewModel, modifier: Modifier = Modifier) {
 fun LoginScreen(vm: AppViewModel) {
     val S = LocalStrings.current
     var register by remember { mutableStateOf(false) }
+    var forgot by remember { mutableStateOf(false) }
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var server by remember { mutableStateOf(vm.serverUrl) }
@@ -90,6 +92,9 @@ fun LoginScreen(vm: AppViewModel) {
     }
 
     var logoTaps by remember { mutableStateOf(0) }
+    // locked after too many wrong passwords: straight to the new password (the code is on its way)
+    val locked = vm.lockedLogin
+    androidx.compose.runtime.LaunchedEffect(locked) { if (locked != null) forgot = true }
 
     // Fills exactly one screen; it only becomes scrollable when the keyboard takes space.
     Box(Modifier.fillMaxSize()) {
@@ -128,11 +133,16 @@ fun LoginScreen(vm: AppViewModel) {
                         Modifier.widthIn(max = 420.dp),
                         brush = Brush.verticalGradient(listOf(Color(0xE61B1E2B), Color(0xE613151D))),
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (forgot) androidx.compose.runtime.key(locked) {
+                            ForgotPassword(vm, locked?.first ?: user, locked?.second) { vm.lockedLogin = null; forgot = false }
+                        }
+                        else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             PxTextField(user, { user = it }, placeholder = if (register) S.email else S.emailOrUsername,
                                 keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
                             PxTextField(pass, { pass = it }, placeholder = S.password, password = true, imeAction = ImeAction.Go, onDone = submit)
                             PxButton(if (register) S.register else S.login, Modifier.fillMaxWidth(), onClick = submit)
+                            if (!register && vm.meta?.mail == true) Text(S.forgotPassword, style = T.small.copy(color = Px.Cyan),
+                                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable { forgot = true }.padding(4.dp))
                             vm.meta?.googleClientId?.let { clientId ->
                                 val context = LocalContext.current
                                 PxButton(S.googleSignIn, Modifier.fillMaxWidth(), style = BtnStyle.Ghost) {
@@ -178,6 +188,150 @@ fun LoginScreen(vm: AppViewModel) {
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+}
+
+private val GLASS = Brush.verticalGradient(listOf(Color(0xE61B1E2B), Color(0xE613151D)))
+
+/** The 6 digits of a mailed code (spaces allowed while typing). */
+private fun codeInput(v: String) = v.filter { it.isDigit() || it == ' ' }.take(7)
+private fun fullCode(v: String) = v.count { it.isDigit() } == 6
+
+/** "Forgot password": a code to the account's confirmed address, then the code and a new password (logs in).
+ *  [note]: the account is locked and the code already on its way - the server's words. */
+@Composable
+private fun ForgotPassword(vm: AppViewModel, initial: String, note: String?, onBack: () -> Unit) {
+    val S = LocalStrings.current
+    val scope = rememberCoroutineScope()
+    var loginId by remember { mutableStateOf(initial) }
+    var sent by remember { mutableStateOf(note != null) }
+    var code by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val send: () -> Unit = {
+        if (!busy && loginId.isNotBlank()) {
+            busy = true
+            scope.launch { if (vm.forgotPassword(loginId.trim())) sent = true; busy = false }
+        }
+    }
+    val store: () -> Unit = {
+        if (!busy && fullCode(code) && pass.length >= 6) {
+            busy = true
+            scope.launch { vm.resetPassword(loginId.trim(), code, pass); busy = false }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(S.newPassword, style = T.bodyStrong)
+        Text(if (sent) note ?: S.forgotSent else S.forgotHint, style = T.small)
+        PxTextField(loginId, { loginId = it }, placeholder = S.emailOrUsername, keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
+        if (sent) {
+            PxTextField(code, { code = codeInput(it) }, placeholder = S.confirmCode, keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
+            PxTextField(pass, { pass = it }, placeholder = S.newPassword, password = true, imeAction = ImeAction.Go, onDone = store)
+        }
+        PxButton(if (sent) S.savePassword else S.sendCode, Modifier.fillMaxWidth(), onClick = if (sent) store else send)
+        if (sent) Text(S.resendCode, style = T.small.copy(color = Px.Cyan), textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable { send() }.padding(4.dp))
+        Text(S.backToLogin, style = T.body.copy(color = Px.Muted), textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable { onBack() }.padding(8.dp))
+    }
+}
+
+/** Confirming the e-mail address (required, server/mail.py): the mailed code; another one after a minute, another
+ *  address (typed wrong), log out. Opened before the deadline (reminder on the home tab) it has a back arrow. */
+@Composable
+fun ConfirmEmailScreen(vm: AppViewModel, opened: Boolean = false) {
+    val S = LocalStrings.current
+    val nav = LocalNav.current
+    val scope = rememberCoroutineScope()
+    val email = vm.state?.user?.email.orEmpty()
+    val sent = vm.confirmSentTo == email
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var wait by remember { mutableStateOf(if (sent) 60 else 0) }
+    var other by remember { mutableStateOf(false) }
+    var newMail by remember { mutableStateOf("") }
+    androidx.compose.runtime.LaunchedEffect(wait) { if (wait > 0) { kotlinx.coroutines.delay(1000); wait-- } }
+    fun send(to: String? = null) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            vm.sendConfirmCode(to)?.let { wait = it; other = false; code = "" }
+            busy = false
+        }
+    }
+    val submit: () -> Unit = {
+        if (!busy && fullCode(code)) {
+            busy = true
+            scope.launch { if (vm.confirmEmail(code) && opened) nav.pop(); busy = false }
+        }
+    }
+    val card: @Composable () -> Unit = {
+        PxCard(Modifier.widthIn(max = 420.dp), brush = GLASS) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                FitText(S.confirmEmailTitle, T.title, 22.sp, Modifier.fillMaxWidth())
+                Text(if (sent) S.confirmEmailSent(email) else S.confirmEmailAsk(email), style = T.small)
+                // another address (typed wrong): only that, until it's sent or cancelled
+                if (other) {
+                    PxTextField(newMail, { newMail = it.trim() }, placeholder = S.newEmail, keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Go, onDone = { send(newMail) })
+                    PxButton(S.sendCode, Modifier.fillMaxWidth().alpha(if ('@' in newMail) 1f else .4f)) { if ('@' in newMail) send(newMail) }
+                    Text(S.cancel, style = T.small, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().clickable { other = false }.padding(4.dp))
+                } else {
+                    if (sent) {
+                        PxTextField(code, { code = codeInput(it) }, placeholder = S.confirmCode, keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Go, onDone = submit)
+                        PxButton(S.confirmButton, Modifier.fillMaxWidth().alpha(if (fullCode(code)) 1f else .4f), onClick = submit)
+                        Text(if (wait > 0) S.resendIn(wait) else S.resendCode, style = T.small.copy(color = if (wait > 0) Px.Muted else Px.Cyan),
+                            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().clickable(enabled = wait <= 0) { send() }.padding(4.dp))
+                        Text(S.checkSpam, style = T.small.copy(fontSize = 12.sp))
+                    } else PxButton(S.sendCode, Modifier.fillMaxWidth()) { send() }
+                    Text(S.otherAddress, style = T.small, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().clickable { other = true }.padding(4.dp))
+                }
+                if (!opened) Text(S.logout, style = T.body.copy(color = Px.Muted), textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().clickable { vm.logout() }.padding(8.dp))
+            }
+        }
+    }
+    if (opened) {
+        Column(Modifier.fillMaxSize().imePadding()) {
+            TopBar(S.confirmEmailTitle)
+            Column(Modifier.verticalScroll(rememberScrollState()).fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) { card() }
+        }
+        return
+    }
+    Box(Modifier.fillMaxSize()) {
+        SceneBackground(Scene.Space, Modifier.matchParentSize())
+        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).heightIn(min = maxHeight).fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) { card() }
+        }
+    }
+}
+
+/** Before the deadline: a reminder card (home tab) that opens the confirm screen. */
+@Composable
+fun ConfirmReminder(vm: AppViewModel) {
+    val S = LocalStrings.current
+    val nav = LocalNav.current
+    val due = vm.state?.user?.emailConfirm?.takeIf { !it.required } ?: return
+    val date = runCatching {
+        java.time.Instant.parse(due.due).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern(if (vm.lang.code == "de") "d. MMMM" else "d MMMM",
+                java.util.Locale.forLanguageTag(vm.lang.code)))
+    }.getOrDefault(due.due.take(10))
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 14.dp).clip(RoundedCornerShape(16.dp)).background(Px.Card)
+            .border(1.dp, Px.Yellow, RoundedCornerShape(16.dp)).clickable { nav.push(Route.ConfirmEmail) }.padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(S.confirmDue(date), style = T.small.copy(color = Px.Text))
+        Text(S.confirmNow.uppercase(), style = T.button.copy(color = Px.Yellow))
     }
 }
 

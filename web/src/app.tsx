@@ -6,7 +6,7 @@ import { startE2E } from "./e2e"
 import { installed, isIos, notifyPermission, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
 import { Avatar, PixelIcon, PxButton, Sheet, ToastHost } from "./ui/components"
-import { LoginScreen, OfflineScreen, UsernameScreen } from "./screens/Login"
+import { ConfirmEmailScreen, LoginScreen, OfflineScreen, UsernameScreen } from "./screens/Login"
 import { HomeScreen } from "./screens/Home"
 import { RulesScreen } from "./screens/Rules"
 import { RouteScreen, TabScreen } from "./screens/registry"
@@ -22,7 +22,9 @@ export function App() {
     {sc === "loading" && <div class="fill" />}
     {sc === "offline" && <OfflineScreen />}
     {sc === "login" && <LoginScreen />}
-    {sc === "main" && (state.value?.user.needs_username ? <UsernameScreen /> : <MainScreen />)}
+    {/* the e-mail address first (required: server/mail.py), then the username, then the app */}
+    {sc === "main" && (state.value?.user.email_confirm?.required ? <ConfirmEmailScreen />
+      : state.value?.user.needs_username ? <UsernameScreen /> : <MainScreen />)}
     <ToastHost bottom={sc === "main" ? "calc(var(--safe-bottom) + var(--tabbar) + 16px)" : "calc(var(--safe-bottom) + 32px)"} />
     {milestone.value && !hyperspace.value && <MilestoneOverlay onClose={() => { milestone.value = false }} />}
     {hyperspace.value && <HyperspaceOverlay onClose={() => { hyperspace.value = false; milestone.value = false }} />}

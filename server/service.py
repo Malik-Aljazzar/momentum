@@ -153,6 +153,13 @@ def user_tz(user):
     return ZoneInfo(user.settings.timezone)
 
 
+def confirm_state_of(user):
+    from quart import current_app, has_app_context
+    from .mail import confirm_state
+    mailer = getattr(current_app, "mail", None) if has_app_context() else None
+    return confirm_state(user, bool(mailer and mailer.enabled))
+
+
 async def create_user(s, email, password_hash, lang="de"):
     """New account: placeholder username until the user picks one (username_set=False)."""
     placeholder = "u" + secrets.token_hex(6)       # replaced when the user picks a username
@@ -588,6 +595,8 @@ async def state(s, user):
         user=dict(id=user.id, username=user.username, display_name=user.display_name, bio=await render_mentions(s, user.bio),
                   email=user.email, google_email=user.google_email, has_password=bool(user.password_hash),
                   needs_username=not user.username_set, private=user.private,
+                  # the address still to confirm (server/mail.py): None, or when it's due / whether the app is locked
+                  email_confirm=confirm_state_of(user),
                   banner=shown_banner(user), banners=own_banners(user), hyperspace=hyperspace_unlocked(user),
                   ultra=ultra_unlocked(user),
                   avatar=avatar_url(user.avatar), **(await follow_counts(s, user.id))),
