@@ -213,10 +213,12 @@ private fun StoryViewer(vm: AppViewModel, o: StoryViewing.Open, onClose: () -> U
         val snd = s.sound
         if (snd != null) { audio.setMediaItem(androidx.media3.common.MediaItem.fromUri(vm.abs(snd.url)!!)); audio.prepare(); audio.play() } else audio.stop()
     }
+    // flagged by the content filter: waits behind its cover (not running) until "show" is tapped
+    val covered = st != null && Sensitive.covered(st.media)
     // images run 5 s, videos as long as they are (the clip's length from the server)
-    LaunchedEffect(st?.id, paused, holding) {
+    LaunchedEffect(st?.id, paused, holding, covered) {
         val s = st ?: return@LaunchedEffect
-        if (paused || holding) { audio.pause(); return@LaunchedEffect }
+        if (paused || holding || covered) { audio.pause(); return@LaunchedEffect }
         if (s.sound != null) audio.play()
         // a photo runs as long as chosen (report #39)
         val total = if (s.media.isVideo && s.media.duration > 0) (s.media.duration * 1000).toLong() else (s.duration * 1000).toLong().coerceAtLeast(1000L)
@@ -238,7 +240,8 @@ private fun StoryViewer(vm: AppViewModel, o: StoryViewing.Open, onClose: () -> U
                 if (up != null) { if (up.position.x < size.width * .3f) prev() else next() }
             }
         }) {
-            if (st.media.isVideo) VideoPlayer(vm.abs(st.media.url)!!, vm.abs(st.media.thumb), playing = !paused && !holding)
+            if (covered) SensitiveCover(vm, st.media, contentScale = ContentScale.Fit, buttonOnly = true)
+            else if (st.media.isVideo) VideoPlayer(vm.abs(st.media.url)!!, vm.abs(st.media.thumb), playing = !paused && !holding)
             else RemoteImage(vm.abs(st.media.url), Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                 fallback = { RemoteImage(vm.abs(st.media.thumb), Modifier.fillMaxSize(), contentScale = ContentScale.Fit) })
         }

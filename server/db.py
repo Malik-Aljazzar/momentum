@@ -221,6 +221,11 @@ class Media(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     # a chat photo / voice message of an encrypted chat: the blobs are ciphertext, the key is in the message
     encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # content filter (server/moderation.py): the score for nudity / sexual content (None = not checked), the
+    # pixelated cover of a flagged post / story picture and the admin's review ("" = waiting, "ok", "keep")
+    nsfw: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cover_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    review: Mapped[str] = mapped_column(String(8), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import momentum as m
-from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, limits, mentions, nine, posts, push, service, social, stories, storage, updates
+from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, limits, mentions, moderation, nine, posts, push, service, social, stories, storage, updates
 from . import google as google_mod
 from . import github as github_mod
 from . import mail as mail_mod
@@ -188,13 +188,15 @@ def parse_decay(data):
 
 # ---------------------------------------------------------------- app
 
-def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, google=None, github=None, mail=None):
+def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, google=None, github=None, mail=None,
+               moderator=None):
     """push_enabled: send real-time pushes (default: only the real server - tests and the e2e server
     pass their own blob store and stay quiet). e2e_default: new chats are end-to-end encrypted (default:
     the real server; the tests' chats are plain unless a test switches it on). google: the Google sign-in
     (server/google.py; default: configured from the environment). github: the reports' issues
     (server/github.py; default: from the environment, off without GITHUB_REPO + GITHUB_TOKEN). mail: e-mails with
-    codes (server/mail.py; default: from the environment, off without MAIL_*)."""
+    codes (server/mail.py; default: from the environment, off without MAIL_*). moderator: the content filter for
+    photos / videos (server/moderation.py; default: the real model on the real server, off for tests)."""
     if push_enabled is None:
         push_enabled = blobs is None
     if e2e_default is None:
@@ -215,6 +217,9 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     app.github = github
     mailer = mail or mail_mod.Mailer()
     app.mail = mailer
+    if moderator is None:
+        moderator = moderation.Moderator.from_env() if blobs is None else moderation.Moderator()
+    app.moderator = moderator
     icon_dir = SPRITE_DIR / "icons"
     icons = sorted(p.stem for p in icon_dir.glob("*.png")
                    if not p.stem.startswith(("ui_", "scene_")))
@@ -1073,6 +1078,10 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             data = compress_avatar(raw)
         except InvalidImage:
             raise ApiError("Bild konnte nicht gelesen werden", "Could not read the image")
+        # the content filter (server/moderation.py): a profile picture has no cover, so it is stricter
+        nsfw = await asyncio.to_thread(moderator.score_image, data)
+        if nsfw is not None and nsfw >= moderation.FLAG:
+            raise moderation.blocked_error(ApiError, picture=True)
         key = f"avatars/{g.user.id}/{secrets.token_hex(8)}.webp"
         try:
             await blobs.put(key, data, "image/webp")
@@ -1155,7 +1164,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
 
     social.register(app, authed, ApiError)
     adminapi.register(app, db, ApiError, quota, check_password_login, issue_token)
-    posts.register(app, authed, ApiError, blobs)
+    posts.register(app, authed, ApiError, blobs, moderator)
     stories.register(app, authed, ApiError, blobs)
     chat.register(app, authed, ApiError)
     calls.register(app, authed, ApiError, session_user)

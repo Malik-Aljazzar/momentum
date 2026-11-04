@@ -104,6 +104,7 @@ async def delete_user_stories(s, blobs, user_id):
 
 
 def register(app, authed, api_error, blobs):
+    from . import moderation
     from .community import can_view
 
     async def visible_user(username):
@@ -139,6 +140,8 @@ def register(app, authed, api_error, blobs):
             md = None
         if md is None or md.user_id != g.user.id or md.attached or md.kind not in ("image", "video"):
             raise api_error("Bild oder Video fehlt", "Photo or video missing")
+        if moderation.blocked(md):
+            raise moderation.blocked_error(api_error)
         sound = None
         if (data.get("sound") or {}).get("media_id") is not None:
             try:
@@ -171,6 +174,7 @@ def register(app, authed, api_error, blobs):
         if o:
             md.overlay = json.dumps(o)
             await bake_overlay(blobs, md)
+        await moderation.cover_flagged(blobs, [md])
         await trg.apply(g.s, g.user, tapped, story_id=st.id)
         return jsonify(story=(await stories_json(g.s, g.user.id, [st]))[0])
 

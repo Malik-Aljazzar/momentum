@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04 g
+
+### DE
+- Neuer Inhaltsfilter: Fotos und Videos in Posts und Stories werden beim Hochladen geprüft. Eindeutige Nacktheit oder sexuelle Inhalte lassen sich nicht posten; Zweifelsfälle erscheinen verpixelt als „Sensibler Inhalt“ – ein Tipp auf „Anzeigen“ zeigt sie. Profil- und Gruppenbilder werden auch geprüft.
+
+### EN
+- New content filter: photos and videos in posts and stories are checked when they're uploaded. Clear nudity or sexual content can't be posted; doubtful ones show pixelated as "Sensitive content" – tap "Show" to see them. Profile and group pictures are checked too.
+
 ## 2026-11-04 e
 
 ### DE

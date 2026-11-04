@@ -60,6 +60,7 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   deezer.py      song search + 30 s previews for post sounds (proxied: no CORS, links expire)
   places.py      place search for a post's location (OpenStreetMap via Photon)
   stories.py     stories (24 h, seen marks), highlights, archive
+  moderation.py  content filter for post / story / profile pictures (local ONNX model from nsfw_model.py)
   triggers.py    profile rules tapped with a post's slide / a story (≤5 per slide, ×1..10)
   db.py          models + migrations (_add_missing_columns, _migrate_data with config flags)
   admin.py       `python -m server.admin …` (reports, report-done, report-status, grant, step, rate, recompute)
@@ -160,6 +161,14 @@ docs/SPEC.md   the original (German) product spec
   extra bottom tab with the animated Larper only while it runs: `nav.tabsNow()` = `Tab.Election`); texts `nineName/nineLore/nineHow/nineUnit` in Strings.kt. A new title = KEYS + a creature + texts +
   a theme + `NINE_COLORS` on both sides. Hermes (most implemented reports) replaced the old King of Reporters badge.
   The title screen closes with a pinned X or a tap on the free space (taps in its cards don't).
+- Content filter (`server/moderation.py`, model pinned in `nsfw_model.py`, baked into the Docker image; locally
+  `python server/nsfw_model.py` -> `.cache/models/`): every /api/media photo / video gets `Media.nsfw` (video: a frame
+  every 2 s). Posts / stories refuse >= `BLOCK` (422), `FLAG`..`BLOCK` get a pixel cover (`cover_key`, made when attached)
+  -> `media_json` `sensitive` + `cover`, `thumb` = cover; clients cover it until tapped (`SensitiveCover` in
+  `screens/media.tsx` = `ui/Sensitive.kt`; a new full-size media view must use it). Profile / group pictures refuse
+  from `FLAG`. Admin app tab "Prüfen" (`/api/admin/flagged`: ok / keep / remove). Chats and texts aren't filtered.
+  Tests: off unless `create_app(moderator=...)`; `ColorModel` (cyan = refused, magenta = covered) in tests + e2e server.
+  Android apps older than `clients.MODERATION_APP` get the cover instead of the media - raise it with the next APK.
 - Pixel look everywhere: no rounded Material checkboxes/arrows – draw controls on a pixel grid
   (Android: `ui/PixelControls.kt`).
 - Emojis are always pixel art: `pixelart/emoji.py` turns Twemoji into 18×18 sprites and builds two fonts

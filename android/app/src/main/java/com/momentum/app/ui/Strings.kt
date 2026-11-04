@@ -671,6 +671,10 @@ interface Strings {
     val sharedStory: String
     val viewStory: String
     val storyReplySent: String
+    // the content filter (server/moderation.py): a flagged photo / video behind its cover
+    val sensitiveTitle: String
+    val sensitiveHint: String
+    val sensitiveShow: String
     // story length (report #39), the part of a sound, rules in the feed, rankings of the last 24 h (report #40)
     val storyDuration: String
     val soundRangeHint: String
@@ -1519,6 +1523,9 @@ object De : Strings {
     override val sharedStory = "Story"
     override val viewStory = "Story ansehen"
     override val storyReplySent = "Gesendet"
+    override val sensitiveTitle = "Sensibler Inhalt"
+    override val sensitiveHint = "Kann Nacktheit oder sexuelle Inhalte zeigen."
+    override val sensitiveShow = "Anzeigen"
     override val storyDuration = "Dauer"
     override val soundRangeHint = "Zieh die Enden: dieser Teil läuft"
     override val soundStoryHint = "So lang wie die Story – verschieb den Ausschnitt"
@@ -2366,6 +2373,9 @@ object En : Strings {
     override val sharedStory = "Story"
     override val viewStory = "View story"
     override val storyReplySent = "Sent"
+    override val sensitiveTitle = "Sensitive content"
+    override val sensitiveHint = "May show nudity or sexual content."
+    override val sensitiveShow = "Show"
     override val storyDuration = "Duration"
     override val soundRangeHint = "Drag the ends: this part plays"
     override val soundStoryHint = "As long as the story – slide the part"

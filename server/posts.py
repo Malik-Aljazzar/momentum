@@ -8,6 +8,7 @@ from quart import Response, g, jsonify, request
 from sqlalchemy import delete, func, or_, select
 
 from . import momentum as m
+from . import moderation
 from .blobs import BlobUnavailable
 from .db import Comment, CommentLike, Follow, Media, Notification, Post, PostLike, PostTag, User, utcnow
 from .media import POST_SOUND_SECONDS, InvalidMedia, process
@@ -66,10 +67,23 @@ def clean_location(raw):
 
 def media_json(md):
     # keys look like "media/<uid>/<name>" and are served under the same path
-    return dict(id=md.id, kind=md.kind, url=f"/{md.key}", thumb=f"/{md.thumb_key or md.key}",
-                width=md.width, height=md.height, duration=md.duration,
-                overlay=json.loads(md.overlay) if md.overlay else None,
-                encrypted=bool(md.encrypted))      # ciphertext: the key is in the (encrypted) message
+    out = dict(id=md.id, kind=md.kind, url=f"/{md.key}", thumb=thumb_url(md),
+               width=md.width, height=md.height, duration=md.duration,
+               overlay=json.loads(md.overlay) if md.overlay else None,
+               encrypted=bool(md.encrypted))      # ciphertext: the key is in the (encrypted) message
+    if moderation.covered(md):
+        # flagged by the content filter: the apps show the cover until tapped (server/moderation.py);
+        # older Android apps can't, they get only the cover
+        out.update(sensitive=True, cover=f"/{md.cover_key}")
+        from .clients import MODERATION_APP, knows
+        if not knows(MODERATION_APP):
+            out.update(kind="image", url=f"/{md.cover_key}", duration=0.0)
+    return out
+
+
+def thumb_url(md):
+    """Lists, grids, shares: a flagged picture shows its cover."""
+    return f"/{md.cover_key}" if moderation.covered(md) else f"/{md.thumb_key or md.key}"
 
 
 async def bake_overlay(blobs, md, delete_old=True):
@@ -224,7 +238,7 @@ def comment_json(c, user_card, me_id, post_owner_id, likes=0, liked=False, names
 
 async def delete_media_blobs(blobs, media_rows):
     for md in media_rows:
-        for key in filter(None, (md.key, md.thumb_key)):
+        for key in filter(None, (md.key, md.thumb_key, md.cover_key)):
             try:
                 await blobs.delete(key)
             except BlobUnavailable:
@@ -291,7 +305,7 @@ async def protect_old_reports(s, blobs):
     await s.commit()
 
 
-def register(app, authed, api_error, blobs):
+def register(app, authed, api_error, blobs, moderator):
     async def visible_post(post_id):
         from .community import can_view_post
         post = await g.s.get(Post, post_id)
@@ -331,10 +345,12 @@ def register(app, authed, api_error, blobs):
             p = await asyncio.to_thread(process, raw, ctype, start, seconds)
         except InvalidMedia:
             raise api_error("Datei konnte nicht verarbeitet werden", "Could not process the file")
+        # the content filter's score (server/moderation.py); what it means is decided where the media is used
+        nsfw = await asyncio.to_thread(moderator.score, p)
         base = f"media/{g.user.id}/{secrets.token_hex(10)}"
         thumb_ext, thumb_type = ("webp", "image/webp") if p.kind == "image" else ("jpg", "image/jpeg")
         md = Media(user_id=g.user.id, kind=p.kind, key=f"{base}.{p.ext}", width=p.width, height=p.height,
-                   duration=p.duration, thumb_key=f"{base}_thumb.{thumb_ext}" if p.thumb else None)
+                   duration=p.duration, thumb_key=f"{base}_thumb.{thumb_ext}" if p.thumb else None, nsfw=nsfw)
         try:
             await blobs.put(md.key, p.data, p.content_type)
             if p.thumb:
@@ -411,6 +427,8 @@ def register(app, authed, api_error, blobs):
             raise api_error("Medien ungültig", "Invalid media")      # voice messages are for chats
         if not text and not ids:
             raise api_error("Schreib etwas oder füge ein Bild hinzu", "Write something or add a photo")
+        if any(moderation.blocked(md) for md in media.values()):
+            raise moderation.blocked_error(api_error)
         # rules tapped with the slides (checked before anything is stored)
         from . import triggers as trg
         try:
@@ -447,6 +465,7 @@ def register(app, authed, api_error, blobs):
                 media[mid].overlay = json.dumps(o)
                 # the text becomes part of the picture: the same on every device
                 await bake_overlay(blobs, media[mid])
+        await moderation.cover_flagged(blobs, media.values())
         await tag_users(post, data.get("tags", []))
         await notify_mentions(text, post.id)
         await trg.apply(g.s, g.user, tapped, post_id=post.id)

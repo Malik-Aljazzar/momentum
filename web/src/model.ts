@@ -158,6 +158,8 @@ export interface MediaItem {
   expires_at?: string; archived?: boolean
   /** an encrypted chat's photo / voice message: the blobs are ciphertext; key + type come from the message */
   encrypted?: boolean; key?: string; mime?: string
+  /** flagged by the content filter (server/moderation.py): shown behind `cover` until tapped (`thumb` is the cover) */
+  sensitive?: boolean; cover?: string
 }
 
 export interface CommentItem {

@@ -186,7 +186,7 @@ async def blob_items(s, store, refresh=False):
     sizes = dict(await store.sizes(refresh))
     items = []
     for md, cat in await _media_categories(s):
-        size = sizes.pop(md.key, 0) + (sizes.pop(md.thumb_key, 0) if md.thumb_key else 0)
+        size = sizes.pop(md.key, 0) + sum(sizes.pop(k, 0) for k in (md.thumb_key, md.cover_key) if k)
         items.append(dict(category=cat, key=md.key, thumb=md.thumb_key or md.key, size=size, user_id=md.user_id,
                           media=md, created_at=md.created_at))
     for key, size in sizes.items():

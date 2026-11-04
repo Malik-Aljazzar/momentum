@@ -42,7 +42,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import kotlinx.coroutines.launch
 
-/** Where the app is: one of the three tabs, or a screen opened from one. */
+/** Where the app is: one of the four tabs, or a screen opened from one. */
 sealed interface Screen {
     data object Tabs : Screen
     data class ReportDetail(val id: Int) : Screen
@@ -96,7 +96,8 @@ fun AdminApp(api: Api, save: (String, String?) -> Unit) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
                     0 -> ReportsTab(api, onOpen = { open(Screen.ReportDetail(it)) }, onAuthError = logout)
-                    1 -> StorageTab(api, onOpen = { open(Screen.CategoryDetail(it)) }, onAuthError = logout)
+                    1 -> FlaggedTab(api, onOpen = { open(Screen.Viewer(it)) }, onAuthError = logout)
+                    2 -> StorageTab(api, onOpen = { open(Screen.CategoryDetail(it)) }, onAuthError = logout)
                     else -> StatsTab(api, onLogout = logout, onAuthError = logout)
                 }
             }
@@ -120,7 +121,7 @@ private fun Overlay(content: @Composable () -> Unit) {
 
 @Composable
 private fun TabBar(tab: Int, onTab: (Int) -> Unit) {
-    val tabs = listOf("REPORTS", S.t("SPEICHER", "STORAGE"), S.t("STATISTIK", "STATS"))
+    val tabs = listOf("REPORTS", S.t("PRÜFEN", "REVIEW"), S.t("SPEICHER", "STORAGE"), S.t("STATISTIK", "STATS"))
     Row(Modifier.fillMaxWidth().background(Px.Card).border(2.dp, Px.Line)) {
         tabs.forEachIndexed { i, label ->
             val on = i == tab

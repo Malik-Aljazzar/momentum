@@ -11,7 +11,7 @@ import {
   PxButton, PxTextField, RemoteImage, Sheet, TopBar, UserRow, useUserPages, usePress,
 } from "../ui/components"
 import { OVERLAY_COLORS, OverlayText, SoundArea, SoundLabel, VideoPlayer } from "../ui/video"
-import { openViewer, TriggerBadges } from "./media"
+import { isCovered, openViewer, SensitiveCover, TriggerBadges } from "./media"
 import { StoriesRow } from "./Stories"
 import { MilestoneTile, RuleDetailSheet, RuleIconBox, SharePicker } from "./shared"
 
@@ -150,6 +150,7 @@ export function PostCard({ post, onChange, onDeleted, detail = false }: { post: 
   const onUp = (e: PointerEvent) => {
     const t = taps.current
     if (Math.hypot(e.clientX - t.down[0], e.clientY - t.down[1]) > 10) return          // a swipe, not a tap
+    if ((e.target as HTMLElement).closest(".sensitive-cover")) return                 // that tap uncovers it (no like, no big view)
     if (e.timeStamp - t.last < 300 && Math.hypot(e.clientX - t.at[0], e.clientY - t.at[1]) < 40) {
       t.last = 0
       clearTimeout(t.open)
@@ -229,9 +230,10 @@ export function MediaPager({ media, soundUrl, triggers }: { media: MediaItem[]; 
     <div ref={ref} class="fill" data-pager onScroll={() => { const el = ref.current!; setPage(Math.round(el.scrollLeft / el.clientWidth)) }}
       style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" }}>
       {media.map((m, i) => <div key={m.id} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start" }}>
-        {m.kind === "video" ? <VideoPlayer url={m.url} thumb={m.thumb} playing={page === i} soundUrl={soundUrl} />
+        {isCovered(m) ? <SensitiveCover media={m} />
+          : m.kind === "video" ? <VideoPlayer url={m.url} thumb={m.thumb} playing={page === i} soundUrl={soundUrl} />
           : <RemoteImage url={m.url} class="fill" fallback={<RemoteImage url={m.thumb} class="fill" />} />}
-        {m.overlay && <OverlayText o={m.overlay} />}
+        {m.overlay && !isCovered(m) && <OverlayText o={m.overlay} />}
         {/* the rules tapped with this slide: subtle, in the corner */}
         <TriggerBadges triggers={triggers?.filter((t) => (t.slide ?? 0) === i)} />
       </div>)}

@@ -17,6 +17,9 @@ SUBSCRIPTION_KINDS = ("sub_rule", "sub_decay")
 # show them as "encryption switched off"
 CALLS_APP = 896_679
 CALL_KINDS = ("call",)
+# Android builds from 2026-11-04 on show flagged pictures behind their cover (server/moderation.py); older ones get
+# only the cover (media_json) - raise it to the versionCode of the first APK released with the content filter
+MODERATION_APP = 897_050
 
 
 def knows(version):

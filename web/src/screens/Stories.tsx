@@ -10,7 +10,7 @@ import { feedVersion, req, showToast, state } from "../store"
 import { S } from "../strings"
 import { Avatar, IconBtn, Label, LoadMore, PixelIcon, PxButton, PxTextField, RemoteImage, Sheet, UserRow, useUserPages } from "../ui/components"
 import { storiesVersion } from "./Compose"
-import { TriggerList } from "./media"
+import { isCovered, SensitiveCover, TriggerList } from "./media"
 import { SharePicker } from "./shared"
 import { useCoverLayer } from "../ui/video"
 
@@ -103,6 +103,8 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
   const list = stories[row] ?? []
   const st: Story | undefined = list[i]
   const user = rows[row]?.user
+  // flagged by the content filter: waits behind its cover (not running) until "show" is tapped
+  const covered = !!st && isCovered(st.media)
 
   const next = () => {
     if (i + 1 < list.length) { setI(i + 1); return }
@@ -125,7 +127,7 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
     if (a) { if (st.sound) { a.src = st.sound.url; a.currentTime = 0; void a.play().catch(() => {}) } else a.pause() }
   }, [row, i])
   useEffect(() => {
-    if (!st || paused || holding) { video.current?.pause(); audio.current?.pause(); return }
+    if (!st || paused || holding || covered) { video.current?.pause(); audio.current?.pause(); return }
     if (st.media.kind === "video") { void video.current?.play().catch(() => {}) }
     if (st.sound) void audio.current?.play().catch(() => {})
     const imageMs = (st.duration ?? IMAGE_MS / 1000) * 1000          // a photo's chosen length (report #39)
@@ -139,7 +141,7 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [row, i, paused, holding])
+  }, [row, i, paused, holding, covered])
 
   if (!st || !user) return null
   const sec = secondsSince(st.at)
@@ -175,7 +177,8 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
       const x = e.clientX / (e.currentTarget as HTMLElement).clientWidth
       if (x < .3) prev(); else next()
     }}>
-      {st.media.kind === "video"
+      {covered ? <SensitiveCover key={st.id} media={st.media} fit="contain" button />
+        : st.media.kind === "video"
         ? <video key={st.id} ref={video} src={st.media.url} poster={st.media.thumb} playsInline muted={!!st.sound}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
         : <RemoteImage key={st.id} url={st.media.url} class="fill" fit="contain" fallback={<RemoteImage url={st.media.thumb} class="fill" fit="contain" />} />}

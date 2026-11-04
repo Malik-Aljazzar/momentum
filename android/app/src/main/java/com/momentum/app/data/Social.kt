@@ -110,6 +110,9 @@ data class MediaItem(
     val encrypted: Boolean = false,
     val key: String? = null,
     val mime: String? = null,
+    /** flagged by the content filter (server/moderation.py): shown behind [cover] until tapped ([thumb] is the cover) */
+    val sensitive: Boolean = false,
+    val cover: String? = null,
 ) {
     val isVideo get() = kind == "video"
 }

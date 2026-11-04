@@ -121,7 +121,8 @@ private fun MediaViewer(vm: AppViewModel, items: List<ViewerItem>, start: Int, o
             val it = items[page]
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    if (it.media.isVideo) VideoPlayer(vm.abs(it.media.url)!!, vm.abs(it.media.thumb), playing = pager.currentPage == page)
+                    if (Sensitive.covered(it.media)) SensitiveCover(vm, it.media, contentScale = ContentScale.Fit)
+                    else if (it.media.isVideo) VideoPlayer(vm.abs(it.media.url)!!, vm.abs(it.media.thumb), playing = pager.currentPage == page)
                     else RemoteImage(vm.abs(it.media.url), Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                         fallback = { RemoteImage(vm.abs(it.media.thumb), Modifier.fillMaxSize(), contentScale = ContentScale.Fit) })
                     TriggerBadges(it.triggers, Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 52.dp))

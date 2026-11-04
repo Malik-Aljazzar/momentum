@@ -1,4 +1,5 @@
-"""API of the admin app (android/admin): reports with their status, server statistics, storage and its limit.
+"""API of the admin app (android/admin): reports with their status, server statistics, storage and its limit,
+the content filter's review list.
 
 Only accounts with `User.admin` (python -m server.admin grant <username>) get in, through their own login
 (password + a code from an authenticator app) and their own sessions (scope "admin", 30 days). Game
@@ -12,10 +13,12 @@ from sqlalchemy import delete, func, select
 
 from . import security, storage
 from .blobs import BlobUnavailable
-from .db import (AuthToken, Challenge, Conversation, Message, Post, Report, Rule, Story, User, UserActivity, utcnow)
+from .db import (AuthToken, Challenge, Conversation, Media, Message, Post, Report, Rule, Story, User, UserActivity,
+                 utcnow)
 from .posts import page_args
 
 STATUSES = ("new", "todo", "done")
+REVIEWS = ("waiting", "ok", "keep")        # flagged media (server/moderation.py)
 
 
 def iso(dt):
@@ -221,3 +224,52 @@ def register(app, db, api_error, quota, check_password_login, issue_token):
                 raise api_error("Limit: höchstens die ganze Festplatte", "Limit: at most the whole disk")
             await quota.save(g.s, value)
         return jsonify(await storage.overview(g.s, quota))
+
+    # ---- content filter (server/moderation.py): flagged photos / videos of posts and stories
+
+    def flagged_json(md, username):
+        return dict(media_id=md.id, kind=md.kind, score=round(md.nsfw or 0.0, 3), review=md.review or "waiting",
+                    url=f"/{md.key}", thumb=f"/{md.thumb_key or md.key}", cover=f"/{md.cover_key}",
+                    username=username or "", post_id=md.post_id, story_id=md.story_id, created_at=iso(md.created_at))
+
+    @app.get("/api/admin/flagged")
+    @admin_only
+    async def admin_flagged():
+        """?review=waiting|ok|keep (default waiting), paged, newest first; counts per review."""
+        review = request.args.get("review", "waiting")
+        if review not in REVIEWS:
+            raise api_error("Status ungültig", "Invalid status")
+        offset, limit = page_args()
+        rows = (await g.s.execute(
+            select(Media, User.username).join(User, User.id == Media.user_id, isouter=True)
+            .where(Media.cover_key.is_not(None), Media.review == ("" if review == "waiting" else review))
+            .order_by(Media.id.desc()).offset(offset).limit(limit))).all()
+        counts = dict((await g.s.execute(select(Media.review, func.count()).where(Media.cover_key.is_not(None))
+                                         .group_by(Media.review))).all())
+        return jsonify(items=[flagged_json(md, name) for md, name in rows],
+                       counts={k: counts.get("" if k == "waiting" else k, 0) for k in REVIEWS})
+
+    @app.put("/api/admin/flagged/<int:media_id>")
+    @admin_only
+    async def admin_review_flagged(media_id):
+        """{"action": "ok" (shown normally) | "keep" (stays covered) | "remove" (its post / story is deleted)}"""
+        from .posts import delete_media_blobs, delete_posts
+        from .stories import delete_stories
+        md = await g.s.get(Media, media_id)
+        if md is None or md.cover_key is None:
+            raise api_error("Nicht gefunden", "Not found", 404)
+        action = (await request.get_json(force=True) or {}).get("action")
+        if action in ("ok", "keep"):
+            md.review = action
+            owner = await g.s.get(User, md.user_id)
+            return jsonify(item=flagged_json(md, owner.username if owner else ""))
+        if action != "remove":
+            raise api_error("Aktion ungültig", "Invalid action")
+        if md.post_id is not None:
+            await delete_posts(g.s, app.blobs, [md.post_id])
+        elif md.story_id is not None:
+            await delete_stories(g.s, app.blobs, [md.story_id])
+        else:
+            await delete_media_blobs(app.blobs, [md])
+            await g.s.delete(md)
+        return jsonify(removed=True)

@@ -4,6 +4,7 @@ import { signal } from "@preact/signals"
 import { useEffect, useRef, useState } from "preact/hooks"
 import type { MediaItem, Trigger } from "../model"
 import { fmt, signed } from "../format"
+import { S } from "../strings"
 import { IconBtn, PixelIcon, RemoteImage, SlidingText } from "../ui/components"
 import { RuleDetailSheet } from "./shared"
 import { useCoverLayer } from "../ui/video"
@@ -16,6 +17,32 @@ export const viewer = signal<{ items: ViewerItem[]; index: number } | null>(null
 export const openRule = signal<number | null>(null)
 
 export const openViewer = (items: ViewerItem[], index = 0) => { if (items.length) viewer.value = { items, index } }
+
+/** Photos / videos flagged by the content filter (server/moderation.py) that were tapped open - for this app run,
+ *  in every view (= ui/Sensitive.kt). */
+export const revealed = signal<ReadonlySet<number>>(new Set())
+export const isCovered = (m: MediaItem) => !!m.sensitive && !!m.cover && !revealed.value.has(m.id)
+export const reveal = (m: MediaItem) => { revealed.value = new Set([...revealed.value, m.id]) }
+
+/** A flagged photo / video: its pixel mosaic with a warning; a tap (on the button only with `button`: stories,
+ *  where taps elsewhere go to the next story) shows the media. */
+export function SensitiveCover({ media, fit = "cover", button = false }: { media: MediaItem; fit?: "cover" | "contain"; button?: boolean }) {
+  const s = S.value
+  const open = (e: Event) => { e.stopPropagation(); reveal(media) }
+  const stop = (e: Event) => e.stopPropagation()
+  return <div class="fill sensitive-cover" role={button ? undefined : "button"} aria-label={s.sensitiveTitle}
+    style={{ background: "#0b0c12", cursor: button ? undefined : "pointer" }}
+    onPointerDown={button ? undefined : stop} onPointerUp={button ? undefined : stop} onClick={button ? undefined : open}>
+    <RemoteImage url={media.cover} class="fill" fit={fit} />
+    <div class="col" style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center", pointerEvents: "none" }}>
+      <PixelIcon name="ui_eye" size={28} />
+      <span class="t-strong" style={{ color: "#fff" }}>{s.sensitiveTitle}</span>
+      <span class="t-small" style={{ color: "rgba(255,255,255,0.8)", maxWidth: 260 }}>{s.sensitiveHint}</span>
+      <button class="btn t-button ghost" style={{ pointerEvents: "auto", marginTop: 4 }}
+        onPointerDown={stop} onPointerUp={stop} onClick={open}>{s.sensitiveShow}</button>
+    </div>
+  </div>
+}
 
 /** Rendered once at the app's root. */
 export function MediaHost() {
@@ -80,7 +107,8 @@ function MediaViewer({ items, start, onClose }: { items: ViewerItem[]; start: nu
       style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" }}>
       {items.map((it, i) => <div key={i} class="col" style={{ flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", position: "relative" }}>
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-          {it.media.kind === "video"
+          {isCovered(it.media) ? <SensitiveCover media={it.media} fit="contain" />
+            : it.media.kind === "video"
             ? <video src={it.media.url} poster={it.media.thumb} controls playsInline loop autoPlay={i === page}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
             : <RemoteImage url={it.media.url} class="fill" fit="contain" fallback={<RemoteImage url={it.media.thumb} class="fill" fit="contain" />} />}

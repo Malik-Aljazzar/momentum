@@ -384,9 +384,11 @@ fun MediaPager(vm: AppViewModel, media: List<MediaItem>, soundUrl: String? = nul
         HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
             val item = media[page]
             Box(Modifier.fillMaxSize()) {
-                if (item.isVideo) VideoPlayer(vm.abs(item.url)!!, vm.abs(item.thumb), playing = pager.currentPage == page, soundUrl = soundUrl)
+                val covered = Sensitive.covered(item)
+                if (covered) SensitiveCover(vm, item)
+                else if (item.isVideo) VideoPlayer(vm.abs(item.url)!!, vm.abs(item.thumb), playing = pager.currentPage == page, soundUrl = soundUrl)
                 else RemoteImage(vm.abs(item.url), Modifier.fillMaxSize())
-                item.overlay?.let { OverlayText(it) }
+                if (!covered) item.overlay?.let { OverlayText(it) }
                 // the rules tapped with this slide: subtle, in the corner
                 TriggerBadges(triggers.filter { it.slide == page }, Modifier.align(Alignment.TopEnd))
             }

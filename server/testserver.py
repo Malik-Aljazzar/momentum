@@ -32,7 +32,10 @@ if __name__ == "__main__":
     os.environ.setdefault("MOMENTUM_TEST", "1")
     print(f"e2e server on http://127.0.0.1:{port}  (db {db})", flush=True)
     mailer = TestMailer()
-    app = create_app(f"sqlite+aiosqlite:///{db.as_posix()}", blobs=MemoryStore(), mail=mailer)
+    # the content filter with a stand-in model: cyan pictures are refused, magenta ones covered (server/moderation.py)
+    from .moderation import ColorModel, Moderator
+    app = create_app(f"sqlite+aiosqlite:///{db.as_posix()}", blobs=MemoryStore(), mail=mailer,
+                     moderator=Moderator(ColorModel()))
 
     @app.get("/api/test/mail")
     async def test_mail():

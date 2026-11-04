@@ -9,7 +9,7 @@ from .clients import hidden_message_kinds
 from .db import Conversation, ConversationMember, Media, Message, MessageReaction, Post, Rule, User, utcnow
 from .e2e import KeyChanged, StaleKeys, envelope_for, keys_hash, mentioned_ids, parse_envelope
 from .mentions import encode, names_for, render, render_one
-from .posts import media_json, post_thumbs
+from .posts import media_json, post_thumbs, thumb_url
 from .social import block_ids, card_map, connected, iso
 
 MAX_TEXT = 2000
@@ -124,7 +124,7 @@ async def resolve_share(s, me, kind, ref):
         if st is None or md is None or not await story_visible(s, me.id, st):
             return dict(kind=kind, available=False)
         return dict(kind=kind, id=st.id, user=(await card_map(s, me.id, [st.user_id])).get(st.user_id),
-                    thumb=f"/{md.thumb_key or md.key}", video=md.kind == "video",
+                    thumb=thumb_url(md), video=md.kind == "video",
                     ratio=(md.width / md.height) if md.height else 0.5625, available=True)
     if kind == "challenge":
         ch = await s.get(challenges.Challenge, ref_id)
@@ -491,6 +491,9 @@ def register(app, authed, api_error):
                 media = None
             if media is None or media.user_id != g.user.id or media.kind != "image" or media.attached:
                 raise api_error("Bild ungültig", "Invalid image")
+            from . import moderation
+            if moderation.flagged(media):            # a group picture has no cover: stricter
+                raise moderation.blocked_error(api_error, picture=True)
             media.attached = True                    # kept (not cleaned up as an abandoned upload)
             setattr(conv, attr, media.id)
         if "public" in data or "open" in data:

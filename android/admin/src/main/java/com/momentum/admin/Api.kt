@@ -52,6 +52,17 @@ data class Table(val table: String, val category: String, val rows: Long, val by
 @Serializable
 data class CategoryPage(val items: List<Item>, val tables: List<Table>, val total: Int)
 
+/** A posted photo / video the content filter found doubtful (server/moderation.py); [thumb] / [url] are the real ones. */
+@Serializable
+data class FlaggedMedia(
+    val media_id: Int, val kind: String, val score: Double, val review: String, val url: String, val thumb: String,
+    val cover: String = "", val username: String = "", val post_id: Int? = null, val story_id: Int? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class FlaggedPage(val items: List<FlaggedMedia>, val counts: Map<String, Int>)
+
 @Serializable
 data class Day(val day: String, val active: Int, val signups: Int, val posts: Int, val messages: Int)
 
@@ -130,6 +141,15 @@ class Api(var baseUrl: String, var token: String?) {
     }
 
     suspend fun stats(): Stats = json.decodeFromString(call("GET", "/admin/stats"))
+
+    /** review: waiting | ok | keep */
+    suspend fun flagged(review: String, offset: Int, limit: Int = 30): FlaggedPage =
+        json.decodeFromString(call("GET", "/admin/flagged?review=$review&offset=$offset&limit=$limit"))
+
+    /** action: ok (shown normally) | keep (stays covered) | remove (its post / story is deleted) */
+    suspend fun reviewFlagged(mediaId: Int, action: String) {
+        call("PUT", "/admin/flagged/$mediaId", buildJsonObject { put("action", action) })
+    }
 
     suspend fun storage(refresh: Boolean = false): Storage =
         json.decodeFromString(call("GET", "/admin/storage" + if (refresh) "?refresh=1" else ""))
