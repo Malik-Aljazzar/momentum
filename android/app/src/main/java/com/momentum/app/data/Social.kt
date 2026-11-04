@@ -236,6 +236,8 @@ data class LastMessage(
     /** member lines: who was added / removed (targetMe: me) */
     val target: UserCard? = null,
     @SerialName("target_me") val targetMe: Boolean = false,
+    /** kind "call": what the call line shows */
+    val call: CallLine? = null,
 )
 
 @Serializable
@@ -265,6 +267,8 @@ data class Conversation(
     /** end-to-end encryption of new messages; may I switch it (direct: both, group: admins) */
     val e2e: Boolean = false,
     @SerialName("can_switch_e2e") val canSwitchE2e: Boolean = false,
+    /** a call running in this chat (server/calls.py) */
+    val call: CallBrief? = null,
 ) {
     val isGroup get() = kind == "group"
 }
@@ -286,6 +290,8 @@ data class ChatMessage(
     /** member lines (member_join / _add / _remove / _leave, report #56): who was added / removed (targetMe: me) */
     val target: UserCard? = null,
     @SerialName("target_me") val targetMe: Boolean = false,
+    /** kind "call": a voice / video call */
+    val call: CallLine? = null,
 )
 
 @Serializable

@@ -128,7 +128,7 @@ def test_direct_call_rings_connects_and_becomes_a_chat_line(tmp_path):
         # a call line isn't unread and no push for it
         assert (await ben.req("get", "/api/conversations"))["conversations"][0]["unread"] == 0
         # an Android app from before calls doesn't get the line (it can't show it)
-        old = {**ben.h, "X-App-Version": "900000"}
+        old = {**ben.h, "X-App-Version": "880000"}
         r = await c.get(f"/api/conversations/{conv}/messages", headers=old)
         assert all(m["kind"] != "call" for m in (await r.get_json())["messages"])
         assert (await (await c.get(f"/api/calls/{call['id']}", headers=ben.h)).get_json())["call"]["status"] == "ended"

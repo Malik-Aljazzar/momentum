@@ -150,6 +150,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             updateRequired = true
         }
         if (prefs.token != null && prefs.notifications) com.momentum.app.data.Notifier.schedule(app)
+        // calls (data/Calls.kt): its messages become toasts; the socket opens with the session
+        com.momentum.app.data.Toasts.sink = { text, error -> showToast(text, error) }
+        if (prefs.token != null) com.momentum.app.data.Calls.attach(app, api, cachedState()?.user?.id ?: -1)
         online = hasNetwork()
         runCatching { connectivity?.registerDefaultNetworkCallback(networkCallback) }
         com.momentum.app.data.Changelog.pending(prefs, prefs.token != null, changelog())
@@ -192,6 +195,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun onForegroundChanged(on: Boolean) {
         foreground = on
+        com.momentum.app.data.Calls.setVisible(on)
         if (on) {
             com.momentum.app.data.QuickCheckWorker.stop(getApplication())
             refresh()
@@ -202,6 +206,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun putState(s: AppState) {
         state = s
+        s.user.id?.let { com.momentum.app.data.Calls.attach(getApplication(), api, it) }
         // encrypted chats: my key on this phone (made on the first device, else unlocked with the recovery key)
         val uid = s.user.id
         if (uid != null && (e2eStartedFor != uid || com.momentum.app.data.E2EStore.status == com.momentum.app.data.E2EStore.Status.Loading)) {
@@ -893,6 +898,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun logoutLocal() {
+        com.momentum.app.data.Calls.detach()
         com.momentum.app.data.Notifier.cancel(getApplication())
         com.momentum.app.data.E2EStore.stop()
         e2eStartedFor = null
@@ -907,6 +913,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onError(e: ApiException) = handle(e)
+
+    /** Opened from a call's notification: its screen (answer: at once, if the microphone may be used). */
+    fun openCall(id: Int, answer: Boolean) {
+        val ctx = getApplication<Application>()
+        fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(ctx, p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        com.momentum.app.data.Calls.openFromNotification(id, answer && granted(android.Manifest.permission.RECORD_AUDIO),
+            hasCamera = { granted(android.Manifest.permission.CAMERA) }, onEnded = { conv -> openRequest = conv })
+    }
 
     private fun handle(e: ApiException) {
         when (e.status) {

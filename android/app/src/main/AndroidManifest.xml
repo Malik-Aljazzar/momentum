@@ -8,6 +8,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- calls (data/Calls.kt): the sound's route (earpiece / speaker), ringing over the lock screen, a call that
+         goes on in the background (CallService), the screen off at the ear -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- usesCleartextTraffic: the prototype talks plain HTTP to the PC in the LAN. -->
@@ -29,6 +37,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- a call that goes on while the app is in the background (data/CallService.kt) -->
+        <service android:name=".data.CallService" android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
+        <!-- decline / hang up from a call's notification -->
+        <receiver android:name=".data.CallActionReceiver" android:exported="false" />
 
         <!-- push from the server (data/Push.kt): wakes the app to check for news -->
         <service android:name=".data.MomentumMessagingService" android:exported="false">

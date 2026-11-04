@@ -177,6 +177,9 @@ fun ChatsScreen(vm: AppViewModel, isTab: Boolean = false,
                         val typingNow = typingShort(S, c.typing)
                         if (typingNow != null) {
                             Text(typingNow, maxLines = 1, overflow = TextOverflow.Ellipsis, style = T.small.copy(color = Px.Lime))
+                        } else if (c.call != null) {
+                            Text((if (c.call.video) "📹 " else "📞 ") + S.callRunning(c.call.joined), maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, style = T.small.copy(color = Px.Lime))
                         } else if (last != null) {
                             val who = when {
                                 last.mine -> "${S.you}: "
@@ -184,6 +187,7 @@ fun ChatsScreen(vm: AppViewModel, isTab: Boolean = false,
                                 else -> ""
                             }
                             val body = when {
+                                last.kind == "call" && last.call != null -> callLine(S, last.call)
                                 last.kind != null -> chatLine(S, last.kind, if (last.mine) null else last.sender,
                                     if (last.targetMe) null else last.target?.displayName.orEmpty())
                                 last.sealed -> who + "🔒 " + S.e2eNewMessage
@@ -280,13 +284,33 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     LaunchedEffect(id) {
         conv = vm.req<ConversationResponse>("GET", "/conversations/$id")?.conversation
         StoryRings.load(vm)                       // the pictures' rings: new stories (report #67)
+        var n = 0
         while (true) {
             // in the background: no polling (it would mark messages as read -> no notification)
             if (vm.foreground) {
                 poll()
                 com.momentum.app.data.Notifier.clearChat(vm.getApplication(), id)    // read: its notifications go away
+                // a group's running call (its "join" bar) comes with the chat itself
+                if (conv?.isGroup == true && ++n % 2 == 0) runCatching {
+                    conv = vm.api.call<ConversationResponse>("GET", "/conversations/$id").conversation
+                }
             }
             delay(POLL_MS)
+        }
+    }
+    // a call here ended: its chat line at once, the bar goes away
+    val callHere = com.momentum.app.data.Calls.view?.takeIf { it.info.conversationId == id }?.phase
+    LaunchedEffect(callHere) {
+        if (callHere != com.momentum.app.data.CallPhase.Ended) return@LaunchedEffect
+        poll()
+        vm.req<ConversationResponse>("GET", "/conversations/$id")?.let { conv = it.conversation }
+    }
+    val askCall = rememberCallPermissions()
+    fun ring(video: Boolean) {
+        val c = conv ?: return
+        askCall(video) { camera ->
+            com.momentum.app.data.Calls.start(id, video, conversationTitle(c),
+                if (c.isGroup) c.avatar else c.members.firstOrNull()?.avatar, camera)
         }
     }
     // encrypted: the members' keys (who can't read new messages yet, whose safety code changed)
@@ -402,6 +426,11 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     Column(Modifier.fillMaxSize().imePadding()) {
         val c = conv
         TopBar(c?.let(::conversationTitle) ?: "") {
+            // calls (server/calls.py): video and voice
+            if (c != null && c.member) {
+                IconBtn("ui_cam") { ring(true) }
+                IconBtn("ui_handset") { ring(false) }
+            }
             // group overview: members, group rules, challenges
             if (c != null) IconBtn(if (c.muted) "ui_muted" else "ui_bell", alpha = if (c.muted) .55f else .9f) {
                 scope.launch {
@@ -413,6 +442,17 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
             if (c?.isGroup == false) IconBtn("ui_dots") { nav.push(Route.ChatInfo(id)) }
         }
         OfflineStrip(vm.online)
+        // a group's call is on: who's in, join
+        val running = c?.call
+        if (c?.isGroup == true && running != null && running.me != "joined" && callHere == null) {
+            Row(Modifier.fillMaxWidth().background(Px.Lime.copy(alpha = .12f)).padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                PixelIcon(if (running.video) "ui_cam" else "ui_handset", 18.dp, tint = Px.Lime)
+                Spacer(Modifier.width(10.dp))
+                Text(S.callRunning(running.joined), style = T.small.copy(color = Px.Lime), modifier = Modifier.weight(1f))
+                PxButton(S.callJoin) { ring(running.video) }
+            }
+        }
         // reversed: the newest message is item 0 at the bottom, so the chat opens there
         val tz = vm.state?.settings?.timezone ?: "Europe/Berlin"
         val rows = withDays(photoGroups(messages), tz).asReversed()
@@ -431,6 +471,7 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
                     return@items
                 }
                 val m = row.m!!
+                if (m.kind == "call" && m.call != null) { CallLineView(S, m, tz) { ring(it) }; return@items }
                 if (m.kind != null) { SystemLine(S, m); return@items }
                 val photos = row.photos
                 Bubble(vm, m, photos = photos, tz = tz, last = row.last, showSender = c?.isGroup == true, read = m.id <= readUpto, onOpenRule = { openRule = it },
@@ -729,6 +770,23 @@ private fun SystemLine(S: Strings, m: ChatMessage) {
             if (m.targetMe) null else m.target?.displayName.orEmpty()),
             style = T.small.copy(fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
             modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Px.Card2).padding(horizontal = 10.dp, vertical = 4.dp))
+    }
+}
+
+/** A call in the chat: its kind and length, missed ones in red; a tap calls back the same way. */
+@Composable
+private fun CallLineView(S: Strings, m: ChatMessage, tz: String, onCall: (Boolean) -> Unit) {
+    val c = m.call ?: return
+    val color = if (callMissed(c)) Px.Orange else Px.Text
+    Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+        Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Px.Card2).clickable { onCall(c.video) }
+            .padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            PixelIcon(if (c.video) "ui_cam" else "ui_handset", 14.dp, tint = color)
+            Spacer(Modifier.width(6.dp))
+            Text(callLine(S, c, emoji = false), style = T.small.copy(fontSize = 12.sp, color = color))
+            Spacer(Modifier.width(6.dp))
+            Text(chatClock(m.at, tz), style = T.small.copy(fontSize = 11.sp))
+        }
     }
 }
 

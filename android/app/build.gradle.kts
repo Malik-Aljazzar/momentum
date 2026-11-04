@@ -72,6 +72,8 @@ android {
         buildConfigField("String", "DEFAULT_SERVER", "\"$server\"")
         // Play builds: updates come from Play (the server's APK version gate skips them, X-App-Channel: play)
         buildConfigField("boolean", "PLAY", "$play")
+        // native code (WebRTC for calls) only for real phones and the x86_64 emulator: a much smaller APK
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     buildTypes {
@@ -136,5 +138,6 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")                    // sign in with Google
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("io.getstream:stream-webrtc-android:1.3.10")                  // calls: WebRTC (data/Calls.kt)
     testImplementation("junit:junit:4.13.2")       // JVM tests (the chat encryption against the shared vector)
 }

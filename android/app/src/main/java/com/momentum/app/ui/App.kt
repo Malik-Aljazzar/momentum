@@ -116,6 +116,7 @@ fun MomentumApp(vm: AppViewModel) {
             OverlayEditorHost()                            // text onto a photo / video
             StoryHost(vm)                                  // stories, full screen
             MediaHost(vm)                                  // big view of photos / videos, tapped rule triggers
+            if (vm.screen == Screen.Main) CallHost(vm)     // a call: its screen, or the small window when minimized
             if (vm.updateRequired) UpdateScreen(vm)        // blocks everything until the app is updated
         }
     }

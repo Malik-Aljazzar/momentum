@@ -33,7 +33,7 @@ test("a voice call: ring, answer, talk, camera on, minimize, hang up, the chat l
   const conv = (await api(request, ann.token, "POST", "/conversations/direct", { username: ben.name })).conversation
   const a = await phone(browser, ann.token, `chat:${conv.id}`)
   const b = await phone(browser, ben.token, "chats")
-  await a.getByRole("button", { name: "Sprachanruf" }).click()
+  await a.getByRole("button", { name: "Sprachanruf", exact: true }).click()
   await expect(screen(a)).toContainText(/Klingelt|Ruft an/)
   // ben's app rings (over whatever he looks at)
   await expect(screen(b)).toContainText("Eingehender Sprachanruf")
@@ -79,7 +79,7 @@ test("declined, and a group call joined from the chat's bar", async ({ browser, 
   const direct = (await api(request, ann.token, "POST", "/conversations/direct", { username: ben.name })).conversation
   const a = await phone(browser, ann.token, `chat:${direct.id}`)
   const b = await phone(browser, ben.token, "chats")
-  await a.getByRole("button", { name: "Videoanruf" }).click()
+  await a.getByRole("button", { name: "Videoanruf", exact: true }).click()
   await expect(screen(b)).toContainText("Eingehender Videoanruf")
   await b.getByRole("button", { name: "Ablehnen" }).click()
   await expect(screen(a)).toContainText("Abgelehnt")
@@ -92,7 +92,7 @@ test("declined, and a group call joined from the chat's bar", async ({ browser, 
   await api(request, cat.token, "PUT", `/conversations/${group.id}/mute`, { muted: true })
   const c = await phone(browser, cat.token, `chat:${group.id}`)
   await a.goto(`/app/?open=chat:${group.id}`)
-  await a.getByRole("button", { name: "Sprachanruf" }).click()
+  await a.getByRole("button", { name: "Sprachanruf", exact: true }).click()
   await expect(screen(b)).toContainText("Eingehender Sprachanruf")
   await expect(screen(c)).toHaveCount(0)
   await expect(c.locator(".call-bar")).toContainText("Anruf läuft · 1 dabei", { timeout: 15_000 })

@@ -58,6 +58,13 @@ class MomentumMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) = Push.send(applicationContext, token)
 
     override fun onMessageReceived(message: RemoteMessage) {
+        val d = message.data
+        // a call (server/calls.py): ringing / its end, handled on the main thread (data/Calls.kt)
+        if (d["type"] == "call" || d["type"] == "call_end") {
+            val ctx = applicationContext
+            android.os.Handler(android.os.Looper.getMainLooper()).post { Calls.onPush(ctx, d) }
+            return
+        }
         // runs off the main thread; a high-priority message gives the app a few seconds of network
         runBlocking { withTimeoutOrNull(9_000) { checkUpdates(applicationContext) } }
     }

@@ -36,6 +36,11 @@ object Notifier {
     const val CHANNEL_MESSAGES = "messages"
     const val CHANNEL_ACTIVITY = "activity"
     const val CHANNEL_MENTIONS = "mentions"
+    /** calls (server/calls.py): ringing with the phone's ringtone; the ongoing call quietly */
+    const val CHANNEL_CALLS = "calls"
+    const val CHANNEL_CALL_ONGOING = "call_ongoing"
+    const val EXTRA_CALL = "open_call"
+    const val EXTRA_ANSWER = "answer_call"
     const val EXTRA_CHAT = "open_chat"
     const val EXTRA_ACTIVITY = "open_activity"
     private const val WORK = "momentum-updates"
@@ -50,6 +55,92 @@ object Notifier {
             NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_MENTIONS, if (de) "Erwähnungen" else "Mentions",
             NotificationManager.IMPORTANCE_HIGH))
+        val S = stringsFor(if (de) Lang.DE else Lang.EN)
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_CALLS, S.callsChannel, NotificationManager.IMPORTANCE_HIGH).apply {
+            setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+                android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build())
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 500, 700, 500, 700, 500, 700)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        })
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_CALL_ONGOING, S.callOngoing, NotificationManager.IMPORTANCE_LOW))
+    }
+
+    private fun callTag(id: Int) = "call:$id"
+    const val ONGOING_ID = 4711
+
+    /** Someone calls while the app isn't on screen (FCM, data/Push.kt): the phone rings, full screen when locked. */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun incomingCall(ctx: Context, id: Int, name: String, group: String, video: Boolean) {
+        ensureChannels(ctx)
+        if (!allowed(ctx)) return
+        val S = stringsFor(if (Prefs(ctx).language == "de") Lang.DE else Lang.EN)
+        val title = if (group.isNotBlank()) S.callFromIn(name, group) else name
+        val person = androidx.core.app.Person.Builder().setName(title.ifBlank { "Momentum" }).setImportant(true).build()
+        val open = open(ctx, 50_000 + id) { putExtra(EXTRA_CALL, id) }
+        val answer = open(ctx, 60_000 + id) { putExtra(EXTRA_CALL, id); putExtra(EXTRA_ANSWER, true) }
+        val decline = PendingIntent.getBroadcast(ctx, 70_000 + id,
+            Intent(ctx, CallActionReceiver::class.java).setAction(CallActionReceiver.DECLINE).putExtra(EXTRA_CALL, id),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(ctx, CHANNEL_CALLS)
+            .setSmallIcon(R.drawable.ic_stat_momentum)
+            .setContentTitle(title)
+            .setContentText(if (video) S.callIncomingVideo else S.callIncomingVoice)
+            .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, decline, answer).setIsVideo(video))
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setFullScreenIntent(open, true)
+            .setContentIntent(open)
+            .setOngoing(true)
+            .setGroup(CHANNEL_CALLS)                      // not bundled with the chat / activity notifications
+            .setTimeoutAfter(45_000)
+            .build()
+        NotificationManagerCompat.from(ctx).notify(callTag(id), 1, n)
+    }
+
+    /** It rang here and nobody answered: "missed call" (a tap opens the chat). */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun missedCall(ctx: Context, id: Int, convId: Int, name: String, group: String, video: Boolean) {
+        ensureChannels(ctx)
+        if (!allowed(ctx)) return
+        val S = stringsFor(if (Prefs(ctx).language == "de") Lang.DE else Lang.EN)
+        val what = if (group.isNotBlank()) S.missedGroupCall else if (video) S.missedVideoCall else S.missedVoiceCall
+        val n = NotificationCompat.Builder(ctx, CHANNEL_MESSAGES)
+            .setSmallIcon(R.drawable.ic_stat_momentum)
+            .setContentTitle(if (group.isNotBlank()) group else name)
+            .setContentText(if (group.isNotBlank()) "$name: $what" else what)
+            .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
+            .setAutoCancel(true)
+            .setContentIntent(open(ctx, 80_000 + id) { putExtra(EXTRA_CHAT, convId) })
+            .build()
+        NotificationManagerCompat.from(ctx).notify(missedTag(convId), id, n)
+    }
+
+    private fun missedTag(convId: Int) = "missed:$convId"
+
+    fun cancelCall(ctx: Context, id: Int) {
+        runCatching { NotificationManagerCompat.from(ctx).cancel(callTag(id), 1) }
+    }
+
+    /** The call that's on (CallService): who, since when; a tap opens it, "hang up" ends it. */
+    fun ongoingCall(ctx: Context, name: String, video: Boolean): android.app.Notification {
+        ensureChannels(ctx)
+        val S = stringsFor(if (Prefs(ctx).language == "de") Lang.DE else Lang.EN)
+        val person = androidx.core.app.Person.Builder().setName(name.ifBlank { "Momentum" }).build()
+        val hangUp = PendingIntent.getBroadcast(ctx, 90_000,
+            Intent(ctx, CallActionReceiver::class.java).setAction(CallActionReceiver.HANG_UP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return NotificationCompat.Builder(ctx, CHANNEL_CALL_ONGOING)
+            .setSmallIcon(R.drawable.ic_stat_momentum)
+            .setContentTitle(name)
+            .setContentText(S.callOngoing)
+            .setStyle(NotificationCompat.CallStyle.forOngoingCall(person, hangUp).setIsVideo(video))
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setOngoing(true)
+            .setGroup(CHANNEL_CALLS)
+            .setUsesChronometer(true)
+            .setContentIntent(open(ctx, 91_000) { putExtra(EXTRA_CALL, -1) })
+            .build()
     }
 
     /** Start (or keep) the background check; called when logged in with notifications on. */
@@ -81,7 +172,7 @@ object Notifier {
     internal fun chatTag(convId: Int) = "chat:$convId"
 
     /** Read in the app: the chat's notifications (lines and mentions) go away. */
-    fun clearChat(ctx: Context, convId: Int) = clearWhere(ctx) { tag, _ -> tag == chatTag(convId) }
+    fun clearChat(ctx: Context, convId: Int) = clearWhere(ctx) { tag, _ -> tag == chatTag(convId) || tag == missedTag(convId) }
 
     /** The activity list was looked at: its notifications go away. */
     fun clearActivity(ctx: Context) = clearWhere(ctx) { tag, _ -> tag == TAG_ACTIVITY }

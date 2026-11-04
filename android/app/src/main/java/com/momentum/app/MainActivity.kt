@@ -62,11 +62,15 @@ class MainActivity : ComponentActivity() {
         handleOpen(intent)
     }
 
-    /** Tapped a notification: open that chat or the activity list. */
+    /** Tapped a notification: open that chat or the activity list; a call: its screen (answer: at once). */
     private fun handleOpen(intent: Intent?) {
         intent ?: return
         val chat = intent.getIntExtra(Notifier.EXTRA_CHAT, 0)
+        val call = intent.getIntExtra(Notifier.EXTRA_CALL, 0)
+        if (call != 0) intent.removeExtra(Notifier.EXTRA_CALL)       // not again when the activity is made anew
         when {
+            call > 0 -> vm.openCall(call, intent.getBooleanExtra(Notifier.EXTRA_ANSWER, false))
+            call < 0 -> com.momentum.app.data.Calls.minimize(false)       // the ongoing call's notification
             chat > 0 -> vm.openRequest = chat
             intent.getBooleanExtra(Notifier.EXTRA_ACTIVITY, false) -> vm.openRequest = -1
         }

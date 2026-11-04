@@ -435,7 +435,7 @@ function CallLineView({ m, onCall }: { m: ChatMessage; onCall: (video: boolean) 
   const c = m.call!
   const tz = state.value?.settings.timezone || "Europe/Berlin"
   return <div class="center call-line">
-    <button aria-label={c.video ? s.videoCall : s.voiceCall} onClick={() => onCall(c.video)}>
+    <button onClick={() => onCall(c.video)}>
       <PixelIcon name={c.video ? "ui_cam" : "ui_handset"} size={14} color={callMissed(c) ? "var(--orange)" : "var(--text)"} />
       <span class="t-small" style={{ fontSize: 12, color: callMissed(c) ? "var(--orange)" : "var(--text)" }}>{callLine(s, c, false)}</span>
       <span class="t-small" style={{ fontSize: 11 }}>{clock(m.at, tz)}</span>

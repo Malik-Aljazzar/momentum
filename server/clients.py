@@ -13,9 +13,9 @@ MEMBER_KINDS = ("member_join", "member_add", "member_remove", "member_leave")
 # Android builds from 2026-11-03 on show the confirm-your-e-mail screen; older ones aren't locked out (server/mail.py)
 CONFIRM_APP = 895_206
 SUBSCRIPTION_KINDS = ("sub_rule", "sub_decay")
-# Android builds that can call (server/calls.py) show the calls' chat lines; older ones would show them as
-# "encryption switched off"
-CALLS_APP = 999_999_999
+# Android builds that can call (server/calls.py, from 2026-11-04 on) show the calls' chat lines; older ones would
+# show them as "encryption switched off"
+CALLS_APP = 896_620
 CALL_KINDS = ("call",)
 
 
