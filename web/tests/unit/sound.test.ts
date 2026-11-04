@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { clampRange } from "../../src/screens/Feed"
+import { clampRange, storySoundMs } from "../../src/screens/Feed"
 
 describe("the used part of a sound", () => {
   it("posts: 5 to 30 s, inside the sound", () => {
@@ -13,5 +13,11 @@ describe("the used part of a sound", () => {
     expect(clampRange(30_000, 20_000, 30_000, 15_000)).toEqual([15_000, 30_000])
     expect(clampRange(30_000, 4_000, 6_000, 10_000)).toEqual([4_000, 14_000])
     expect(clampRange(8_000, 0, 8_000, 30_000)).toEqual([0, 8_000])             // the sound is shorter
+  })
+  it("a story's sound part: as long as the story, at most 30 s (videos up to 60 s loop it)", () => {
+    expect(storySoundMs(false, undefined, 15)).toBe(15_000)                     // a photo: its chosen length
+    expect(storySoundMs(true, 12, 5)).toBe(12_000)                              // a video: its length
+    expect(storySoundMs(true, 55, 5)).toBe(30_000)                              // report #69
+    expect(storySoundMs(true, 0, 5)).toBe(30_000)                               // unknown length
   })
 })

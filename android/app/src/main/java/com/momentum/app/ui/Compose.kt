@@ -111,10 +111,9 @@ fun Composer(vm: AppViewModel, story: Boolean) {
     val many = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { add(it) }
     val one = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let { u -> add(listOf(u)) } }
     val uploading = drafts.any { it.media == null && !it.failed }
-    // a story's sound is exactly as long as the story: the photo's chosen length, or the video's
+    // a story's sound is as long as the story (a video longer than SOUND_SECONDS loops it)
     val first = drafts.firstOrNull()
-    val storyMs: Long? = if (!story) null else if (first?.video == true)
-        minOf(30_000L, ((first.media?.duration?.takeIf { it > 0 } ?: 30.0) * 1000).toLong()) else storySecs * 1000L
+    val storyMs: Long? = if (!story) null else storySoundMs(first?.video == true, first?.media?.duration, storySecs)
     LaunchedEffect(storyMs, sound?.uri) {
         val sd = sound ?: return@LaunchedEffect
         if (storyMs != null) {

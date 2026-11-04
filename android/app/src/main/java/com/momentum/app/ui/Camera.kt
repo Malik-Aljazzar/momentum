@@ -61,7 +61,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import java.io.File
 
-private const val MAX_VIDEO_MS = 30_000L
+private const val MAX_VIDEO_MS = 60_000L
 
 /**
  * The app's own camera: photos and videos come out the way the preview shows them (the front camera

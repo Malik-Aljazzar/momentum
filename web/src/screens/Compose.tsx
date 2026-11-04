@@ -13,6 +13,7 @@ import { OverlayText, VideoPlayer } from "../ui/video"
 import { MicButton } from "../ui/voice"
 import {
   clampRange, ConnectedPeople, type Draft, OverlayEditor, type Place, PlaceSheet, type SoundDraft, soundDraft, SoundEditor, SongSearch,
+  storySoundMs,
 } from "./Feed"
 
 /** Bumped when a story was shared: the feed's story row loads again. */
@@ -63,9 +64,9 @@ function Composer({ story }: { story: boolean }) {
     }
   }
   const uploading = slides.some((d) => !d.media && !d.failed)
-  // a story's sound is exactly as long as the story: the photo's chosen length, or the video's
+  // a story's sound is as long as the story (a video longer than SOUND_SECONDS loops it)
   const first = slides[0]
-  const storyMs = !story ? undefined : first?.video ? Math.min(30_000, Math.round((first.media?.duration || 30) * 1000)) : storySecs * 1000
+  const storyMs = !story ? undefined : storySoundMs(!!first?.video, first?.media?.duration, storySecs)
   useEffect(() => {
     if (sound && storyMs) {
       const [a, b] = clampRange(sound.durationMs, sound.startMs, sound.endMs, storyMs)

@@ -201,7 +201,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         e2e_default = blobs is None
     # clients: the Android app (APK at /app.apk) and the PWA (web/dist at /app/)
     app = App(__name__, static_folder=None)
-    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024   # raw photo/video uploads
+    app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024   # raw photo/video uploads (a 60 s phone video)
     app.config["E2E_DEFAULT"] = bool(e2e_default)
     db_url = db_url or os.environ.get("MOMENTUM_DB", DEFAULT_DB)
     db = Database(db_url)

@@ -519,6 +519,12 @@ export function clampRange(durationMs: number, startMs: number, endMs: number, f
   return [Math.round(a), Math.round(b)]
 }
 
+/** How long a story's sound part is: the photo's chosen length, or the video's - at most SOUND_SECONDS (videos run up
+ *  to 60 s, the part loops then). Unknown video length: 30 s. Same as storySoundMs in PostScreens.kt. */
+export function storySoundMs(video: boolean, videoSeconds: number | undefined, photoSeconds: number): number {
+  return video ? Math.min(SOUND_SECONDS * 1000, Math.round((videoSeconds || 30) * 1000)) : photoSeconds * 1000
+}
+
 /** The whole sound as a pixel bar, the used part lit: drag its ends (posts) or the part itself. */
 function SoundRange({ sd, fixedMs, onChange }: { sd: SoundDraft; fixedMs?: number; onChange: (a: number, b: number) => void }) {
   const bar = useRef<HTMLDivElement>(null)

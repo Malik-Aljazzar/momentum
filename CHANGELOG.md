@@ -9,12 +9,14 @@ change gets a line, no empty versions.
 ## 2026-11-04
 
 ### DE
-- Fotos im Chat sind in der Vorschau jetzt scharf: die Blase zeigt das Bild in voller Auflösung statt des kleinen Vorschaubilds.
+- Videos dürfen jetzt bis zu 60 Sekunden lang sein (Posts, Stories, Chats) – bisher wurden sie nach 30 Sekunden abgeschnitten.
 - Aktivität: Geht es um einen Kommentar (neuer Kommentar, Antwort, Like, Erwähnung), steht eine gekürzte Vorschau des Kommentars direkt dabei.
+- Videos im Feed: Scrollst du weg und wieder zurück, startet das Video von vorne – wie bei Instagram. Öffnest du die Kommentare, läuft es an derselben Stelle weiter.
 
 ### EN
-- Chat photos are sharp in the preview now: the bubble shows the full-resolution picture instead of the small thumbnail.
+- Videos can now be up to 60 seconds long (posts, stories, chats) – they used to be cut after 30 seconds.
 - Activity: when it's about a comment (new comment, reply, like, mention), a shortened preview of the comment is shown right in it.
+- Feed videos: scroll away and back, and the video starts over – like on Instagram. Open the comments and it goes on at the same moment.
 
 ## 2026-11-03 f
 

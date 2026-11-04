@@ -808,18 +808,20 @@ def test_song_search_and_preview(tmp_path, monkeypatch):
     run(tmp_path, scenario)
 
 
-def test_videos_are_cut_to_30_seconds(tmp_path):
-    """Videos keep at most 30 s (they took most of the storage)."""
+def test_videos_are_cut_to_60_seconds(tmp_path):
+    """Videos keep at most 60 s (report #69; it was 30 s) - a story with one runs as long as the video."""
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "long.mp4")
         subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10",
-                        "-t", "35", "-c:v", "libx264", out], capture_output=True, check=True)
+                        "-t", "65", "-c:v", "libx264", out], capture_output=True, check=True)
         raw = open(out, "rb").read()
 
     async def scenario(app, c):
         ann = await user(c, "ann")
         media = (await ann.req("post", "/api/media", data=raw, ctype="video/mp4"))["media"]
-        assert media["kind"] == "video" and 29 <= media["duration"] <= 30.1
+        assert media["kind"] == "video" and 59 <= media["duration"] <= 60.1
+        st = (await ann.req("post", "/api/stories", json={"media_id": media["id"]}))["story"]
+        assert 59 <= st["duration"] <= 60.1
     run(tmp_path, scenario)
 
 

@@ -373,6 +373,12 @@ internal fun clampRange(durationMs: Long, startMs: Long, endMs: Long, fixedMs: L
     return a to b
 }
 
+/** How long a story's sound part is: the photo's chosen length, or the video's - at most SOUND_SECONDS (videos run up
+ *  to 60 s, the part loops then). Unknown video length: 30 s. Same as storySoundMs in web/src/screens/Feed.tsx. */
+internal fun storySoundMs(video: Boolean, videoSeconds: Double?, photoSeconds: Int): Long =
+    if (video) minOf(SOUND_SECONDS * 1000L, ((videoSeconds?.takeIf { it > 0 } ?: 30.0) * 1000).toLong())
+    else photoSeconds * 1000L
+
 /** The whole sound as a pixel bar, the used part lit: drag its ends (posts) or the part itself. */
 @Composable
 private fun SoundRange(sd: SoundDraft, fixedMs: Long?, onChange: (Long, Long) -> Unit) {

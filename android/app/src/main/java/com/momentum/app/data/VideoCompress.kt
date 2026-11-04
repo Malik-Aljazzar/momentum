@@ -27,11 +27,11 @@ import kotlin.coroutines.resume
 
 private const val SHORT_SIDE = 720
 private const val BITRATE = 2_000_000
-private const val MAX_MS = 30_000L
+private const val MAX_MS = 60_000L
 
 /**
  * A video re-encoded on the phone before uploading: 720p on the short side, ~2 Mbit/s, at most
- * 30 s (what the server keeps anyway) - a phone video of 50 MB becomes a few MB and uploads fast.
+ * 60 s (what the server keeps anyway) - a phone video of 50 MB becomes a few MB and uploads fast.
  * Null when it can't be converted (the original is sent then). [onProgress] gets how far it is (0..1).
  */
 @OptIn(UnstableApi::class)

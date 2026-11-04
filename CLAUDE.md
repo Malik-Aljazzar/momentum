@@ -93,15 +93,16 @@ docs/SPEC.md   the original (German) product spec
 - Blocks (`db.Block`): either direction hides everything - go through `social.is_blocked` / `block_ids`
   (used by `community.can_view`, `connected`, search, comments, DMs) when adding new social features.
 - Rule times: `reset_days` / `idle_days` are 0..365 in `reset_unit` / `idle_unit` ("d" or "h").
-- Videos keep at most 30 s (`media.VIDEO_MAX_SECONDS`, x264 preset medium); Android's camera and
-  compression stop at 30 s too.
+- Videos keep at most 60 s (`media.VIDEO_MAX_SECONDS`, x264 preset medium; report #69, was 30 s); Android's camera
+  and compression stop at 60 s too. Raw uploads up to 200 MB (`MAX_CONTENT_LENGTH` = nginx `client_max_body_size`).
 - Stories can be shared into chats (share kind `story`): every reader must be allowed to see the story
   (`stories.story_visible`: author's privacy, blocks, 24 h or a highlight). Answers / quick reactions are DMs
   with the story attached (`/api/stories/<id>/reply`, needs `connected`).
 - Typing / recording indicator: `chat.set_typing` (in memory, ~6 s), clients ping
   `/api/conversations/<id>/typing` every 3 s while typing / recording; shown in the chat and the chat list.
-- Photo stories run 5/10/15/30 s (`Story.duration`); a story's sound part is exactly that long, a post's sound
-  part 5-30 s, both picked with a range bar (`clampRange` in `web/.../Feed.tsx` = `PostScreens.kt`).
+- Photo stories run 5/10/15/30 s (`Story.duration`), video stories as long as the video; a story's sound part is
+  that long but at most 30 s (`storySoundMs`; it loops), a post's sound part 5-30 s, both picked with a range bar
+  (`clampRange` in `web/.../Feed.tsx` = `PostScreens.kt`).
 - Rules in the feed: a personal rule that becomes public gets a post (kind "rule", `Post.rule_id`), a change
   moves it up again (`Post.bumped_at`, the feed's order), private / deleted removes it - call
   `posts.sync_rule_posts` (with the ids that were public before) after every change of a player's rules.
@@ -112,6 +113,9 @@ docs/SPEC.md   the original (German) product spec
 - Exactly one medium plays: the most visible one on the topmost layer. Full-screen layers over the screens
   (story, big view) register as covers (`CoverLayer` / `useCoverLayer` in ui/Video.kt, ui/video.tsx); a new
   full-screen viewer must do that too, or its media plays together with the feed's (reports #38, #42).
+  Scrolled out of view (or beaten by a more visible one) a medium starts over next time, like Instagram; only held
+  (covered, background, `playing` false) it goes on at that moment, also in another player of the same url
+  (`useTrack` / `rememberTrack`; e2e `video.spec.ts`).
 - Chat photos: after 14 days (`chat.CHAT_IMAGE_DAYS`) an hourly job keeps only the 480 px thumb (`Media.archived`); messages carry `expires_at` / `archived`, clients show the countdown. Messages show their time and day separators in the player's time zone (`web/src/chattime.ts` = `ui/ChatTime.kt`).
 - iOS Safari once drew a card's animated banner canvas over everything on it (frame, badge, numbers): momentum cards use `.banner-card` (own compositing layers). The PWA blocks the browser's long-press menu (main.tsx).
 - The limit info shows where tomorrow's rate is heading (`limits.status`: today_average, next_cap).
