@@ -50,24 +50,26 @@ def test_reports_need_an_admin_and_move_through_new_todo_done(tmp_path):
         await boss.req("put", f"/api/admin/reports/{bug['id']}", json={"status": "open"}, status=400)
         assert (await boss.req("get", f"/api/admin/reports/{bug['id']}"))["report"]["status"] == "done"
 
-        # the King of Reporters: the profile of whoever had the most reports implemented carries the badge
-        # (with why), nobody else's; a tie goes to whoever got there first
+        # whoever had the most reports implemented is Hermes of the Nine (the King of Reporters badge is gone);
+        # a tie goes to whoever got there first
+        from .. import nine
+
+        async def hermes(viewer, name):
+            nine.forget_tables()
+            profile = (await viewer.req("get", f"/api/users/{name}"))["profile"]
+            assert "badges" not in profile and "Chat stürzt ab" not in str(profile)    # what was reported stays private
+            return "hermes" in profile["titles"]
+
         cat = await user(c, "cat")                                   # boss is the admin session now
-        badges = (await cat.req("get", "/api/users/ann"))["profile"]["badges"]
-        assert len(badges) == 1 and badges[0]["key"] == "reporter_king"
-        assert (badges[0]["count"], badges[0]["bugs"], badges[0]["features"]) == (1, 1, 0)
-        assert "reports" not in badges[0] and "Chat stürzt ab" not in str(badges)       # what was reported stays private
-        assert (await ann.req("get", "/api/users/cat"))["profile"]["badges"] == []
+        assert await hermes(cat, "ann") and not await hermes(ann, "cat")
         await cat.req("post", "/api/reports", json={"kind": "feature", "text": "Cats Wunsch"})
         rid = (await boss.req("get", "/api/admin/reports?status=new"))["reports"][0]["id"]
         await boss.req("put", f"/api/admin/reports/{rid}", json={"status": "done"})
-        assert (await ann.req("get", "/api/users/cat"))["profile"]["badges"] == []          # ann was first
+        assert await hermes(cat, "ann") and not await hermes(ann, "cat")             # ann was first
         await cat.req("post", "/api/reports", json={"kind": "feature", "text": "Noch einer"})
         rid = (await boss.req("get", "/api/admin/reports?status=new"))["reports"][0]["id"]
         await boss.req("put", f"/api/admin/reports/{rid}", json={"status": "done"})
-        crown = (await ann.req("get", "/api/users/cat"))["profile"]["badges"][0]
-        assert (crown["count"], crown["bugs"], crown["features"]) == (2, 0, 2)
-        assert (await cat.req("get", "/api/users/ann"))["profile"]["badges"] == []
+        assert await hermes(ann, "cat") and not await hermes(cat, "ann")
     run(tmp_path, scenario)
 
 

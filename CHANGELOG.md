@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04 e
+
+### DE
+- Das Abzeichen „King of Reporters“ ist weg – die meisten umgesetzten Meldungen machen dich jetzt zu Hermes, einem der Neun.
+- Die Titel-Ansicht der Neun lässt sich leichter schließen: Das X bleibt beim Scrollen oben stehen und ist größer, und ein Tipp auf die freie Fläche schließt sie auch.
+
+### EN
+- The "King of Reporters" badge is gone – the most implemented reports now make you Hermes, one of the Nine.
+- The Nine's title screen is easier to close: the X stays at the top while you scroll and is bigger, and a tap on the free space closes it too.
+
 ## 2026-11-04 d
 
 ### DE

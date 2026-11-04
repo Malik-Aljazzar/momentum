@@ -14,11 +14,4 @@ class MessagesTest {
         assertEquals("Fehler 418 – der Server hat keine Erklärung mitgeschickt", De.serverError(418))
         assertEquals("Error 418 – the server sent no explanation", En.serverError(418))
     }
-
-    @Test
-    fun reporterKingExplainsItself() {
-        assertEquals("King of Reporters", De.reporterKing)
-        assertEquals("2 Meldungen von hier wurden umgesetzt – 1 Bugs, 1 Wünsche. Niemand hat mehr.", De.reporterKingWhy(2, 1, 1))
-        assertEquals("3 reports from here were implemented – 2 bugs, 1 requests. Nobody has more.", En.reporterKingWhy(3, 2, 1))
-    }
 }

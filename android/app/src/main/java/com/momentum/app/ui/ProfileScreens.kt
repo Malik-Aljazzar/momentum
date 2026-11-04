@@ -82,7 +82,6 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
     var sharing by remember { mutableStateOf(false) }
     var morePosts by remember { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
-    var badge by remember { mutableStateOf<com.momentum.app.data.ProfileBadge?>(null) }   // tapped: why they have it
     var confirmBlock by remember { mutableStateOf(false) }
     LaunchedEffect(username, reload, vm.state?.user) {
         profile = vm.req<ProfileResponse>("GET", "/users/$username")?.profile
@@ -155,11 +154,6 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
                             modifier = Modifier.weight(1f, fill = false))
                         if (p.private) { Spacer(Modifier.width(6.dp)); PixelIcon("ui_lock", 14.dp, alpha = .7f) }
                         if (p.friend) { Spacer(Modifier.width(8.dp)); Label(S.friend, color = Px.Lime) }
-                        // the King of Reporters: tap = why
-                        p.badges.firstOrNull { it.key == "reporter_king" }?.let { b ->
-                            Spacer(Modifier.width(8.dp))
-                            Label("👑 " + S.reporterKing, color = Px.Yellow, modifier = Modifier.clickable { badge = b })
-                        }
                     }
                     // One of the Nine: the titles this player holds; tap = the title screen
                     if (p.titles.isNotEmpty()) Row(Modifier.padding(start = 2.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -236,24 +230,6 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
         }
     }
     openRule?.let { RuleDetailSheet(vm, it, onDismiss = { openRule = null }) }
-    badge?.let { b ->
-        PxSheet({ badge = null }) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("👑", style = T.body.copy(fontSize = 22.sp))
-                Text(S.reporterKing, style = T.block.copy(fontSize = 20.sp, color = Px.Yellow))
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(S.reporterKingWhy(b.count, b.bugs, b.features), style = T.body)
-            Spacer(Modifier.height(4.dp))
-            Text(S.reporterKingHint, style = T.body.copy(color = Px.Muted, fontSize = 14.sp))
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Stat(b.bugs, S.reportKindBug) {}
-                Stat(b.features, S.reportKindFeature) {}
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-    }
     openDecay?.let { DecayDetailSheet(vm, DecayRef.User(it), onDismiss = { openDecay = null; reload++ }) }
     if (sharing) profile?.let { p ->
         SharePicker(vm, buildJsonObject { put("kind", "profile"); put("username", p.username) }) { sharing = false }

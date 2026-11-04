@@ -158,7 +158,8 @@ docs/SPEC.md   the original (German) product spec
   of 120 ms, `nine_<key>/sheet.png` from `pixelart/nine.py`: flat colours, shade on the right edge, no outlines;
   title screens on hidden banners `nine_<key>`, the rankings' "The Nine" tab, the home card; the election is an
   extra bottom tab with the animated Larper only while it runs: `nav.tabsNow()` = `Tab.Election`); texts `nineName/nineLore/nineHow/nineUnit` in Strings.kt. A new title = KEYS + a creature + texts +
-  a theme + `NINE_COLORS` on both sides.
+  a theme + `NINE_COLORS` on both sides. Hermes (most implemented reports) replaced the old King of Reporters badge.
+  The title screen closes with a pinned X or a tap on the free space (taps in its cards don't).
 - Pixel look everywhere: no rounded Material checkboxes/arrows – draw controls on a pixel grid
   (Android: `ui/PixelControls.kt`).
 - Emojis are always pixel art: `pixelart/emoji.py` turns Twemoji into 18×18 sprites and builds two fonts
@@ -175,9 +176,6 @@ docs/SPEC.md   the original (German) product spec
   cleaned by `app.public_detail`: never SQL statements / data, paths, hosts, keys, tokens, addresses); MinIO full /
   disk reserve = 507, media store down = 503. Clients show the server's `error`; without JSON (nginx 502/503/504
   while the app restarts) they word the status (`serverDown` / `serverError`, `ApiError.fromServer` = `ApiException.fromServer`).
-- King of Reporters: the player whose most reports were set to done wears a badge in the profile
-  (`profile.badges`, `social.badges_of`; tie = who got there first). Tapping it explains why with numbers only
-  (count, bugs, features) - never the reports' texts.
 - Server tests: `server/tests/conftest.py` sets `MOMENTUM_START_RATE` high (the daily limit doesn't bite; limit
   tests write their own DailyCap) and turns the APK version gate off (no dependence on a local release build).
 - All texts in DE and EN.

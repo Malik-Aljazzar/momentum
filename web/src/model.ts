@@ -120,12 +120,8 @@ export interface UserCard {
 export interface PublicRule { id: number; kind: string; name: string; icon: string; mode: string; value: number }
 export interface HistoryItem { kind: string; label: string; icon: string; delta: number; at: string }
 
-/** A badge in a profile and why it's there: `reporter_king` = the most implemented reports (numbers only). */
-export interface ProfileBadge { key: string; count: number; bugs: number; features: number }
-
 export interface Profile extends UserCard {
   bio: string; momentum: number; posts: number; followers_count: number; following_count: number
-  badges?: ProfileBadge[]
   /** One of the Nine: the title keys this player holds (server/nine.py KEYS order) */
   titles?: string[]
   next_at?: number | null; milestone_step?: number; reached_at?: number

@@ -61,12 +61,13 @@ export function NineOverlay({ nkey, onClose }: { nkey: string; onClose: () => vo
   const t = data?.titles.find((x) => x.key === nkey)
   const e = data?.election
   const open = (u: UserCard) => { onClose(); nav.push({ r: "user", username: u.username }) }
-  return <div class="fill lore nine-screen" role="dialog" aria-label={s.nineName(nkey)} style={{ zIndex: 82, background: "#000", ["--nine" as string]: color }}>
+  const keep = (ev: Event) => ev.stopPropagation()      // a tap in a card doesn't close
+  // closes with the X (pinned: stays while the tale scrolls) or a tap on the free space, like the Hyperspace screen
+  return <div class="fill lore nine-screen" role="dialog" aria-label={s.nineName(nkey)} style={{ zIndex: 82, background: "#000", ["--nine" as string]: color }} onClick={onClose}>
     <BannerBg bkey={`nine_${nkey}`} />
     <div class="fill col scroll" style={{ padding: "calc(var(--safe-top) + 14px) 22px calc(var(--safe-bottom) + 40px)", alignItems: "center", textAlign: "center", gap: 14 }}>
-      <div class="row" style={{ width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+      <div class="row" style={{ width: "100%", alignItems: "center", minHeight: 44, paddingRight: 56 }}>
         <Label text={s.oneOfNine} color={color} />
-        <button class="t-button" aria-label="close" onClick={onClose} style={{ background: "rgba(0,0,0,.35)", borderRadius: 999, padding: 8, display: "flex" }}><PixelIcon name="ui_close" size={18} /></button>
       </div>
       <div style={{ height: 6 }} />
       <NineIcon nkey={nkey} size={160} />
@@ -74,11 +75,11 @@ export function NineOverlay({ nkey, onClose }: { nkey: string; onClose: () => vo
       <div class="t-title nine-lore" style={{ fontSize: 19, lineHeight: "27px", minHeight: 108, width: "100%" }}>
         {lore.slice(0, shown)}<span style={{ visibility: "hidden" }}>{lore.slice(shown)}</span>
       </div>
-      <div class="col nine-card" style={{ width: "100%", gap: 6, textAlign: "left" }}>
+      <div class="col nine-card" style={{ width: "100%", gap: 6, textAlign: "left" }} onClick={keep}>
         <Label text={s.nineHowTitle} color={color} />
         <span class="t-body">{s.nineHow(nkey)}</span>
       </div>
-      <div class="col nine-card" style={{ width: "100%", gap: 8, textAlign: "left" }}>
+      <div class="col nine-card" style={{ width: "100%", gap: 8, textAlign: "left" }} onClick={keep}>
         <Label text={s.nineHolder} color={color} />
         {!data ? (!online.value && <OfflineState />) : t?.holder
           ? <div class="row" style={{ gap: 10, alignItems: "center", cursor: "pointer" }} onClick={() => open(t.holder!)}>
@@ -97,6 +98,7 @@ export function NineOverlay({ nkey, onClose }: { nkey: string; onClose: () => vo
         </>}
       </div>
     </div>
+    <button class="t-button nine-close" aria-label="close" onClick={(ev) => { ev.stopPropagation(); onClose() }}><PixelIcon name="ui_close" size={20} /></button>
   </div>
 }
 

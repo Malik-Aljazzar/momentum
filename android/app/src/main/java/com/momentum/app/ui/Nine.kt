@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -38,6 +39,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalDensity
@@ -128,18 +131,17 @@ fun NineOverlay(vm: AppViewModel, key: String, onOpen: (Route) -> Unit, onClose:
     val t = data?.titles?.firstOrNull { it.key == key }
     val e = data?.election
     val shift = clock.value * 240f
-    Box(Modifier.fillMaxSize().background(Color.Black).clickable(remember { MutableInteractionSource() }, indication = null) {}) {
+    // closes with the X (pinned: stays while the tale scrolls) or a tap on the free space, like the Hyperspace screen
+    Box(Modifier.fillMaxSize().background(Color.Black).clickable(remember { MutableInteractionSource() }, indication = null) { onClose() }) {
         BannerBackground("nine_$key", Modifier.fillMaxSize())
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(end = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Label(S.oneOfNine.uppercase(), color = color)
-                Spacer(Modifier.weight(1f))
-                Box(Modifier.clip(CircleShape).background(Color(0x59000000)).clickable { onClose() }.padding(8.dp)) { PixelIcon("ui_close", 18.dp) }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(10.dp))
             NineIcon(key, 160.dp)
             Spacer(Modifier.height(14.dp))
             Text(S.nineName(key).uppercase(), style = T.block.copy(fontSize = 30.sp, color = color), textAlign = TextAlign.Center)
@@ -201,6 +203,11 @@ fun NineOverlay(vm: AppViewModel, key: String, onOpen: (Route) -> Unit, onClose:
             }
             Spacer(Modifier.height(40.dp))
         }
+        Box(
+            Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 12.dp, end = 12.dp).size(48.dp).clip(CircleShape)
+                .background(Color(0x8C000000)).clickable { onClose() }.semantics { contentDescription = "close" },
+            contentAlignment = Alignment.Center,
+        ) { PixelIcon("ui_close", 20.dp) }
     }
 }
 
@@ -208,7 +215,9 @@ fun NineOverlay(vm: AppViewModel, key: String, onOpen: (Route) -> Unit, onClose:
 private fun NineCard(color: Color, content: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x73000000))
-            .border(1.dp, color.copy(alpha = .6f), RoundedCornerShape(16.dp)).padding(14.dp),
+            .border(1.dp, color.copy(alpha = .6f), RoundedCornerShape(16.dp))
+            .clickable(remember { MutableInteractionSource() }, indication = null) {}      // a tap in a card doesn't close
+            .padding(14.dp),
     ) { content() }
 }
 

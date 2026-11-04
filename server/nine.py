@@ -1,10 +1,10 @@
 """One of the Nine: nine titles, each held by exactly one player (or nobody yet).
 
 Eight are counted - the holder is whoever has the most, a tie goes to the older account (Hermes: whoever
-got there first, like the King of Reporters badge it mirrors):
+got there first):
 
     goat          the most ranked momentum (players in the competition, daily limit on)
-    hermes        the most implemented reports (= the King of Reporters)
+    hermes        the most implemented reports (replaced the King of Reporters profile badge)
     yapper        the most comments written
     charmeur      the most likes on own posts
     gamemaster    the most subscribers on own personal rules and the own decay (links are followed to the

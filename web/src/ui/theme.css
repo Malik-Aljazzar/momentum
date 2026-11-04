@@ -154,6 +154,9 @@ textarea.field { resize: none; line-height: 21px; }
 .lore-banner.gold { box-shadow: 0 0 0 2px #ffcd45, 0 0 24px rgba(255,205,69,.45); }
 /* One of the Nine: the title screens (--nine = the title's colour) */
 .nine-screen .nine-lore { background: linear-gradient(110deg, #fff, var(--nine), #fff, var(--nine), #fff) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: hyper 5s linear infinite; }
+/* the title screen's X: pinned top right, a big target */
+.nine-screen .nine-close { position: absolute; z-index: 2; top: calc(var(--safe-top) + 12px); right: 12px; width: 48px; height: 48px; padding: 0;
+  display: flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: rgba(0,0,0,.55); cursor: pointer; }
 .nine-screen .nine-card { background: rgba(0,0,0,.45); border: 1px solid color-mix(in srgb, var(--nine) 60%, transparent); border-radius: 16px; padding: 14px; }
 .scope-row::-webkit-scrollbar { display: none; }
 @keyframes lore-glow { 50% { filter: brightness(1.25) } }
@@ -198,7 +201,7 @@ textarea.field { resize: none; line-height: 21px; }
 .banner-card > .banner-bg ~ * { transform: translateZ(0); }
 .banner-card.glow::before { transform: translateZ(0); }
 
-/* a tappable badge in the profile's name row (King of Reporters): the label, nothing else */
+/* a tappable icon in the profile (the Nine's titles): the icon, nothing else */
 .badge-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; }
 
 /* an upload's progress bar while the server works on it (Compose.tsx UploadBar) */

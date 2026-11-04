@@ -195,11 +195,6 @@ interface Strings {
     val followBack: String
     val followingButton: String
     val friend: String
-    val reporterKing: String
-    fun reporterKingWhy(n: Int, bugs: Int, features: Int): String
-    val reporterKingHint: String
-    val reportKindBug: String
-    val reportKindFeature: String
     // One of the Nine (server/nine.py): the titles, their screens, the Larper's election
     val oneOfNine: String
     val theNine: String
@@ -973,12 +968,6 @@ object De : Strings {
     override val followBack = "Zurückfolgen"
     override val followingButton = "Gefolgt"
     override val friend = "Freund"
-    override val reporterKing = "King of Reporters"
-    override fun reporterKingWhy(n: Int, bugs: Int, features: Int) =
-        "$n Meldungen von hier wurden umgesetzt – $bugs Bugs, $features Wünsche. Niemand hat mehr."
-    override val reporterKingHint = "Die Krone trägt, wer die meisten Bugs meldet und Features wünscht, die dann wirklich ins Spiel kommen."
-    override val reportKindBug = "Bug"
-    override val reportKindFeature = "Wunsch"
     override val oneOfNine = "One of the Nine"
     override val theNine = "The Nine"
     override fun nineName(key: String) = mapOf(
@@ -1826,12 +1815,6 @@ object En : Strings {
     override val followBack = "Follow back"
     override val followingButton = "Following"
     override val friend = "Friend"
-    override val reporterKing = "King of Reporters"
-    override fun reporterKingWhy(n: Int, bugs: Int, features: Int) =
-        "$n reports from here were implemented – $bugs bugs, $features requests. Nobody has more."
-    override val reporterKingHint = "The crown goes to whoever files the most bug reports and feature requests that actually make it into the game."
-    override val reportKindBug = "Bug"
-    override val reportKindFeature = "Request"
     override val oneOfNine = "One of the Nine"
     override val theNine = "The Nine"
     override fun nineName(key: String) = mapOf(

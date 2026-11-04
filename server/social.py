@@ -6,7 +6,7 @@ from quart import g, jsonify, request
 from sqlalchemy import delete, func, or_, select, update
 
 from . import momentum as m
-from .db import Block, ConversationMember, Follow, FollowRequest, Notification, Post, Report, User
+from .db import Block, ConversationMember, Follow, FollowRequest, Notification, Post, User
 from .mentions import render_one
 from .service import VEHICLES, avatar_url, follow_counts, public_rules, ranked, score, shown_banner
 
@@ -15,28 +15,6 @@ MENTION = re.compile(r"@([a-z0-9_.\-]{3,40})", re.IGNORECASE)
 
 def iso(dt):
     return dt.replace(tzinfo=timezone.utc).isoformat()
-
-
-# ---------------------------------------------------------------- badges
-
-async def reporter_king(s):
-    """User id of the King of Reporters: the player whose most reports were implemented (status done);
-    a tie goes to whoever got there first. None while nothing was implemented."""
-    row = (await s.execute(
-        select(Report.user_id).where(Report.status == "done", Report.user_id.is_not(None))
-        .group_by(Report.user_id)
-        .order_by(func.count().desc(), func.min(Report.status_at).asc(), Report.user_id.asc()))).first()
-    return row[0] if row else None
-
-
-async def badges_of(s, user):
-    """The badges in a profile, each with why it's there: `reporter_king` for the King of Reporters (how many
-    reports were implemented, bugs / features). Only numbers: what someone reported stays between them and the owner."""
-    if await reporter_king(s) != user.id:
-        return []
-    kinds = list(await s.scalars(select(Report.kind).where(Report.user_id == user.id, Report.status == "done")))
-    return [dict(key="reporter_king", count=len(kinds), bugs=sum(k == "bug" for k in kinds),
-                 features=sum(k != "bug" for k in kinds))]
 
 
 async def relations(s, me_id, user_ids):
@@ -375,7 +353,7 @@ def register(app, authed, api_error):
             free_score=user.free_score or 0.0, ranked_momentum=user.momentum, competing=ranked(user),
             decay=await public_decay(user, locked),
             blocked=await g.s.get(Block, (g.user.id, user.id)) is not None,     # I blocked them
-            story=await story_ring(user, locked), badges=await badges_of(g.s, user),
+            story=await story_ring(user, locked),
             titles=await titles_of(g.s, user.id)))
 
     async def story_ring(user, locked):

@@ -19,10 +19,6 @@ data class UserCard(
     val id: Int? = null,
 )
 
-/** A badge in a profile and why it's there: `reporter_king` = the most implemented reports (numbers only). */
-@Serializable
-data class ProfileBadge(val key: String, val count: Int = 0, val bugs: Int = 0, val features: Int = 0)
-
 @Serializable
 data class Profile(
     val username: String,
@@ -55,7 +51,6 @@ data class Profile(
     val banner: String? = null,
     /** takes part in the community competition (daily limit on): `momentum` is ranked */
     val competing: Boolean = true,
-    val badges: List<ProfileBadge> = emptyList(),
     /** One of the Nine: the title keys this player holds (server/nine.py KEYS order) */
     val titles: List<String> = emptyList(),
     @SerialName("ranked_momentum") val rankedMomentum: Double = 0.0,

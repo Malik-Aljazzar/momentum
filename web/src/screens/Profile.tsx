@@ -5,7 +5,7 @@ import { activityText } from "../lines"
 import { bannerNight, defaultBanner } from "../gfx/banners"
 import { NineIcon } from "./Nine"
 import { vehicleSpeed } from "../gfx/vehicles"
-import type { GroupHit, HistoryItem, NotificationItem, Post, Profile, ProfileBadge, PublicRule, Story, UserCard } from "../model"
+import type { GroupHit, HistoryItem, NotificationItem, Post, Profile, PublicRule, Story, UserCard } from "../model"
 import { nav } from "../nav"
 import { clearNotifications } from "../push"
 import { meta, nineLore, online, refresh, req, state } from "../store"
@@ -60,7 +60,6 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
   const p = profile
   const [menu, setMenu] = useState(false)
   const [confirmBlock, setConfirmBlock] = useState(false)
-  const [badge, setBadge] = useState<ProfileBadge | null>(null)      // tapped: why they have it
   const setBlock = async (on: boolean) => {
     const r = await req<{ profile: Profile }>(on ? "POST" : "DELETE", `/users/${username}/block`)
     if (r) { setProfile(r.profile); setReload((n) => n + 1) }
@@ -81,18 +80,6 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
       <div class="t-title" style={{ fontSize: 20 }}>{s.blockConfirm(p.username)}</div>
       <span class="t-small">{s.blockConfirmHint}</span>
       <PxButton text={s.blockUser} kind="danger" onClick={() => { setConfirmBlock(false); void setBlock(true) }} />
-    </Sheet>}
-    {badge && <Sheet onClose={() => setBadge(null)} label={s.reporterKing}>
-      <div class="row" style={{ gap: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 22 }}>👑</span>
-        <div class="t-title" style={{ fontSize: 20, color: "var(--yellow)" }}>{s.reporterKing}</div>
-      </div>
-      <div class="t-body">{s.reporterKingWhy(badge.count, badge.bugs, badge.features)}</div>
-      <span class="t-small">{s.reporterKingHint}</span>
-      <div class="row" style={{ gap: 16, marginTop: 8 }}>
-        <Stat n={badge.bugs} label={s.reportKindBug} />
-        <Stat n={badge.features} label={s.reportKindFeature} />
-      </div>
     </Sheet>}
     <OfflineStrip />
     {!p ? (!online.value && <OfflineState />) : <div class="scroll" style={{ flex: 1, paddingBottom: "calc(var(--tabbar) + 40px + var(--safe-bottom))" }}>
@@ -118,10 +105,6 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
           <span class="t-strong ellipsis">{p.display_name}</span>
           {p.private && <PixelIcon name="ui_lock" size={14} alpha={.7} />}
           {p.friend && <Label text={s.friend} color="var(--lime)" />}
-          {/* the King of Reporters: tap = why */}
-          {p.badges?.filter((b) => b.key === "reporter_king").map((b) => <button key={b.key} class="badge-btn" onClick={() => setBadge(b)} aria-label={s.reporterKing}>
-            <Label text={"👑 " + s.reporterKing} color="var(--yellow)" />
-          </button>)}
         </div>
         {/* One of the Nine: the titles this player holds; tap = the title screen */}
         {!!p.titles?.length && <div class="row" style={{ gap: 8, padding: "4px 2px 0" }}>
