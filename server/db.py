@@ -440,9 +440,12 @@ class Message(Base):
     e2e: Mapped[str | None] = mapped_column(Text, nullable=True)
     mentions: Mapped[str | None] = mapped_column(Text, nullable=True)
     # a line from the chat itself: e2e_on | e2e_off (who switched the encryption); member_join | member_add |
-    # member_remove | member_leave (groups, report #56: user_id = who did it, target_id = who was added / removed)
+    # member_remove | member_leave (groups, report #56: user_id = who did it, target_id = who was added / removed);
+    # call (a voice / video call: user_id = who rang, call_id)
     kind: Mapped[str | None] = mapped_column(String(12), nullable=True)
     target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # kind "call": the call it tells about (server/calls.py Call)
+    call_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

@@ -2,7 +2,7 @@
 import time
 from datetime import timedelta
 
-from quart import current_app, g, jsonify, request
+from quart import current_app, g, has_app_context, jsonify, request
 from sqlalchemy import delete, func, or_, select, update
 
 from .clients import hidden_message_kinds
@@ -211,6 +211,8 @@ async def _messages_json(s, me_id, msgs):
         Media.id.in_({r.media_id for r in replied.values() if r.media_id})))} if replied else {}
     people.update(await card_map(s, me_id, {r.user_id for r in replied.values()} - set(people)))
     names = await names_for(s, [mm.text for mm in msgs] + [r.text for r in replied.values()])
+    from .calls import call_lines
+    calls = await call_lines(s, me_id, msgs)
 
     def reply(mm):
         r = replied.get(mm.reply_to_id)
@@ -225,7 +227,8 @@ async def _messages_json(s, me_id, msgs):
                  mine=mm.user_id == me_id, media=media.get(mm.id), share=shares.get(mm.id),
                  mentions_me=mm.user_id != me_id and me_id in mentioned_ids(mm), reply=reply(mm),
                  reactions=reactions.get(mm.id, []), e2e=envelope_for(mm, me_id), kind=mm.kind,
-                 **({"target": people.get(mm.target_id), "target_me": mm.target_id == me_id} if mm.target_id else {}))
+                 **({"target": people.get(mm.target_id), "target_me": mm.target_id == me_id} if mm.target_id else {}),
+                 **({"call": calls[mm.id]} if mm.id in calls else {}))
             for mm in msgs]
 
 
@@ -253,12 +256,15 @@ async def _conversation_json(s, me_id, conv, member_ids, read_marker):
         last_media = await s.get(Media, last.media_id) if last.media_id else None
         if last.user_id not in people or last.target_id:      # someone who left / was removed
             people.update(await card_map(s, me_id, {last.user_id, last.target_id} - {None} - set(people)))
+        from .calls import call_lines
+        last_call = (await call_lines(s, me_id, [last])).get(last.id)
         last_json = dict(text=await render_one(s, last.text), has_media=last.media_id is not None, mine=last.user_id == me_id,
                          media_kind=last_media.kind if last_media else None,
                          share_kind=last.share_kind,
                          sender=people[last.user_id]["display_name"] if last.user_id in people else "",
                          at=iso(last.created_at), kind=last.kind, e2e=envelope_for(last, me_id, full=False),
-                         **({"target": people.get(last.target_id), "target_me": last.target_id == me_id} if last.target_id else {}))
+                         **({"target": people.get(last.target_id), "target_me": last.target_id == me_id} if last.target_id else {}),
+                         **({"call": last_call} if last_call else {}))
     images = {}
     for field, media_id in (("avatar", conv.avatar_media_id), ("banner_image", conv.banner_media_id)):
         md = await s.get(Media, media_id) if media_id else None
@@ -274,6 +280,8 @@ async def _conversation_json(s, me_id, conv, member_ids, read_marker):
                 banner=conv.banner, auto_follow=auto_follow,
                 public=bool(conv.public), open=bool(conv.open), member=me_member is not None,
                 muted=bool(me_member and me_member.muted), e2e=bool(conv.e2e),
+                # a call running here (server/calls.py): the bar to join it, "in a call" in the list
+                call=current_app.calls.brief(conv.id, me_id) if has_app_context() and hasattr(current_app, "calls") else None,
                 # who may switch the encryption: both in a direct chat, the admins of a group
                 can_switch_e2e=me_member is not None and (conv.kind == "direct" or await is_admin(s, conv, me_id)))
 

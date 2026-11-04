@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import momentum as m
-from . import adminapi, security, challenges, chat, community, decays, e2e, emoji, limits, mentions, nine, posts, push, service, social, stories, storage, updates
+from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, limits, mentions, nine, posts, push, service, social, stories, storage, updates
 from . import google as google_mod
 from . import github as github_mod
 from . import mail as mail_mod
@@ -1158,6 +1158,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     posts.register(app, authed, ApiError, blobs)
     stories.register(app, authed, ApiError, blobs)
     chat.register(app, authed, ApiError)
+    calls.register(app, authed, ApiError, session_user)
     e2e.register(app, authed, ApiError, blobs)
     community.register(app, authed, ApiError, parse_rule, icons, state_response)
     updates.register(app, authed)

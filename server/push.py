@@ -65,7 +65,10 @@ TEXTS = {
                ch_end="Eine Challenge ist vorbei.", voice="♪ Sprachnachricht", photo="▣ Foto", share="↗ geteilt",
                mentioned="{sender} hat dich erwähnt", activity="Momentum", encrypted="Neue Nachricht",
                sub_rule="hat deine Regel „{rule}“ abonniert.", sub_rule_group="hat deine Regel „{rule}“ für die Gruppe {group} abonniert.",
-               sub_decay="folgt jetzt deinem Decay.", sub_decay_group="hat deinen Decay in die Gruppe {group} übernommen."),
+               sub_decay="folgt jetzt deinem Decay.", sub_decay_group="hat deinen Decay in die Gruppe {group} übernommen.",
+               call_voice="Sprachanruf", call_video="Videoanruf", call_incoming_voice="Eingehender Sprachanruf",
+               call_incoming_video="Eingehender Videoanruf", call_missed_voice="Verpasster Sprachanruf",
+               call_missed_video="Verpasster Videoanruf"),
     "en": dict(follow="started following you.", like="liked your post.", comment="commented on your post.",
                reply="replied to your comment.",
                clike="liked your comment.", mention="mentioned you.", tag="tagged you in a post.",
@@ -73,7 +76,10 @@ TEXTS = {
                ch_end="A challenge is over.", voice="♪ Voice message", photo="▣ Photo", share="↗ shared",
                mentioned="{sender} mentioned you", activity="Momentum", encrypted="New message",
                sub_rule="subscribed to your rule “{rule}”.", sub_rule_group="subscribed to your rule “{rule}” for the group {group}.",
-               sub_decay="now follows your decay.", sub_decay_group="added your decay to the group {group}."),
+               sub_decay="now follows your decay.", sub_decay_group="added your decay to the group {group}.",
+               call_voice="Voice call", call_video="Video call", call_incoming_voice="Incoming voice call",
+               call_incoming_video="Incoming video call", call_missed_voice="Missed voice call",
+               call_missed_video="Missed video call"),
 }
 
 
@@ -113,10 +119,11 @@ class FcmSender:
         self._token, self._expires = data["access_token"], time.time() + data.get("expires_in", 3600)
         return self._token
 
-    def send(self, token: str, data: dict) -> bool:
-        """Data-only, high priority (wakes the app). False = the token is dead and should be dropped."""
+    def send(self, token: str, data: dict, ttl: int = 3600) -> bool:
+        """Data-only, high priority (wakes the app). False = the token is dead and should be dropped.
+        ttl: a call's ringing is worthless after it stopped (server/calls.py)."""
         msg = {"message": {"token": token, "data": {k: str(v) for k, v in data.items()},
-                           "android": {"priority": "HIGH", "ttl": "3600s"}}}
+                           "android": {"priority": "HIGH", "ttl": f"{int(ttl)}s"}}}
         req = urllib.request.Request(f"https://fcm.googleapis.com/v1/projects/{self.project}/messages:send",
                                      json.dumps(msg).encode(), {"Content-Type": "application/json",
                                                                 "Authorization": "Bearer " + self._access_token()})
@@ -136,11 +143,12 @@ class WebPushSender:
         # pywebpush reads a key *string* as bare base64 DER, not PEM -> hand it the key object
         self.vapid, self.subject = Vapid.from_pem(private_pem.encode()), subject
 
-    def send(self, subscription: dict, payload: dict) -> bool:
+    def send(self, subscription: dict, payload: dict, ttl: int = 3600, urgency: str | None = None) -> bool:
         from pywebpush import WebPushException, webpush
         try:
             webpush(subscription, json.dumps(payload), vapid_private_key=self.vapid,
-                    vapid_claims={"sub": self.subject}, ttl=3600, timeout=15)
+                    vapid_claims={"sub": self.subject}, ttl=ttl, timeout=15,
+                    headers={"Urgency": urgency} if urgency else None)
             return True
         except WebPushException as e:
             code = getattr(e.response, "status_code", 0)
@@ -356,7 +364,9 @@ def register(app, authed, ApiError, enabled: bool):
         fcm = FcmSender.from_env()
         if fcm is None:
             log.warning("no Firebase service account: Android keeps polling (secrets/firebase-admin.json)")
-        app.push_task = asyncio.get_running_loop().create_task(Dispatcher(app.db, fcm, WebPushSender(pem)).run())
+        web = WebPushSender(pem)
+        app.push_senders = (fcm, web)              # calls ring right away (server/calls.py), not in the next round
+        app.push_task = asyncio.get_running_loop().create_task(Dispatcher(app.db, fcm, web).run())
 
     @app.after_serving
     async def stop_push():
