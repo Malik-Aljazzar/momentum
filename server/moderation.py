@@ -27,7 +27,8 @@ from PIL import Image, ImageEnhance, ImageFilter
 from . import nsfw_model
 
 FLAG = 0.5
-BLOCK = 0.95
+# the model scores suggestive underwear photos ~0.99 too, real nudity above 0.998: those are covered, not refused
+BLOCK = 0.995
 FRAME_SECONDS = 2          # a video: one frame every 2 s ...
 MAX_FRAMES = 30            # ... at most 30 (the 60 s maximum)
 SIZE = 224                 # the model's input
@@ -63,14 +64,14 @@ class OnnxModel:
 
 
 class ColorModel:
-    """Tests and the e2e server: a frame whose middle is cyan scores 0.99 (refused), magenta 0.7 (covered),
+    """Tests and the e2e server: a frame whose middle is cyan scores 0.999 (refused), magenta 0.7 (covered),
     anything else 0.01 (the other specs' red / noise / test-pattern pictures stay clean)."""
 
     def __call__(self, frames):
         out = []
         for f in frames:
             r, g, b = (int(v) for v in f[SIZE // 2 - 16:SIZE // 2 + 16, SIZE // 2 - 16:SIZE // 2 + 16].reshape(-1, 3).mean(axis=0))
-            out.append(0.99 if r < 60 and g > 200 and b > 200 else 0.7 if r > 200 and g < 60 and b > 200 else 0.01)
+            out.append(0.999 if r < 60 and g > 200 and b > 200 else 0.7 if r > 200 and g < 60 and b > 200 else 0.01)
         return out
 
 
