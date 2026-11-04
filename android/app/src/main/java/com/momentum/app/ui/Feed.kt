@@ -160,7 +160,7 @@ fun FeedScreen(vm: AppViewModel, list: LazyListState) {
         TopBar(S.feed, onBack = null) {
             IconBtn("ui_plus") { creating = true }          // post or story?
             IconBtn("ui_heart", badge = unread?.notifications ?: 0) { nav.push(Route.Notifications) }
-            IconBtn("ui_cup") { nav.push(Route.Leaderboard) }          // world top 10 / friends
+            IconBtn("ui_cup") { nav.push(Route.Leaderboard()) }          // world top 10 / friends
         }
         OfflineStrip(vm.online)
         PullToRefreshBox(

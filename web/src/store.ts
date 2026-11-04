@@ -32,6 +32,8 @@ export const milestone = signal(false)
 export const hyperspace = signal(false)
 /** HYPERSPACE / ULTRA_HYPERSPACE while the lore screen (tap on the shining word) is open */
 export const hyperLore = signal<string | null>(null)
+/** a title key while its One-of-the-Nine screen is open (screens/Nine.tsx) */
+export const nineLore = signal<string | null>(null)
 export const online = signal(typeof navigator === "undefined" ? true : navigator.onLine)
 export const updateRequired = signal(false)
 /** after an update: the changelog's versions this device hasn't seen yet (null = nothing to show) */

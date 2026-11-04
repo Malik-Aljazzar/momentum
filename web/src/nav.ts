@@ -2,8 +2,10 @@
 import { signal } from "@preact/signals"
 import { state } from "./store"
 
-export type Tab = "home" | "rules" | "chats" | "feed" | "profile"
+export type Tab = "home" | "rules" | "chats" | "feed" | "election" | "profile"
 export const TABS: Tab[] = ["home", "rules", "chats", "feed", "profile"]
+/** The tabs right now: while the Larper election runs it gets its own tab before the profile (server/nine.py). */
+export const tabsNow = (): Tab[] => state.value?.user.election ? ["home", "rules", "chats", "feed", "election", "profile"] : TABS
 
 export type Route =
   | { r: "user"; username: string }
@@ -24,7 +26,7 @@ export type Route =
   | { r: "newChallenge"; conversationId: number }
   | { r: "requests" }
   | { r: "report" }
-  | { r: "leaderboard" }
+  | { r: "leaderboard"; scope?: "global" | "friends" | "groups" | "nine" }
   | { r: "chatInfo"; id: number }
   | { r: "e2eRecovery" }
   | { r: "e2eUnlock" }

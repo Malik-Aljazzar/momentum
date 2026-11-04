@@ -6,7 +6,7 @@ import { blit, type Bands, type Ctx, dither, drawBands, glowAt, hash, luminance,
   spread, sprite, tileAll, tileX, tileXWavy } from "./engine"
 
 type Fx = "none" | "stars" | "snow" | "rain" | "petals" | "embers" | "leaves" | "fireflies" | "bubbles" | "storm" |
-  "birds" | "clouds" | "sparkles" | "hearts" | "butterflies" | "warp"
+  "birds" | "clouds" | "sparkles" | "hearts" | "butterflies" | "warp" | "confetti"
 
 type Sky = { kind: "high" } | { kind: "at"; x: number; y: number } | { kind: "horizon"; x: number } | null
 
@@ -114,6 +114,23 @@ const DEFS: Record<string, Def> = {
   hyperspace: b([[0, "#02030A"], [.4, "#060A1E"], [.75, "#0C1438"]], null, "warp", { far: null, near: null, skyImg: null }),
   // secret: the golden hyperspace at 16 million (not even shown before)
   ultrahyperspace: b([[0, "#0A0602"], [.4, "#1A0F05"], [.75, "#2C1A08"]], null, "warp", { far: null, near: null, skyImg: null }),
+  // One of the Nine: each title screen's own sky (screens/Nine.tsx), never in the picker
+  nine_goat: b([[0, "#1A1206"], [.4, "#3A2A08"], [.75, "#6A4A10"]], null, "sparkles", { far: null, near: null, skyImg: null }),
+  nine_larper: b([[0, "#14081E"], [.4, "#2A1240"], [.75, "#4A2060"]], null, "embers", { far: null, near: null, skyImg: null }),
+  nine_hermes: b([[0, "#0E2A52"], [.4, "#1E4A82"], [.75, "#3A74B4"]], null, "birds", { far: null, near: null, skyImg: null }),
+  nine_yapper: b([[0, "#062020"], [.4, "#0E3A3A"], [.75, "#165A52"]], null, "bubbles", { far: null, near: null, skyImg: null }),
+  nine_charmeur: b([[0, "#2A0818"], [.4, "#56123A"], [.75, "#8A2A5E"]], null, "hearts", { far: null, near: null, skyImg: null }),
+  nine_gamemaster: b([[0, "#04120C"], [.4, "#0A281A"], [.75, "#124228"]], null, "stars", { far: null, near: null, skyImg: null }),
+  nine_veteran: b([[0, "#0E1420"], [.4, "#1E2A3E"], [.75, "#34465E"]], null, "snow", { far: null, near: null, skyImg: null }),
+  nine_clown: b([[0, "#1E0A2A"], [.4, "#3E1248"], [.75, "#6A1E5A"]], null, "confetti", { far: null, near: null, skyImg: null }),
+  nine_supercharged: b([[0, "#141200"], [.4, "#2E2A00"], [.75, "#4A4200"]], null, "storm", { far: null, near: null, skyImg: null }),
+}
+
+/** The nine titles (server/nine.py KEYS) and each one's colour. */
+export const NINE_KEYS = ["goat", "larper", "hermes", "yapper", "charmeur", "gamemaster", "veteran", "clown", "supercharged"]
+export const NINE_COLORS: Record<string, string> = {
+  goat: "#FFCD75", larper: "#A77BFF", hermes: "#41A6F6", yapper: "#73EFF7", charmeur: "#FF8FB8",
+  gamemaster: "#38B764", veteran: "#94B0C2", clown: "#FF5C6A", supercharged: "#A7F070",
 }
 
 /** The extra effects per banner (same table as Banners.kt EXTRAS). */
@@ -136,7 +153,7 @@ export const ULTRA_HYPERSPACE = "ultrahyperspace"
 export const HYPER_RGB = ["115,239,247", "91,124,255", "167,123,255"]
 export const GOLD_RGB = ["255,243,196", "255,205,69", "232,154,44"]
 /** Selectable banners in display order (the hyperspace easter egg comes on top when unlocked). */
-export const BANNERS = Object.keys(DEFS).filter((k) => k !== HYPERSPACE && k !== ULTRA_HYPERSPACE)
+export const BANNERS = Object.keys(DEFS).filter((k) => k !== HYPERSPACE && k !== ULTRA_HYPERSPACE && !k.startsWith("nine_"))
 
 const PASTEL = new Set(["cottoncandy", "hearts", "strawberry", "meadow", "glitter", "lavender", "balloons", "sakura"])
 const ANIME = new Set(["wallcity", "ninjavillage", "redclouds", "grassroute", "spiritforest", "skyisland", "tournament",
@@ -436,6 +453,13 @@ export function drawBanner(c: Ctx, keyIn: string | null | undefined, groundDp = 
       ;["01010", "11111", "01110", "00100"].forEach((row, ry) => {
         for (let rx = 0; rx < row.length; rx++) if (row[rx] === "1") rect(c, col, x + rx * u, y + ry * u, u, u)
       })
+    }); break
+    case "confetti": parts.slice(0, 44).forEach((p, i) => {
+      const y = (p.y + t * .06 * p.speed) % 1
+      const x = ((p.x + t * .01 + Math.sin(t * 1.2 + p.seed) * .02) % 1) * c.w
+      const col = ["#FFCD75", "#73EFF7", "#A7F070", "#FF5C6A", "#A77BFF", "#F4F4F4"][i % 6]
+      const flip = Math.sin(t * 4 + p.seed) > 0
+      rect(c, col, x, y * c.h, flip ? 3 * dp : 1.5 * dp, flip ? 1.5 * dp : 3 * dp)
     }); break
     case "butterflies": parts.forEach((p, i) => {
       const x = ((p.x + t * .015 * p.speed) % 1) * c.w

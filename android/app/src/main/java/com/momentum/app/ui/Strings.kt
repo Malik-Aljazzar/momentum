@@ -200,6 +200,33 @@ interface Strings {
     val reporterKingHint: String
     val reportKindBug: String
     val reportKindFeature: String
+    // One of the Nine (server/nine.py): the titles, their screens, the Larper's election
+    val oneOfNine: String
+    val theNine: String
+    fun nineName(key: String): String
+    fun nineLore(key: String): String
+    fun nineHow(key: String): String
+    fun nineUnit(key: String, n: String): String
+    val nineHolder: String
+    val nineNobody: String
+    fun nineMine(value: String, rank: Int): String
+    val nineNotCounted: String
+    val nineHowTitle: String
+    val electionTab: String
+    val electionTitle: String
+    val electionIntro: String
+    fun electionVotes(n: Int, needed: Int): String
+    fun electionEnds(date: String): String
+    fun electionNext(date: String): String
+    val electionClosed: String
+    fun electionMyVote(name: String): String
+    val electionVote: String
+    val electionVoted: String
+    val electionSearch: String
+    val electionLeading: String
+    val electionCurrentLarper: String
+    val electionOpenHint: String
+    val electionOpenAction: String
     val message: String
     val noPosts: String
     val noUsers: String
@@ -908,6 +935,66 @@ object De : Strings {
     override val reporterKingHint = "Die Krone trägt, wer die meisten Bugs meldet und Features wünscht, die dann wirklich ins Spiel kommen."
     override val reportKindBug = "Bug"
     override val reportKindFeature = "Wunsch"
+    override val oneOfNine = "One of the Nine"
+    override val theNine = "The Nine"
+    override fun nineName(key: String) = mapOf(
+        "goat" to "GOAT", "larper" to "Larper", "hermes" to "Hermes", "yapper" to "Yapper", "charmeur" to "Charmeur",
+        "gamemaster" to "Gamemaster", "veteran" to "Veteran", "clown" to "Clown", "supercharged" to "Supercharged",
+    )[key] ?: key
+    override fun nineLore(key: String) = mapOf(
+        "goat" to "Greatest of all time. Als Ranglisten noch Höhlenmalereien waren, stand dieser Name schon ganz oben. Andere sammeln Momentum – der GOAT ist Momentum.",
+        "larper" to "Tut so, als wäre er die größte Momentum-Legende aller Zeiten: Kartonrüstung, geliehener Heldenmut, große Geschichten. Dahinter steckt eine kleine Echse, die ihr Momentum nie so verdient hat, wie sie behauptet. Die Community hat abgestimmt.",
+        "hermes" to "Bote der Götter, Flügel an den Sandalen. Kein Bug entkommt, kein Wunsch bleibt ungehört – Hermes hat ihn gemeldet, bevor du ihn überhaupt bemerkt hast.",
+        "yapper" to "Spricht in Kommentaren, denkt in Kommentaren, träumt in Kommentaren. Man sagt, Yapper hat mal einen Sonnenuntergang kommentiert – und der hat zurückgeschrieben.",
+        "charmeur" to "Ein Lächeln, ein Post, hundert Herzen. Charmeur sammelt Likes, wie andere Luft holen – und hat noch nie jemanden um eines gebeten.",
+        "gamemaster" to "Schreibt die Regeln, nach denen alle anderen spielen. Wenn du eine Regel abonnierst, sitzt der Gamemaster irgendwo und nickt zufrieden.",
+        "veteran" to "War schon da, als das Momentum noch kriechen lernte. Jeden Tag ein Login, jeden Tag ein Stück Geschichte – der Veteran hat sie alle gesehen.",
+        "clown" to "Postet, als gäbe es kein Morgen. Stories um drei Uhr nachts, Fotos vom Frühstück, vom zweiten Frühstück. Die Manege gehört dem Clown.",
+        "supercharged" to "Von null auf Lichtgeschwindigkeit in dreißig Tagen. Wo Supercharged vorbeizieht, riecht es nach verbranntem Gummi und frischem Momentum.",
+    )[key] ?: ""
+    override fun nineHow(key: String) = mapOf(
+        "goat" to "Hab das höchste gewertete Momentum von allen – im Wettbewerb, mit Tageslimit.",
+        "larper" to "Werde gewählt: Am 1. jedes Monats (und sobald der Titel frei ist) stimmen alle ab, wer nur so tut, als hätte er sein Momentum verdient. Die Wahl endet, wenn der Tag vorbei ist und mindestens 10 Spieler abgestimmt haben – sonst läuft sie weiter.",
+        "hermes" to "Melde die meisten Bugs und Wünsche, die dann wirklich umgesetzt werden – der King of Reporters.",
+        "yapper" to "Schreib die meisten Kommentare.",
+        "charmeur" to "Sammle die meisten Likes auf deinen Posts.",
+        "gamemaster" to "Hab die meisten Abonnenten auf deinen eigenen Regeln und deinem Decay – Regeln aus Gruppen zählen nicht.",
+        "veteran" to "Nutze die App an den meisten Tagen – jeder Tag online zählt einmal.",
+        "clown" to "Mach die meisten Posts und Stories. Gelöschte zählen weiter, mehr als 100 am Tag gehen nicht.",
+        "supercharged" to "Hol in den letzten 30 Tagen das meiste gewertete Momentum von allen.",
+    )[key] ?: ""
+    override fun nineUnit(key: String, n: String) = when (key) {
+        "goat" -> "$n Momentum"
+        "larper" -> "$n Stimmen"
+        "hermes" -> "$n Meldungen"
+        "yapper" -> "$n Kommentare"
+        "charmeur" -> "$n Likes"
+        "gamemaster" -> "$n Abonnenten"
+        "veteran" -> "$n Tage"
+        "clown" -> "$n Posts"
+        "supercharged" -> "+$n in 30 Tagen"
+        else -> n
+    }
+    override val nineHolder = "Trägt den Titel"
+    override val nineNobody = "Noch niemand"
+    override fun nineMine(value: String, rank: Int) = "Du: $value · Platz $rank weltweit"
+    override val nineNotCounted = "Du: noch nichts gezählt"
+    override val nineHowTitle = "So bekommst du den Titel"
+    override val electionTab = "Wahl"
+    override val electionTitle = "Larper-Wahl"
+    override val electionIntro = "Wer tut nur so, als hätte er sein Momentum verdient? Stimm ab – eine Stimme pro Spieler, du kannst sie bis zum Ende ändern."
+    override fun electionVotes(n: Int, needed: Int) = "$n von $needed nötigen Stimmen"
+    override fun electionEnds(date: String) = "Endet am $date – sobald mindestens 10 abgestimmt haben"
+    override fun electionNext(date: String) = "Die nächste Wahl startet am $date"
+    override val electionClosed = "Gerade läuft keine Wahl."
+    override fun electionMyVote(name: String) = "Deine Stimme: @$name"
+    override val electionVote = "Wählen"
+    override val electionVoted = "Gewählt"
+    override val electionSearch = "Spieler suchen …"
+    override val electionLeading = "Vorne liegen"
+    override val electionCurrentLarper = "Aktueller Larper"
+    override val electionOpenHint = "Die Larper-Wahl läuft – wer tut nur so, als hätte er sein Momentum verdient?"
+    override val electionOpenAction = "Jetzt abstimmen"
     override val message = "Nachricht"
     override val noPosts = "Noch keine Posts"
     override val noUsers = "Niemand gefunden"
@@ -1658,6 +1745,66 @@ object En : Strings {
     override val reporterKingHint = "The crown goes to whoever files the most bug reports and feature requests that actually make it into the game."
     override val reportKindBug = "Bug"
     override val reportKindFeature = "Request"
+    override val oneOfNine = "One of the Nine"
+    override val theNine = "The Nine"
+    override fun nineName(key: String) = mapOf(
+        "goat" to "GOAT", "larper" to "Larper", "hermes" to "Hermes", "yapper" to "Yapper", "charmeur" to "Charmeur",
+        "gamemaster" to "Gamemaster", "veteran" to "Veteran", "clown" to "Clown", "supercharged" to "Supercharged",
+    )[key] ?: key
+    override fun nineLore(key: String) = mapOf(
+        "goat" to "Greatest of all time. When leaderboards were still cave paintings, this name was already on top. Others collect momentum – the GOAT is momentum.",
+        "larper" to "Pretends to be the greatest momentum legend of all time: cardboard armour, borrowed bravery, tall tales. Behind it, a little lizard that never earned its momentum the way it claims. The community has voted.",
+        "hermes" to "Messenger of the gods, wings on the sandals. No bug escapes, no wish goes unheard – Hermes reported it before you even noticed.",
+        "yapper" to "Speaks in comments, thinks in comments, dreams in comments. They say Yapper once commented on a sunset – and it wrote back.",
+        "charmeur" to "A smile, a post, a hundred hearts. Charmeur collects likes the way others breathe – and has never asked anyone for one.",
+        "gamemaster" to "Writes the rules everyone else plays by. Whenever you subscribe to a rule, the Gamemaster sits somewhere, nodding contentedly.",
+        "veteran" to "Was already here when momentum was learning to crawl. A login every day, a piece of history every day – the Veteran has seen them all.",
+        "clown" to "Posts like there's no tomorrow. Stories at three in the morning, photos of breakfast, of second breakfast. The ring belongs to the Clown.",
+        "supercharged" to "From zero to light speed in thirty days. Where Supercharged passes, it smells of burnt rubber and fresh momentum.",
+    )[key] ?: ""
+    override fun nineHow(key: String) = mapOf(
+        "goat" to "Have the highest ranked momentum of all – in the competition, with the daily limit.",
+        "larper" to "Get elected: on the 1st of every month (and whenever the title is vacant) everyone votes on who merely pretends to have earned their momentum. The election ends once the day is over and at least 10 players have voted – otherwise it goes on.",
+        "hermes" to "Report the most bugs and requests that actually get implemented – the King of Reporters.",
+        "yapper" to "Write the most comments.",
+        "charmeur" to "Collect the most likes on your posts.",
+        "gamemaster" to "Have the most subscribers on your own rules and your decay – rules made in groups don't count.",
+        "veteran" to "Use the app on the most days – every day online counts once.",
+        "clown" to "Make the most posts and stories. Deleted ones still count, more than 100 a day isn't possible.",
+        "supercharged" to "Gain the most ranked momentum of all in the last 30 days.",
+    )[key] ?: ""
+    override fun nineUnit(key: String, n: String) = when (key) {
+        "goat" -> "$n momentum"
+        "larper" -> "$n votes"
+        "hermes" -> "$n reports"
+        "yapper" -> "$n comments"
+        "charmeur" -> "$n likes"
+        "gamemaster" -> "$n subscribers"
+        "veteran" -> "$n days"
+        "clown" -> "$n posts"
+        "supercharged" -> "+$n in 30 days"
+        else -> n
+    }
+    override val nineHolder = "Holds the title"
+    override val nineNobody = "Nobody yet"
+    override fun nineMine(value: String, rank: Int) = "You: $value · rank $rank worldwide"
+    override val nineNotCounted = "You: nothing counted yet"
+    override val nineHowTitle = "How to get the title"
+    override val electionTab = "Election"
+    override val electionTitle = "Larper election"
+    override val electionIntro = "Who merely pretends to have earned their momentum? Cast your vote – one per player, changeable until the end."
+    override fun electionVotes(n: Int, needed: Int) = "$n of $needed votes needed"
+    override fun electionEnds(date: String) = "Ends on $date – once at least 10 have voted"
+    override fun electionNext(date: String) = "The next election starts on $date"
+    override val electionClosed = "There's no election right now."
+    override fun electionMyVote(name: String) = "Your vote: @$name"
+    override val electionVote = "Vote"
+    override val electionVoted = "Voted"
+    override val electionSearch = "Find a player …"
+    override val electionLeading = "In the lead"
+    override val electionCurrentLarper = "Current Larper"
+    override val electionOpenHint = "The Larper election is on – who merely pretends to have earned their momentum?"
+    override val electionOpenAction = "Vote now"
     override val message = "Message"
     override val noPosts = "No posts yet"
     override val noUsers = "No one found"

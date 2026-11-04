@@ -48,6 +48,11 @@ class User(Base):
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)  # blob key in MinIO
     momentum: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # posts and stories ever made (deleted ones still count: the Clown, server/nine.py) and today's share
+    # (at most nine.POSTS_PER_DAY a day)
+    posts_total: Mapped[int] = mapped_column(Integer, default=0)
+    posts_today: Mapped[int] = mapped_column(Integer, default=0)
+    posts_day: Mapped[date | None] = mapped_column(Date, nullable=True)
     # may use the admin app (/api/admin/*); granted with: python -m server.admin grant <username>
     admin: Mapped[bool] = mapped_column(Boolean, default=False)
     # admin logins need a code from an authenticator app (TOTP, server/security.py); the last step used
@@ -546,6 +551,12 @@ def _migrate_data(conn):
     if not conn.exec_driver_sql("SELECT 1 FROM config WHERE key = 'free_score_init'").first():
         conn.exec_driver_sql("UPDATE users SET free_score = momentum")
         conn.exec_driver_sql("INSERT INTO config (key, value) VALUES ('free_score_init', '1')")
+    # the Clown's count starts with what exists when the titles arrive (server/nine.py)
+    if not conn.exec_driver_sql("SELECT 1 FROM config WHERE key = 'posts_total_init'").first():
+        conn.exec_driver_sql(
+            "UPDATE users SET posts_total = (SELECT COUNT(*) FROM posts WHERE posts.user_id = users.id AND posts.kind = 'post')"
+            " + (SELECT COUNT(*) FROM stories WHERE stories.user_id = users.id)")
+        conn.exec_driver_sql("INSERT INTO config (key, value) VALUES ('posts_total_init', '1')")
     # one banner per vehicle type: space scenes chosen before move to the space slot
     conn.exec_driver_sql(
         "UPDATE users SET banner_space = banner, banner = NULL WHERE banner IN ('hyperspace', 'cosmos', 'moon')")

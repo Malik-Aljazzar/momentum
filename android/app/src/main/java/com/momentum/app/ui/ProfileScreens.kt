@@ -31,6 +31,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
@@ -157,6 +159,12 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
                         p.badges.firstOrNull { it.key == "reporter_king" }?.let { b ->
                             Spacer(Modifier.width(8.dp))
                             Label("👑 " + S.reporterKing, color = Px.Yellow, modifier = Modifier.clickable { badge = b })
+                        }
+                    }
+                    // One of the Nine: the titles this player holds; tap = the title screen
+                    if (p.titles.isNotEmpty()) Row(Modifier.padding(start = 2.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        p.titles.forEach { k ->
+                            NineIcon(k, 28.dp, Modifier.clickable { NineLore.open = k }.semantics { contentDescription = S.nineName(k) })
                         }
                     }
                     if (p.bio.isNotBlank()) {

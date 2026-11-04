@@ -5,6 +5,7 @@ import { signal } from "@preact/signals"
 import type { GroupRank, LeaderboardResponse, RankEntry } from "../model"
 import { nav } from "../nav"
 import { online, req } from "../store"
+import { NineTab } from "./Nine"
 import { S } from "../strings"
 import { Avatar, BannerBg, EmptyHint, Label, LoadMore, OfflineState, OfflineStrip, PixelIcon, TopBar } from "../ui/components"
 
@@ -28,15 +29,17 @@ export function PeriodSwitch() {
   </div>
 }
 
-export function LeaderboardScreen() {
+type Scope = "global" | "friends" | "groups" | "nine"
+
+export function LeaderboardScreen({ initial }: { initial?: Scope }) {
   const s = S.value
-  const [scope, setScope] = useState<"global" | "friends" | "groups">("global")
+  const [scope, setScope] = useState<Scope>(initial ?? "global")
   const period = rankPeriod.value
   const [data, setData] = useState<LeaderboardResponse | null>(null)
   const [more, setMore] = useState(false)
   useEffect(() => {
     setData(null)
-    if (scope === "groups") return
+    if (scope === "groups" || scope === "nine") return
     void req<LeaderboardResponse>("GET", `/leaderboard?scope=${scope}&limit=50${periodQ()}`).then((d) => {
       setData(d)
       setMore(scope === "friends" && (d?.entries.length ?? 0) >= 50)
@@ -55,14 +58,15 @@ export function LeaderboardScreen() {
   return <div class="fill col">
     <TopBar title={s.leaderboardTitle} />
     <OfflineStrip />
-    <div class="row" style={{ margin: "6px 16px", borderRadius: 14, background: "var(--faint)", padding: 4 }}>
-      {([["global", s.scopeGlobal], ["friends", s.scopeFriends], ["groups", s.groupsTitle]] as const).map(([k, label]) =>
-        <button key={k} class="t-button grow" onClick={() => setScope(k)} style={{
-          borderRadius: 10, padding: "10px 0", background: k === scope ? "var(--text)" : "transparent", color: k === scope ? "#000" : "var(--text)",
+    <div class="row scope-row" style={{ margin: "6px 16px", borderRadius: 14, background: "var(--faint)", padding: 4, overflowX: "auto" }}>
+      {([["global", s.scopeGlobal], ["friends", s.scopeFriends], ["groups", s.groupsTitle], ["nine", s.theNine]] as [Scope, string][]).map(([k, label]) =>
+        <button key={k} class="t-button grow" onClick={() => setScope(k)} aria-pressed={k === scope} style={{
+          borderRadius: 10, padding: "10px 8px", whiteSpace: "nowrap", background: k === scope ? "var(--text)" : "transparent", color: k === scope ? "#000" : "var(--text)",
         }}>{label}</button>)}
     </div>
-    <PeriodSwitch />
-    {scope === "groups" ? <GroupLeaderboard key={period} /> : !d ? (!online.value && <OfflineState />) : <>
+    {scope !== "nine" && <PeriodSwitch />}
+    {scope === "nine" ? <NineTab />
+      : scope === "groups" ? <GroupLeaderboard key={period} /> : !d ? (!online.value && <OfflineState />) : <>
       {/* my place stays visible above the list */}
       {d.me && <div class="col" style={{ margin: "8px 16px", borderRadius: "var(--card-radius)", background: "linear-gradient(135deg, #3b2a12, #1b1520)", padding: 16 }}>
         <Label text={s.yourPlace} color="var(--yellow)" />

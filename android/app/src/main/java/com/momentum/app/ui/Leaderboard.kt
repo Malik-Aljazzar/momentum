@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -66,16 +68,16 @@ fun PeriodSwitch(modifier: Modifier = Modifier) {
 
 /** World top 10 with my own place, or me among the people I follow and who follow me. */
 @Composable
-fun LeaderboardScreen(vm: AppViewModel) {
+fun LeaderboardScreen(vm: AppViewModel, initial: String? = null) {
     val S = LocalStrings.current
     val nav = LocalNav.current
-    var scope by rememberSaveable { mutableStateOf("global") }
+    var scope by rememberSaveable { mutableStateOf(initial ?: "global") }
     var data by remember { mutableStateOf<LeaderboardResponse?>(null) }
     var more by remember { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(scope, RankPeriod.day) {
         data = null
-        if (scope == "groups") return@LaunchedEffect
+        if (scope == "groups" || scope == "nine") return@LaunchedEffect
         data = vm.req<LeaderboardResponse>("GET", "/leaderboard?scope=$scope&limit=50${RankPeriod.query}")
         more = scope == "friends" && (data?.entries?.size ?: 0) >= 50
     }
@@ -88,17 +90,22 @@ fun LeaderboardScreen(vm: AppViewModel) {
     Column(Modifier.fillMaxSize()) {
         TopBar(S.leaderboardTitle)
         OfflineStrip(vm.online)
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(14.dp)).background(Px.Faint).padding(4.dp)) {
-            listOf("global" to S.scopeGlobal, "friends" to S.scopeFriends, "groups" to S.groupsTitle).forEach { (k, label) ->
+        val scopes = listOf("global" to S.scopeGlobal, "friends" to S.scopeFriends, "groups" to S.groupsTitle, "nine" to S.theNine)
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(14.dp)).background(Px.Faint).padding(4.dp)
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            scopes.forEach { (k, label) ->
                 val on = k == scope
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) Px.Text else Color.Transparent)
-                        .clickable { scope = k }.padding(vertical = 10.dp),
+                    Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) Px.Text else Color.Transparent)
+                        .clickable { scope = k }.padding(vertical = 10.dp, horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(label.uppercase(), style = T.button.copy(color = if (on) Color.Black else Px.Text)) }
+                ) { Text(label.uppercase(), style = T.button.copy(color = if (on) Color.Black else Px.Text), maxLines = 1) }
             }
         }
-        PeriodSwitch(Modifier.padding(bottom = 6.dp))
+        if (scope != "nine") PeriodSwitch(Modifier.padding(bottom = 6.dp))
+        if (scope == "nine") { NineTab(vm); return@Column }
         if (scope == "groups") { androidx.compose.runtime.key(RankPeriod.day) { GroupLeaderboard(vm) }; return@Column }
         val d = data ?: run { if (!vm.online) OfflineState(); return@Column }
         // my place stays visible above the list

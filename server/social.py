@@ -355,6 +355,7 @@ def register(app, authed, api_error):
     async def profile_response(user):
         """Built in the caller's session (calling another @authed route would open a new one)."""
         from .community import can_view
+        from .nine import titles_of
         card = (await cards(g.s, g.user.id, [user]))[0]
         posts = await g.s.scalar(select(func.count()).select_from(Post).where(Post.user_id == user.id, Post.kind != "rule"))
         counts = await follow_counts(g.s, user.id)
@@ -374,7 +375,8 @@ def register(app, authed, api_error):
             free_score=user.free_score or 0.0, ranked_momentum=user.momentum, competing=ranked(user),
             decay=await public_decay(user, locked),
             blocked=await g.s.get(Block, (g.user.id, user.id)) is not None,     # I blocked them
-            story=await story_ring(user, locked), badges=await badges_of(g.s, user)))
+            story=await story_ring(user, locked), badges=await badges_of(g.s, user),
+            titles=await titles_of(g.s, user.id)))
 
     async def story_ring(user, locked):
         """Active stories (the profile picture's ring) - not for a locked / blocked profile."""

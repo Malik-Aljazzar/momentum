@@ -430,6 +430,8 @@ def register(app, authed, api_error, blobs):
             if sound is None or sound.user_id != g.user.id or sound.kind != "audio" or sound.attached \
                     or sound.duration > POST_SOUND_SECONDS + 1:
                 raise api_error("Sound ungültig", "Invalid sound")
+        from .nine import count_post
+        count_post(g.user, api_error)                  # the Clown counts, at most 100 a day
         post = Post(user_id=g.user.id, kind="post", text=await mentions.encode(g.s, text),
                     sound_title=str((data.get("sound") or {}).get("title") or "").strip()[:60] if sound else "",
                     **clean_location(data.get("location")))

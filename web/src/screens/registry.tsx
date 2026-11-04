@@ -10,6 +10,7 @@ import { BlockedListScreen, FollowListScreen, NotificationsScreen, ProfileScreen
 import { ReportScreen } from "./Report"
 import { ChatInfoScreen, RecoveryScreen, UnlockScreen } from "./Secure"
 import { ConfirmEmailScreen } from "./Login"
+import { ElectionScreen } from "./Nine"
 import { SettingsPage } from "./Settings"
 
 export function TabScreen({ tab }: { tab: Tab }) {
@@ -19,6 +20,7 @@ export function TabScreen({ tab }: { tab: Tab }) {
     case "chats": return <ChatsScreen isTab />
     case "feed": return <FeedScreen />
     case "profile": return <ProfileScreen username={st.user.username} isTab />
+    case "election": return <ElectionScreen />
     default: return null
   }
 }
@@ -44,7 +46,7 @@ export function RouteScreen({ route }: { route: Route }) {
     case "newChallenge": return <NewChallengeScreen convId={route.conversationId} />
     case "requests": return <FollowRequestsScreen />
     case "report": return <ReportScreen />
-    case "leaderboard": return <LeaderboardScreen />
+    case "leaderboard": return <LeaderboardScreen initial={route.scope} />
     case "chatInfo": return <ChatInfoScreen id={route.id} />
     case "e2eRecovery": return <RecoveryScreen />
     case "e2eUnlock": return <UnlockScreen />

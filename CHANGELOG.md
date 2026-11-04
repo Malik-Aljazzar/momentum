@@ -14,6 +14,22 @@ change gets a line, no empty versions.
 ### EN
 - Activity: when it's about a comment (new comment, reply, like, mention), a shortened preview of the comment is shown right in it.
 
+## 2026-11-03 f
+
+### DE
+- One of the Nine: neun Titel, jeder gehört genau einer Person – GOAT (meistes Momentum), Larper (gewählt), Hermes (meiste umgesetzte Meldungen), Yapper (meiste Kommentare), Charmeur (meiste Likes), Gamemaster (meiste Abonnenten auf eigenen Regeln und dem Decay), Veteran (meiste aktive Tage), Clown (meiste Posts und Stories) und Supercharged (größter Zuwachs in 30 Tagen).
+- Jeder Titel hat sein eigenes animiertes Pixel-Viech, das im Profil erscheint. Antippen öffnet den Titel-Screen mit eigener Farbe und Stimmung, einer Geschichte, wie man ihn bekommt, wer ihn gerade trägt – und wo du selbst stehst.
+- Rangliste: neuer Tab „The Nine“ mit allen Titeln und Trägern.
+- Larper-Wahl: Am 1. jedes Monats (und sobald der Titel frei ist) wählt die Community einen Tag lang, wer nur so tut, als hätte er sein Momentum verdient. Die Wahl endet, wenn mindestens 10 abgestimmt haben – solange sie läuft, gibt es unten einen eigenen Tab mit dem Larper, der Start-Tab zeigt sie auch an.
+- Höchstens 100 Posts und Stories am Tag; gelöschte zählen für den Clown weiter.
+
+### EN
+- One of the Nine: nine titles, each held by exactly one person – GOAT (most momentum), Larper (elected), Hermes (most implemented reports), Yapper (most comments), Charmeur (most likes), Gamemaster (most subscribers on own rules and decay), Veteran (most active days), Clown (most posts and stories) and Supercharged (biggest gain in 30 days).
+- Every title has its own animated pixel creature shown in the profile. Tapping it opens the title screen with its own colour and mood, a tale, how to get it, who holds it right now – and where you stand.
+- Rankings: a new "The Nine" tab with all titles and holders.
+- Larper election: on the 1st of every month (and whenever the title is vacant) the community votes for a day on who merely pretends to have earned their momentum. It ends once at least 10 have voted – while it runs, it has its own tab at the bottom with the Larper, the home tab points to it too.
+- At most 100 posts and stories a day; deleted ones still count for the Clown.
+
 ## 2026-11-03 e
 
 ### DE

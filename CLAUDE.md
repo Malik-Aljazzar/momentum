@@ -142,6 +142,15 @@ docs/SPEC.md   the original (German) product spec
   lights on. Banner extras (rays, fog, heat, water, bolt, lava, aurora, disc, galaxy, traffic) are the `EXTRAS`
   table in both; a new banner gets its line there too. The PWA draws the vehicle on its own canvas (`VehicleSprite`,
   `PAD` around it), Android draws past the sprite's bounds (the card clips).
+- One of the Nine (`server/nine.py`): nine titles, one holder each - eight counted from the data (tables cached
+  10 s, ties to the older account), the Larper elected (`Election` / `ElectionVote`; opens on the 1st and whenever
+  vacant, closes after its day once 10 voted; `nine.ensure` runs lazily from state / nine requests). `User.posts_total`
+  counts posts + stories forever (the Clown), `posts_today` caps them at 100 a day. Profiles carry `titles`, the
+  state's user `election`. Clients: `web/src/screens/Nine.tsx` = `ui/Nine.kt` (hand-drawn 8-bit critters, 20x20, 8 frames
+  of 120 ms, `nine_<key>/sheet.png` from `pixelart/nine.py`: flat colours, shade on the right edge, no outlines;
+  title screens on hidden banners `nine_<key>`, the rankings' "The Nine" tab, the home card; the election is an
+  extra bottom tab with the animated Larper only while it runs: `nav.tabsNow()` = `Tab.Election`); texts `nineName/nineLore/nineHow/nineUnit` in Strings.kt. A new title = KEYS + a creature + texts +
+  a theme + `NINE_COLORS` on both sides.
 - Pixel look everywhere: no rounded Material checkboxes/arrows – draw controls on a pixel grid
   (Android: `ui/PixelControls.kt`).
 - Emojis are always pixel art: `pixelart/emoji.py` turns Twemoji into 18×18 sprites and builds two fonts

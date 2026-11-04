@@ -52,7 +52,8 @@ sealed interface Route {
     data class NewChallenge(val conversationId: Int) : Route
     data object FollowRequests : Route
     data object Report : Route
-    data object Leaderboard : Route
+    /** scope: global | friends | groups | nine (null = global) */
+    data class Leaderboard(val scope: String? = null) : Route
     data class ChatInfo(val id: Int) : Route
     data object E2ERecovery : Route
     data object E2EUnlock : Route

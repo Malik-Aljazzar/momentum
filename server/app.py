@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import momentum as m
-from . import adminapi, security, challenges, chat, community, decays, e2e, emoji, limits, mentions, posts, push, service, social, stories, storage, updates
+from . import adminapi, security, challenges, chat, community, decays, e2e, emoji, limits, mentions, nine, posts, push, service, social, stories, storage, updates
 from . import google as google_mod
 from . import github as github_mod
 from . import mail as mail_mod
@@ -1144,6 +1144,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         await posts.delete_user_content(g.s, blobs, g.user.id)
         await g.s.execute(delete(AuthToken).where(AuthToken.user_id == g.user.id))
         await mail_mod.delete_user_codes(g.s, g.user.id)
+        await nine.delete_user(g.s, g.user.id)
         await g.s.execute(delete(UserActivity).where(UserActivity.user_id == g.user.id))   # no longer a player
         # challenge templates stay: the challenge goes on for the others
         await g.s.execute(delete(Rule).where(Rule.user_id == g.user.id,
@@ -1163,4 +1164,5 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     push.register(app, authed, ApiError, push_enabled)
     decays.register(app, authed, ApiError, parse_decay, state_response)
     challenges.register(app, authed, ApiError, parse_rule, icons, state_response)
+    nine.register(app, authed, ApiError)
     return app

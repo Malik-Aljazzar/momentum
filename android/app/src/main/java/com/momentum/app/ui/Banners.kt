@@ -46,7 +46,7 @@ import kotlin.random.Random
  * (VehicleFx.kt vehicleSpeed). Same as web/src/gfx/banners.ts.
  */
 enum class Fx { None, Stars, Snow, Rain, Petals, Embers, Leaves, Fireflies, Bubbles, Storm, Birds, Clouds,
-    Sparkles, Hearts, Butterflies, Warp }
+    Sparkles, Hearts, Butterflies, Warp, Confetti }
 
 sealed interface SkyObj {
     /** Wide layer across the top (aurora, light rays, storm clouds). */
@@ -143,13 +143,31 @@ private val DEFS: Map<String, BannerDef> = linkedMapOf(
     // secret: the golden hyperspace at 16 million (not even shown before)
     "ultrahyperspace" to BannerDef(listOf(0f to Color(0xFF0A0602), 0.4f to Color(0xFF1A0F05), 0.75f to Color(0xFF2C1A08)), null, Fx.Warp,
         far = null, near = null, skyImg = null),
+    // One of the Nine: each title screen's own sky (ui/Nine.kt), never in the picker
+    "nine_goat" to BannerDef(listOf(0f to Color(0xFF1A1206), 0.4f to Color(0xFF3A2A08), 0.75f to Color(0xFF6A4A10)), null, Fx.Sparkles, far = null, near = null, skyImg = null),
+    "nine_larper" to BannerDef(listOf(0f to Color(0xFF14081E), 0.4f to Color(0xFF2A1240), 0.75f to Color(0xFF4A2060)), null, Fx.Embers, far = null, near = null, skyImg = null),
+    "nine_hermes" to BannerDef(listOf(0f to Color(0xFF0E2A52), 0.4f to Color(0xFF1E4A82), 0.75f to Color(0xFF3A74B4)), null, Fx.Birds, far = null, near = null, skyImg = null),
+    "nine_yapper" to BannerDef(listOf(0f to Color(0xFF062020), 0.4f to Color(0xFF0E3A3A), 0.75f to Color(0xFF165A52)), null, Fx.Bubbles, far = null, near = null, skyImg = null),
+    "nine_charmeur" to BannerDef(listOf(0f to Color(0xFF2A0818), 0.4f to Color(0xFF56123A), 0.75f to Color(0xFF8A2A5E)), null, Fx.Hearts, far = null, near = null, skyImg = null),
+    "nine_gamemaster" to BannerDef(listOf(0f to Color(0xFF04120C), 0.4f to Color(0xFF0A281A), 0.75f to Color(0xFF124228)), null, Fx.Stars, far = null, near = null, skyImg = null),
+    "nine_veteran" to BannerDef(listOf(0f to Color(0xFF0E1420), 0.4f to Color(0xFF1E2A3E), 0.75f to Color(0xFF34465E)), null, Fx.Snow, far = null, near = null, skyImg = null),
+    "nine_clown" to BannerDef(listOf(0f to Color(0xFF1E0A2A), 0.4f to Color(0xFF3E1248), 0.75f to Color(0xFF6A1E5A)), null, Fx.Confetti, far = null, near = null, skyImg = null),
+    "nine_supercharged" to BannerDef(listOf(0f to Color(0xFF141200), 0.4f to Color(0xFF2E2A00), 0.75f to Color(0xFF4A4200)), null, Fx.Storm, far = null, near = null, skyImg = null),
 ).onEach { (k, d) -> d.key = k }
+
+/** The nine titles (server/nine.py KEYS) and each one's colour (gfx/banners.ts NINE_COLORS). */
+val NINE_KEYS = listOf("goat", "larper", "hermes", "yapper", "charmeur", "gamemaster", "veteran", "clown", "supercharged")
+val NINE_COLORS: Map<String, Color> = mapOf(
+    "goat" to Color(0xFFFFCD75), "larper" to Color(0xFFA77BFF), "hermes" to Color(0xFF41A6F6), "yapper" to Color(0xFF73EFF7),
+    "charmeur" to Color(0xFFFF8FB8), "gamemaster" to Color(0xFF38B764), "veteran" to Color(0xFF94B0C2), "clown" to Color(0xFFFF5C6A),
+    "supercharged" to Color(0xFFA7F070),
+)
 
 const val HYPERSPACE = "hyperspace"
 const val ULTRA_HYPERSPACE = "ultrahyperspace"
 
 /** Selectable banners in display order (the hyperspace easter egg comes on top when unlocked). */
-val BANNERS: List<String> = DEFS.keys.filter { it != HYPERSPACE && it != ULTRA_HYPERSPACE }
+val BANNERS: List<String> = DEFS.keys.filter { it != HYPERSPACE && it != ULTRA_HYPERSPACE && !it.startsWith("nine_") }
 
 private val PASTEL = setOf("cottoncandy", "hearts", "strawberry", "meadow", "glitter", "lavender", "balloons", "sakura")
 private val ANIME = setOf("wallcity", "ninjavillage", "redclouds", "grassroute", "spiritforest", "skyisland", "tournament",
@@ -524,6 +542,13 @@ fun BannerBackground(
                     listOf("01010", "11111", "01110", "00100").forEachIndexed { ry, row ->
                         row.forEachIndexed { rx, on -> if (on == '1') drawRect(c, Offset(x + rx * u, y + ry * u), Size(u, u)) }
                     }
+                }
+                Fx.Confetti -> parts.take(44).forEachIndexed { i, p ->
+                    val y = (p.y + t * .06f * p.speed) % 1f
+                    val x = ((p.x + t * .01f + sin(t * 1.2f + p.seed) * .02f) % 1f) * size.width
+                    val c = listOf(Color(0xFFFFCD75), Color(0xFF73EFF7), Color(0xFFA7F070), Color(0xFFFF5C6A), Color(0xFFA77BFF), Color(0xFFF4F4F4))[i % 6]
+                    val flip = sin(t * 4 + p.seed) > 0
+                    drawRect(c, Offset(x, y * size.height), Size(if (flip) 3 * dp else 1.5f * dp, if (flip) 1.5f * dp else 3 * dp))
                 }
                 Fx.Butterflies -> parts.forEachIndexed { i, p ->
                     val x = ((p.x + t * .015f * p.speed) % 1f) * size.width

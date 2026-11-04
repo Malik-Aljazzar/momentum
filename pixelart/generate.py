@@ -216,13 +216,14 @@ def write_gif(path, frames, scale=1, delay=DELAY):
 def compose(grid, gap=4, bg=None):
     """Place a 2D list of canvases (rows of columns) on one pixel grid."""
     rows, cols = len(grid), max(len(r) for r in grid)
-    sw, sh = cols * (W + gap) + gap, rows * (H + gap) + gap
+    cw, ch = grid[0][0].w, grid[0][0].h                   # all canvases of a grid share one size
+    sw, sh = cols * (cw + gap) + gap, rows * (ch + gap) + gap
     px = [[bg] * sw for _ in range(sh)]
     for r, row in enumerate(grid):
         for c, cv in enumerate(row):
-            ox, oy = gap + c * (W + gap), gap + r * (H + gap)
-            for y in range(H):
-                for x in range(W):
+            ox, oy = gap + c * (cw + gap), gap + r * (ch + gap)
+            for y in range(ch):
+                for x in range(cw):
                     if cv.px[y][x]:
                         px[oy + y][ox + x] = cv.px[y][x]
     return px
@@ -1621,6 +1622,10 @@ if __name__ == "__main__":
         write_png(os.path.join(d, "sheet.png"), compose([fr], gap=0))
         write_png(os.path.join(d, f"sheet_x{SCALE}.png"), compose([fr], gap=0), SCALE)
         write_gif(os.path.join(d, f"anim_x{SCALE}.gif"), [cv.px for cv in fr], SCALE)
+
+    # One of the Nine: the titles' critters (pixelart/nine.py, own size and frame count)
+    import nine as nine_mod
+    nine_mod.build(out)
 
     # overview: all vehicles animated (4 columns) + all frames as one PNG
     cols = 4

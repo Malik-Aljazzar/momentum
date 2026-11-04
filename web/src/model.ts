@@ -32,6 +32,8 @@ export interface UserInfo {
   needs_username?: boolean; private?: boolean; banner?: string | null; banners?: OwnBanners
   /** the address still to confirm: when it's due, and whether the app waits for it now (server/mail.py) */
   email_confirm?: { due: string; required: boolean } | null
+  /** the Larper election is running (server/nine.py) */
+  election?: boolean
   hyperspace?: boolean; ultra?: boolean; followers?: number; following?: number
 }
 
@@ -124,6 +126,8 @@ export interface ProfileBadge { key: string; count: number; bugs: number; featur
 export interface Profile extends UserCard {
   bio: string; momentum: number; posts: number; followers_count: number; following_count: number
   badges?: ProfileBadge[]
+  /** One of the Nine: the title keys this player holds (server/nine.py KEYS order) */
+  titles?: string[]
   next_at?: number | null; milestone_step?: number; reached_at?: number
   rules: PublicRule[]; history: HistoryItem[]; locked?: boolean; requested?: boolean; banner?: string | null
   /** I blocked this account */
@@ -134,6 +138,20 @@ export interface Profile extends UserCard {
   /** active stories (the profile picture's ring) */
   story?: { active: number; unseen: boolean }
 }
+
+// ---------------------------------------------------------------- One of the Nine (server/nine.py)
+
+export interface NineTitle {
+  key: string; holder: UserCard | null; value: number | null
+  /** my own count and place; null while nothing is counted (the Larper: always null) */
+  mine: { value: number; rank: number } | null
+  total: number | null
+}
+export interface ElectionState {
+  open: boolean; closes_at: string | null; opened_at: string | null; voters: number; needed: number
+  my_vote: UserCard | null; top: { user: UserCard; votes: number }[]; larper: UserCard | null; next_at: string | null
+}
+export interface NineResponse { titles: NineTitle[]; election: ElectionState }
 
 export interface TextOverlay { text: string; x: number; y: number; color: string; size: number }
 

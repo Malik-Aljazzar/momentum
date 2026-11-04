@@ -587,6 +587,7 @@ async def state(s, user):
     from .chat import unread_messages          # avoid import cycle
     from .social import unread_notifications
     from .updates import latest_ids
+    from .nine import election_open
     return dict(
         unread=dict(messages=await unread_messages(s, user.id),
                     notifications=await unread_notifications(s, user.id),
@@ -599,6 +600,8 @@ async def state(s, user):
                   email_confirm=confirm_state_of(user),
                   banner=shown_banner(user), banners=own_banners(user), hyperspace=hyperspace_unlocked(user),
                   ultra=ultra_unlocked(user),
+                  # the Larper election is running (server/nine.py): the apps point to it
+                  election=await election_open(s),
                   avatar=avatar_url(user.avatar), **(await follow_counts(s, user.id))),
         momentum=score(user),                     # the value the player plays with
         ranked_momentum=user.momentum,

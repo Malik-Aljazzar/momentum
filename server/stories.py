@@ -157,6 +157,8 @@ def register(app, authed, api_error, blobs):
         if md.kind == "image" and duration not in PHOTO_SECONDS:
             raise api_error("Dauer: 5, 10, 15 oder 30 Sekunden", "Duration: 5, 10, 15 or 30 seconds")
         now = utcnow()
+        from .nine import count_post
+        count_post(g.user, api_error)                  # stories count as posts (the Clown, 100 a day)
         st = Story(user_id=g.user.id, media_id=md.id, created_at=now, expires_at=now + timedelta(hours=STORY_HOURS),
                    duration=float(duration) if md.kind == "image" else float(md.duration or 5.0),
                    sound_title=str((data.get("sound") or {}).get("title") or "").strip()[:60] if sound else "")

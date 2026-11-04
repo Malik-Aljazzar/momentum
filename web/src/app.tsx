@@ -1,7 +1,7 @@
 // The app root (android/.../ui/App.kt): login / main screen, tabs, opened screens, overlays.
 import { useEffect, useRef, useState } from "preact/hooks"
-import { keepsTabs, nav, stack, tab, TABS, type Route, type Tab } from "./nav"
-import { foreground, hyperLore, hyperspace, milestone, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
+import { keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
+import { foreground, hyperLore, hyperspace, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
 import { startE2E } from "./e2e"
 import { installed, isIos, notifyPermission, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
@@ -11,6 +11,7 @@ import { HomeScreen } from "./screens/Home"
 import { RulesScreen } from "./screens/Rules"
 import { RouteScreen, TabScreen } from "./screens/registry"
 import { HyperLoreOverlay, HyperspaceOverlay, MilestoneOverlay, UpdateScreen, WhatsNewOverlay } from "./screens/Overlays"
+import { NineIcon, NineOverlay } from "./screens/Nine"
 import { OverlayHost } from "./ui/overlay"
 import { MediaHost } from "./screens/media"
 import { StoryHost } from "./screens/Stories"
@@ -29,6 +30,7 @@ export function App() {
     {milestone.value && !hyperspace.value && <MilestoneOverlay onClose={() => { milestone.value = false }} />}
     {hyperspace.value && <HyperspaceOverlay onClose={() => { hyperspace.value = false; milestone.value = false }} />}
     {hyperLore.value && <HyperLoreOverlay bkey={hyperLore.value} onClose={() => { hyperLore.value = null }} />}
+    {nineLore.value && <NineOverlay nkey={nineLore.value} onClose={() => { nineLore.value = null }} />}
     {sc === "main" && whatsNew.value && <WhatsNewOverlay releases={whatsNew.value} onClose={() => { whatsNew.value = null }} />}
     {sc === "main" && <NotifyAsk />}
     <OverlayHost />
@@ -58,13 +60,16 @@ function NotifyAsk() {
   </Sheet>
 }
 
-const ICONS: Record<Tab, string> = { home: "ui_home", rules: "ui_updown", chats: "ui_chat", feed: "ui_feed", profile: "" }
+const ICONS: Record<Tab, string> = { home: "ui_home", rules: "ui_updown", chats: "ui_chat", feed: "ui_feed", election: "", profile: "" }
 
 function MainScreen() {
   const st = state.value
   const pager = useRef<HTMLDivElement>(null)
   const current = tab.value
   const routes = stack.value
+  const tabs = tabsNow()
+  // the election ended: its tab goes away (and whoever was on it lands at home)
+  useEffect(() => { if (!tabs.includes(tab.value)) tab.value = "home" }, [tabs.length])
   // opened from a notification (?open=chat:12, post:3, challenge:5, notifications)
   useEffect(() => {
     const open = new URLSearchParams(location.search).get("open")
@@ -91,12 +96,12 @@ function MainScreen() {
   useEffect(() => {
     const el = pager.current
     if (!el) return
-    const i = TABS.indexOf(current)
-    if (Math.round(el.scrollLeft / el.clientWidth) !== i) {
+    const i = tabs.indexOf(current)
+    if (i >= 0 && Math.round(el.scrollLeft / el.clientWidth) !== i) {
       target.current = i
       el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" })
     }
-  }, [current])
+  }, [current, tabs.length])
   const onScroll = () => {
     const el = pager.current
     if (!el) return
@@ -106,7 +111,7 @@ function MainScreen() {
     }
     // swiping: the highlight moves as soon as the next tab is more than half in view
     const i = Math.round(el.scrollLeft / el.clientWidth)
-    if (TABS[i] && TABS[i] !== tab.value) tab.value = TABS[i]
+    if (tabs[i] && tabs[i] !== tab.value) tab.value = tabs[i]
   }
   if (!st) return null
   const top = routes[routes.length - 1]
@@ -114,7 +119,7 @@ function MainScreen() {
     <div ref={pager} class="fill" onScroll={onScroll} onTouchStart={() => { target.current = null }} style={{
       display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", scrollbarWidth: "none",
     }}>
-      {TABS.map((t) => <section key={t} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+      {tabs.map((t) => <section key={t} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
         {/* a tab covered by an opened screen (or not the current one) doesn't play videos */}
         <OnTop.Provider value={routes.length === 0 && current === t}>
           {t === "home" ? <HomeScreen st={st} /> : t === "rules" ? <RulesScreen st={st} /> : <TabScreen tab={t} />}
@@ -129,13 +134,16 @@ function MainScreen() {
       <span class="t-small" style={{ color: "var(--text)" }}>{pending.value > 0 ? S.value.offlinePending(pending.value) : S.value.offlineNow}</span>
     </div>}
     <nav class="tabbar"><div>
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const sel = t === current && !routes.some((r) => !keepsTabs(r))
         const badge = t === "chats" ? st.unread.messages : t === "feed" ? st.unread.notifications : 0
         return <button key={t} aria-label={t} onClick={() => nav.selectTab(t)}>
           {t === "profile"
             ? <div style={{ opacity: t === current ? 1 : .55 }}><Avatar name={st.user.display_name} url={st.user.avatar} size={24} /></div>
-            : <div style={{ position: "relative" }}>
+            : t === "election"
+              // the election's tab: the Larper himself, animated, while the vote is on
+              ? <NineIcon nkey="larper" size={28} style={{ margin: "-2px" }} />
+              : <div style={{ position: "relative" }}>
               <PixelIcon name={ICONS[t]} size={24} alpha={t === current ? 1 : .4} />
               {badge > 0 && <i style={{ position: "absolute", top: -2, right: -4, width: 8, height: 8, background: "var(--orange)" }} />}
             </div>}

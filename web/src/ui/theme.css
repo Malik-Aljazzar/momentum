@@ -152,6 +152,10 @@ textarea.field { resize: none; line-height: 21px; }
 .lore-text.gold { background-image: linear-gradient(110deg, #fff, #ffcd45, #fff, #e89a2c, #fff); }
 .lore-banner { box-shadow: 0 0 0 2px #5b7cff, 0 0 24px rgba(167,123,255,.45); animation: lore-glow 2.4s ease-in-out infinite; }
 .lore-banner.gold { box-shadow: 0 0 0 2px #ffcd45, 0 0 24px rgba(255,205,69,.45); }
+/* One of the Nine: the title screens (--nine = the title's colour) */
+.nine-screen .nine-lore { background: linear-gradient(110deg, #fff, var(--nine), #fff, var(--nine), #fff) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: hyper 5s linear infinite; }
+.nine-screen .nine-card { background: rgba(0,0,0,.45); border: 1px solid color-mix(in srgb, var(--nine) 60%, transparent); border-radius: 16px; padding: 14px; }
+.scope-row::-webkit-scrollbar { display: none; }
 @keyframes lore-glow { 50% { filter: brightness(1.25) } }
 
 /* competition: shimmering golden frame */

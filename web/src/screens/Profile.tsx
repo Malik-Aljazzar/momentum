@@ -3,11 +3,12 @@ import { useEffect, useState } from "preact/hooks"
 import { fmt, fmtVal, secondsSince, signed } from "../format"
 import { activityText } from "../lines"
 import { bannerNight, defaultBanner } from "../gfx/banners"
+import { NineIcon } from "./Nine"
 import { vehicleSpeed } from "../gfx/vehicles"
 import type { GroupHit, HistoryItem, NotificationItem, Post, Profile, ProfileBadge, PublicRule, Story, UserCard } from "../model"
 import { nav } from "../nav"
 import { clearNotifications } from "../push"
-import { meta, online, refresh, req, state } from "../store"
+import { meta, nineLore, online, refresh, req, state } from "../store"
 import { lang, S } from "../strings"
 import {
   Avatar, BannerBg, EmptyFriends, EmptyHint, FitText, FollowButton, IconBtn, Label, LoadMore, MentionText, OfflineState, OfflineStrip,
@@ -122,6 +123,12 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
             <Label text={"👑 " + s.reporterKing} color="var(--yellow)" />
           </button>)}
         </div>
+        {/* One of the Nine: the titles this player holds; tap = the title screen */}
+        {!!p.titles?.length && <div class="row" style={{ gap: 8, padding: "4px 2px 0" }}>
+          {p.titles.map((k) => <button key={k} class="badge-btn" onClick={() => { nineLore.value = k }} aria-label={s.nineName(k)}>
+            <NineIcon nkey={k} size={28} />
+          </button>)}
+        </div>}
         {p.bio.trim() && <div style={{ padding: "2px 4px 0 2px" }}><MentionText text={p.bio} /></div>}
         <div style={{ height: 12 }} />
         {!p.locked && <HighlightsRow username={p.username} mine={!!p.is_me} />}

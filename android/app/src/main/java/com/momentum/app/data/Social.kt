@@ -56,6 +56,8 @@ data class Profile(
     /** takes part in the community competition (daily limit on): `momentum` is ranked */
     val competing: Boolean = true,
     val badges: List<ProfileBadge> = emptyList(),
+    /** One of the Nine: the title keys this player holds (server/nine.py KEYS order) */
+    val titles: List<String> = emptyList(),
     @SerialName("ranked_momentum") val rankedMomentum: Double = 0.0,
     @SerialName("free_score") val freeScore: Double = 0.0,
     /** public decay others may follow */
@@ -63,6 +65,35 @@ data class Profile(
 ) {
     fun card() = UserCard(username, displayName, avatar, vehicle, isMe, following, followsMe, friend, private)
 }
+
+// ---------------------------------------------------------------- One of the Nine (server/nine.py)
+
+@Serializable
+data class NineMine(val value: Double = 0.0, val rank: Int = 0)
+
+@Serializable
+data class NineTitle(
+    val key: String, val holder: UserCard? = null, val value: Double? = null,
+    /** my own count and place; null while nothing is counted (the Larper: always null) */
+    val mine: NineMine? = null, val total: Int? = null,
+)
+
+@Serializable
+data class ElectionCandidate(val user: UserCard, val votes: Int = 0)
+
+@Serializable
+data class ElectionState(
+    val open: Boolean = false, @SerialName("closes_at") val closesAt: String? = null,
+    @SerialName("opened_at") val openedAt: String? = null, val voters: Int = 0, val needed: Int = 10,
+    @SerialName("my_vote") val myVote: UserCard? = null, val top: List<ElectionCandidate> = emptyList(),
+    val larper: UserCard? = null, @SerialName("next_at") val nextAt: String? = null,
+)
+
+@Serializable
+data class NineResponse(val titles: List<NineTitle> = emptyList(), val election: ElectionState = ElectionState())
+
+@Serializable
+data class ElectionResponse(val election: ElectionState)
 
 /** A rule the owner made visible on the profile. */
 @Serializable

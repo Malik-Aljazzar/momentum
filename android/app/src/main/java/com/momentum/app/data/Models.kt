@@ -95,6 +95,8 @@ data class UserInfo(
     @SerialName("needs_username") val needsUsername: Boolean = false,
     /** the address still to confirm: when it's due, and whether the app waits for it now (server/mail.py) */
     @SerialName("email_confirm") val emailConfirm: EmailConfirm? = null,
+    /** the Larper election is running (server/nine.py): the home tab points to it */
+    val election: Boolean = false,
     val private: Boolean = false,
     /** banner behind the current vehicle */
     val banner: String? = null,
