@@ -5,6 +5,8 @@ import { expect, test } from "@playwright/test"
 import { api, newUser, openApp, tab } from "./helpers"
 
 const COMMENTS = 25
+// ~25 s alone, but late in a full run the shared database is big and the title tables slow - it once hit 60 s
+test.setTimeout(120_000)
 
 test("titles in the profile, the Nine tab and the Larper election", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
