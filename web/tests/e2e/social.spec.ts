@@ -88,6 +88,26 @@ test("reply to a comment: the reply lands in the comment's thread", async ({ pag
   await expect(page.getByText("— 1 Antwort ansehen")).toBeVisible()
 })
 
+test("activity: a comment shows a shortened preview of its text, at most two lines", async ({ page, request }) => {
+  const { ann, ben } = await friends(request)
+  const post = (await api(request, ann.token, "POST", "/posts", { text: "Bergtour" })).post
+  await api(request, ben.token, "POST", `/posts/${post.id}/comments`, { text: "Mega Aussicht! " + "Wahnsinn ".repeat(30) })
+  await openApp(page, ann.token)
+  await tab(page, "feed").click()
+  await page.locator("button[aria-label=activity]").click()
+  const preview = page.locator(".comment-preview")
+  await expect(preview).toHaveCount(1)
+  await expect(preview).toContainText("Mega Aussicht!")
+  // clamped: two lines of 17 px, the rest is cut off with an ellipsis
+  const box = await preview.evaluate((e) => ({ h: e.getBoundingClientRect().height, full: e.scrollHeight }))
+  expect(box.h).toBeGreaterThan(20)
+  expect(box.h).toBeLessThan(40)
+  expect(box.full).toBeGreaterThan(box.h)
+  // the follow above has none
+  await expect(page.locator(".list-item").filter({ hasText: "folgt dir jetzt" }).locator(".comment-preview")).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath("activity.png") })
+})
+
 test("follow someone from their profile", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
   const ben = await newUser(request, "ben")

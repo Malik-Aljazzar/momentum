@@ -324,8 +324,12 @@ def test_comment_replies(tmp_path):
                                 json={"text": "thanks", "parent_id": reply["id"]}))["post"]
         assert detail["comment_list"][2]["parent_id"] == first["id"]
         # ben: reply (cat) + reply (ann); no extra mention notification for the reply that mentions him
-        assert sorted(n["kind"] for n in (await ben.req("get", "/api/notifications"))["items"]) == ["reply", "reply"]
-        assert "comment" in [n["kind"] for n in (await ann.req("get", "/api/notifications"))["items"]]
+        ben_notes = (await ben.req("get", "/api/notifications"))["items"]
+        assert sorted(n["kind"] for n in ben_notes) == ["reply", "reply"]
+        # the activity shows a preview of the comment (mentions as names)
+        assert sorted(n["comment"] for n in ben_notes) == ["@ben agreed", "thanks"]
+        ann_notes = (await ann.req("get", "/api/notifications"))["items"]
+        assert "comment" in [n["kind"] for n in ann_notes]
         # a comment of another post can't be the parent
         other = (await ann.req("post", "/api/posts", json={"text": "other"}))["post"]
         await ben.req("post", f"/api/posts/{other['id']}/comments", json={"text": "x", "parent_id": first["id"]}, status=404)
@@ -905,4 +909,31 @@ def test_who_read_my_message(tmp_path):
         assert [u["username"] for u in r["readers"]] == ["ben"] and r["unread"] == 1
         stranger = await user(c, "dan")
         await stranger.req("get", f"/api/messages/{msg['id']}/readers", status=404)
+    run(tmp_path, scenario)
+
+def test_activity_comment_preview(tmp_path):
+    """Activities about a comment carry a short preview of it: one line, cut after PREVIEW_CHARS."""
+    from ..social import PREVIEW_CHARS
+
+    async def scenario(app, c):
+        ann, ben = await user(c, "ann"), await user(c, "ben")
+        await ben.req("post", "/api/users/ann/follow")
+        pid = (await ann.req("post", "/api/posts", json={"text": "hi"}))["post"]["id"]
+        long = "wow\n\n" + "sehr " * 40
+        cid = (await ben.req("post", f"/api/posts/{pid}/comments", json={"text": long}))["post"]["comment_list"][0]["id"]
+        notes = {n["kind"]: n for n in (await ann.req("get", "/api/notifications"))["items"]}
+        preview = notes["comment"]["comment"]
+        assert preview.startswith("wow sehr sehr") and "\n" not in preview
+        assert preview.endswith("…") and len(preview) <= PREVIEW_CHARS + 1
+        assert notes["follow"]["comment"] is None                       # not about a comment
+        # a liked comment: the owner sees which one
+        await ann.req("post", f"/api/comments/{cid}/like")
+        clike = next(n for n in (await ben.req("get", "/api/notifications"))["items"] if n["kind"] == "clike")
+        assert clike["comment"] == preview
+        # a mention in a comment shows it; a mention in a caption has no comment
+        cat = await user(c, "cat")
+        await ben.req("post", f"/api/posts/{pid}/comments", json={"text": "@cat schau mal"})
+        await ann.req("post", "/api/posts", json={"text": "danke @cat"})
+        mentions = [n["comment"] for n in (await cat.req("get", "/api/notifications"))["items"] if n["kind"] == "mention"]
+        assert mentions == [None, "@cat schau mal"]                     # newest first
     run(tmp_path, scenario)

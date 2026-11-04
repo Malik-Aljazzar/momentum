@@ -168,6 +168,26 @@ async def subject_of(s, notes):
     return out
 
 
+PREVIEW_CHARS = 100
+
+
+async def comment_previews(s, notes):
+    """{comment id: short text} for activities about a comment (comment, reply, clike, mention in a comment):
+    mentions as current names, one line, cut at PREVIEW_CHARS (clients clamp it further)."""
+    from . import mentions
+    from .db import Comment
+    ids = {n.comment_id for n in notes if n.comment_id}
+    if not ids:
+        return {}
+    rows = list(await s.scalars(select(Comment).where(Comment.id.in_(ids))))
+    names = await mentions.names_for(s, [c.text for c in rows])
+    out = {}
+    for c in rows:
+        text = " ".join(mentions.render(c.text, names).split())
+        out[c.id] = text if len(text) <= PREVIEW_CHARS else text[:PREVIEW_CHARS].rstrip() + "…"
+    return out
+
+
 async def mentioned_users(s, text):
     names = {n.lower() for n in MENTION.findall(text or "")}
     return list(await s.scalars(select(User).where(User.username.in_(names)))) if names else []
@@ -486,8 +506,10 @@ def register(app, authed, api_error):
                 challenges[cid] = dict(id=ch.id, title=ch.title, conversation_id=ch.conversation_id,
                                        rank=p.rank if p else None, reward=p.reward if p else 0.0, mode=ch.mode)
         subjects = await subject_of(g.s, rows)
+        previews = await comment_previews(g.s, rows)
         items = [dict(id=n.id, kind=n.kind, actor=actors[n.actor_id], post_id=n.post_id,
                       post_thumb=thumbs.get(n.post_id), challenge=challenges.get(n.challenge_id),
+                      comment=previews.get(n.comment_id),
                       read=n.read, at=iso(n.created_at), **subjects[n.id])
                  for n in rows if n.actor_id in actors]
         requests = await g.s.scalar(select(func.count()).select_from(FollowRequest)

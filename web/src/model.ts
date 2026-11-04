@@ -193,6 +193,8 @@ export interface NotificationItem {
   challenge?: ChallengeRef | null; read?: boolean; at: string
   /** sub_rule / sub_decay (report #54): which rule, and the group that subscribed */
   rule?: { id: number; name: string; icon?: string } | null; group?: { id: number; name: string } | null
+  /** activities about a comment (comment, reply, clike, mention in a comment): its text, shortened by the server */
+  comment?: string | null
 }
 
 export interface LastMessage {

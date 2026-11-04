@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -456,6 +457,18 @@ fun SearchScreen(vm: AppViewModel) {
     }
 }
 
+/** The comment an activity is about: at most two lines behind a quote bar (= CommentPreview in web/.../Profile.tsx). */
+@Composable
+private fun CommentPreview(text: String) {
+    HyperText(
+        text, T.small.userText(),
+        Modifier.padding(top = 3.dp, bottom = 2.dp)
+            .drawBehind { drawRect(Px.Muted, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
+            .padding(start = 8.dp),
+        maxLines = 2, overflow = TextOverflow.Ellipsis,
+    )
+}
+
 @Composable
 fun NotificationsScreen(vm: AppViewModel) {
     val S = LocalStrings.current
@@ -524,6 +537,7 @@ fun NotificationsScreen(vm: AppViewModel) {
                             n.kind == "ch_cancel" && ch != null -> MentionText(n.actor.displayName, S.challengeCancelled(ch.title))
                             else -> MentionText(n.actor.displayName, activityText(S, n.kind, n.rule?.name, n.group?.name))
                         }
+                        n.comment?.takeIf { it.isNotEmpty() }?.let { CommentPreview(it) }
                         Text(secondsSince(n.at)?.let(S::timeAgo).orEmpty(), style = T.small.copy(fontSize = 12.sp))
                     }
                     if (n.postThumb != null) {

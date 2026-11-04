@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04
+
+### DE
+- Aktivität: Geht es um einen Kommentar (neuer Kommentar, Antwort, Like, Erwähnung), steht eine gekürzte Vorschau des Kommentars direkt dabei.
+
+### EN
+- Activity: when it's about a comment (new comment, reply, like, mention), a shortened preview of the comment is shown right in it.
+
 ## 2026-11-03 e
 
 ### DE

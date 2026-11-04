@@ -179,6 +179,8 @@ data class NotificationItem(
     val read: Boolean = false, val at: String,
     /** sub_rule / sub_decay (report #54): which rule, and the group that subscribed */
     val rule: NamedRef? = null, val group: NamedRef? = null,
+    /** activities about a comment (comment, reply, clike, mention in a comment): its text, shortened by the server */
+    val comment: String? = null,
 )
 
 @Serializable

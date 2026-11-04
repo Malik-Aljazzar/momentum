@@ -11,7 +11,7 @@ import { meta, online, refresh, req, state } from "../store"
 import { lang, S } from "../strings"
 import {
   Avatar, BannerBg, EmptyFriends, EmptyHint, FitText, FollowButton, IconBtn, Label, LoadMore, MentionText, OfflineState, OfflineStrip,
-  PixelIcon, PxButton, PxTextField, RemoteImage, ScoreLabel, SegBar, Sheet, TopBar, UserRow, useUserPages, VehicleSprite,
+  PixelIcon, PxButton, PxTextField, RemoteImage, ScoreLabel, SegBar, Sheet, TopBar, UserRow, UserText, useUserPages, VehicleSprite,
 } from "../ui/components"
 import { MilestoneTile, RuleDetailSheet, SharePicker, stamp } from "./shared"
 import { DecayDetailSheet, DecayRow } from "./Decays"
@@ -326,6 +326,14 @@ export function SearchScreen() {
   </div>
 }
 
+/** The comment an activity is about: at most two lines behind a quote bar (= CommentPreview in ProfileScreens.kt). */
+function CommentPreview({ text }: { text: string }) {
+  return <UserText text={text} class="t-small comment-preview" style={{
+    display: "-webkit-box", WebkitLineClamp: "2", WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal",
+    borderLeft: "2px solid var(--muted)", paddingLeft: 8, margin: "3px 0 2px",
+  }} />
+}
+
 export function NotificationsScreen() {
   const s = S.value
   const [items, setItems] = useState<NotificationItem[] | null>(null)
@@ -365,6 +373,7 @@ export function NotificationsScreen() {
             {n.kind === "ch_end" && ch ? <span class="t-body">{s.challengeResult(ch.title, ch.mode === "ranking" ? ch.rank ?? null : null, fmt(ch.reward ?? 0))}</span>
               : n.kind === "ch_cancel" && ch ? <MentionText prefixBold={n.actor.display_name} text={s.challengeCancelled(ch.title)} />
                 : <MentionText prefixBold={n.actor.display_name} text={activityText(s, n)} />}
+            {n.comment && <CommentPreview text={n.comment} />}
             <span class="t-small" style={{ fontSize: 12 }}>{sec != null ? s.timeAgo(sec) : ""}</span>
           </div>
           {n.post_thumb && <RemoteImage url={n.post_thumb} style={{ width: 44, height: 44, borderRadius: 6, flex: "none" }} />}
