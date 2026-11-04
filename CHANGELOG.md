@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04 c
+
+### DE
+- Die Fahrzeug-Animation auf der Download-Seite läuft wieder richtig – seit den neuen Animationen mit 8 Bildern war sie gestaucht und sprang.
+- iPhone-App: Nach einem Update werden alle Grafiken frisch geladen – vorher konnten alte Fahrzeugbilder hängen bleiben, und die Fahrzeuge blinkten.
+
+### EN
+- The vehicle animation on the download page runs properly again – since the new 8-frame animations it was squeezed and jumpy.
+- iPhone app: after an update every graphic is loaded fresh – old vehicle pictures could stick before, and the vehicles blinked.
+
 ## 2026-11-04 b
 
 ### DE

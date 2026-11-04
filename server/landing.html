@@ -63,15 +63,17 @@
   @keyframes dash   { from { background-position-x: 0; } to { background-position-x: -32px; } }
   @keyframes twinkle { 50% { opacity: .25; } }
 
+  /* the sheet: 8 frames of 64x32 side by side, 80 ms each (pixelart/generate.py FRAMES = web/src/gfx/vehicles.ts) */
   .vehicle {
     position: absolute; left: 50%; bottom: 96px; width: calc(64px * var(--px)); height: calc(32px * var(--px));
-    margin-left: calc(-32px * var(--px)); background-size: calc(320px * var(--px)) 100%; image-rendering: pixelated;
-    animation: frames .5s steps(5) infinite; transition: transform .7s cubic-bezier(.6,0,.4,1), opacity .5s;
+    margin-left: calc(-32px * var(--px)); background-size: calc(512px * var(--px)) 100%; background-repeat: no-repeat;
+    image-rendering: pixelated;
+    animation: frames 640ms steps(8) infinite; transition: transform .7s cubic-bezier(.6,0,.4,1), opacity .5s;
   }
   .vehicle.fly { bottom: 140px; }
   .vehicle.out { transform: translateX(120vw); opacity: 0; }
   .vehicle.in  { transform: translateX(-120vw); opacity: 0; transition: none; }
-  @keyframes frames { from { background-position-x: 0; } to { background-position-x: calc(-320px * var(--px)); } }
+  @keyframes frames { from { background-position-x: 0; } to { background-position-x: calc(-512px * var(--px)); } }
 
   .hud { position: absolute; left: 22px; top: 18px; right: 22px; }
   .hud .label { font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: .1em; color: var(--yellow); }

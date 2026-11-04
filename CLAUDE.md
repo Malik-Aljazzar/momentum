@@ -143,7 +143,8 @@ docs/SPEC.md   the original (German) product spec
   starts below the status bar but lays out full height, so the bottom gets cut off (reports #31/#34/#35).
   Use an overlay layer in the screen instead.
 - Vehicle sheets have 8 frames of 64x32 (`generate.py FRAMES`, 80 ms each: `web/src/gfx/vehicles.ts` = `ui/VehicleFx.kt`
-  FRAMES / FRAME_MS; widgets use frame 0). Effects around the sprite (dust, exhaust, headlights at night, contrails,
+  FRAMES / FRAME_MS; widgets use frame 0; the landing page `server/landing.html` animates them in CSS - `steps(8)`,
+  checked by `test_api.py`). Effects around the sprite (dust, exhaust, headlights at night, contrails,
   afterburner, engine trails, glint) live in those two files (`VEHICLE_FX`, art-pixel coordinates); `vehicleSpeed`
   scrolls the banner / scene (`drawBanner(..., speed)` = `BannerBackground(speed)`), `bannerNight` switches the
   lights on. Banner extras (rays, fog, heat, water, bolt, lava, aurora, disc, galaxy, traffic) are the `EXTRAS`

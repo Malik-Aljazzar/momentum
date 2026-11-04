@@ -22,8 +22,12 @@ export function serviceWorker(build: string): Plugin {
 ${push}
 const CACHE = "momentum-${build}"
 const PRECACHE = ${JSON.stringify(urls)}
+// every file checked with the server ("no-cache": a 304 when unchanged), never taken from the browser's HTTP cache
+// as it is (sprites are public for 12 h): a new build could keep 5-frame vehicle sheets from before the 8-frame
+// ones, and the vehicles blinked everywhere in the app
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE.map((u) => new Request(u, { cache: "no-cache" }))))
+    .then(() => self.skipWaiting()))
 })
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("momentum-") && k !== CACHE).map((k) => caches.delete(k))))

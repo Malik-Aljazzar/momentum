@@ -185,3 +185,20 @@ def test_outdated_app_is_asked_to_update(tmp_path, monkeypatch):
                              headers={"X-App-Version": "499", "X-App-Channel": "play"})
             assert r.status_code != 426
     asyncio.run(go())
+
+
+def test_landing_page_plays_every_frame_of_the_vehicle_sheets():
+    """The welcome page animates the vehicle sheets (/sprites/<key>/sheet.png) with CSS steps: one step per
+    64 px frame. It still assumed 5 frames when the sheets got 8 and showed squeezed, jumping vehicles."""
+    import struct
+    from server.app import SPRITE_DIR
+    from server.service import VEHICLES
+    widths = {struct.unpack(">I", (SPRITE_DIR / key / "sheet.png").read_bytes()[16:20])[0] for key, _, _ in VEHICLES}
+    assert len(widths) == 1                              # all sheets have the same number of frames
+    frames = widths.pop() // 64
+    page = (SPRITE_DIR.parent.parent / "server" / "landing.html").read_text(encoding="utf-8")
+    css = page[page.index(".vehicle {"):page.index(".hud {")]
+    assert f"steps({frames})" in css
+    assert f"background-size: calc({64 * frames}px * var(--px))" in css
+    assert f"background-position-x: calc(-{64 * frames}px * var(--px))" in css      # the keyframes' end
+    assert f"{frames * 80}ms steps(" in css                           # 80 ms per frame, like in the apps
