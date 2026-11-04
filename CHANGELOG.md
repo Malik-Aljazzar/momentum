@@ -9,9 +9,11 @@ change gets a line, no empty versions.
 ## 2026-11-04
 
 ### DE
+- Fotos im Chat sind in der Vorschau jetzt scharf: die Blase zeigt das Bild in voller Auflösung statt des kleinen Vorschaubilds.
 - Aktivität: Geht es um einen Kommentar (neuer Kommentar, Antwort, Like, Erwähnung), steht eine gekürzte Vorschau des Kommentars direkt dabei.
 
 ### EN
+- Chat photos are sharp in the preview now: the bubble shows the full-resolution picture instead of the small thumbnail.
 - Activity: when it's about a comment (new comment, reply, like, mention), a shortened preview of the comment is shown right in it.
 
 ## 2026-11-03 f

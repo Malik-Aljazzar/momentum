@@ -86,4 +86,19 @@ class E2ETest {
         assertEquals(s("reader_safety_code"), E2E.safetyCode(s("reader_public")))
         assertNotEquals(E2E.safetyCode(s("reader_public")), E2E.safetyCode(s("sender_public")))
     }
+
+    /** Chat bubbles show full-size photos now: their decrypted copies stay below the limit, the least recently used go. */
+    @Test fun trimsTheDecryptedCache() {
+        val dir = kotlin.io.path.createTempDirectory("e2e").toFile()
+        try {
+            val files = (0 until 5).map { i -> java.io.File(dir, "$i.jpg").apply { writeBytes(ByteArray(100)); setLastModified(1_000_000L + i * 1000) } }
+            files[0].setLastModified(9_000_000L)                // used again just now: kept
+            trimE2ECache(dir, keep = files[4], limit = 300)
+            assertEquals(listOf("0.jpg", "3.jpg", "4.jpg"), dir.list()!!.sorted())
+            trimE2ECache(dir, keep = files[4], limit = 0)       // the one just opened always stays
+            assertEquals(listOf("4.jpg"), dir.list()!!.sorted())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

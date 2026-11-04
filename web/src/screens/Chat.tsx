@@ -424,9 +424,12 @@ function E2ECard({ title, hint, onClick }: { title: string; hint: string; onClic
   </button>
 }
 
-/** A chat photo (an encrypted one is opened here first). */
+/** A chat photo (an encrypted one is opened here first): the full picture - the 480 px thumb is blurry on a
+ *  240 px bubble (≈ 720 real pixels) - with the thumb meanwhile; archived photos only have the thumb. */
 function ChatImage({ media, class: klass, style }: { media: MediaItem; class?: string; style?: preact.JSX.CSSProperties }) {
-  return <RemoteImage url={useMediaUrl(media, "thumb")} class={klass} style={style} />
+  const thumb = useMediaUrl(media, "thumb")
+  return <RemoteImage url={useMediaUrl(media, "url")} class={klass} style={style}
+    fallback={thumb && <RemoteImage url={thumb} class="fill" />} />
 }
 
 /** A voice message (an encrypted one is opened here first). */

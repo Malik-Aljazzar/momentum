@@ -3,9 +3,9 @@
 // (e2e-vector.json comes from server/tests/e2e_crypto.py) and its own messages.
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import * as C from "../../src/e2ecrypto"
-import { closeMessage, mentionNames } from "../../src/e2e"
+import { closeMessage, FULL_PHOTOS_KEPT, mediaUrl, mentionNames } from "../../src/e2e"
 
 const v = JSON.parse(readFileSync(join(__dirname, "e2e-vector.json"), "utf8"))
 
@@ -71,5 +71,37 @@ describe("chat encryption", () => {
 
   it("names the tagged accounts for the server", () => {
     expect(mentionNames("hi @Tim. und @anna_b, nochmal @tim")).toEqual(["tim", "anna_b"])
+  })
+
+  it("keeps only the most recent full-size photos decrypted (chat bubbles show them now)", async () => {
+    const key = C.random(32)
+    const sealed = await C.encryptMedia(key, new Uint8Array([1, 2, 3]))
+    const fetched: string[] = []
+    let made = 0
+    const revoked: string[] = []
+    vi.stubGlobal("fetch", async (src: string) => { fetched.push(src); return new Response(sealed.slice()) })
+    const create = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:${made++}`)
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation((u) => { revoked.push(u) })
+    try {
+      const photo = (i: number) => ({ id: i, kind: "image", url: `/full${i}`, thumb: `/thumb${i}`, encrypted: true, key: C.b64(key), mime: "image/jpeg" })
+      const first = await mediaUrl(photo(0), "url")
+      const thumb = await mediaUrl(photo(0), "thumb")
+      for (let i = 1; i < FULL_PHOTOS_KEPT; i++) await mediaUrl(photo(i), "url")
+      expect(revoked).toEqual([])
+      await mediaUrl(photo(FULL_PHOTOS_KEPT), "url")      // one too many: the oldest full picture goes, its thumb stays
+      await Promise.resolve()
+      expect(revoked).toEqual([first])
+      expect(await mediaUrl(photo(0), "thumb")).toBe(thumb)
+      expect(fetched.filter((x) => x === "/full0")).toHaveLength(1)
+      expect(await mediaUrl(photo(0), "url")).not.toBe(first)   // opened again when it comes back
+      expect(fetched.filter((x) => x === "/full0")).toHaveLength(2)
+      // an archived photo (its full picture is the thumb) isn't counted
+      const archived = { ...photo(99), url: "/thumb99" }
+      expect(await mediaUrl(archived, "url")).toBe(await mediaUrl(archived, "thumb"))
+    } finally {
+      create.mockRestore()
+      revoke.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 })

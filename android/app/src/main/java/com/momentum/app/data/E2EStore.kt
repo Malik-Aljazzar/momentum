@@ -321,11 +321,30 @@ object E2EStore {
         val key = media.key ?: return null
         val name = MessageDigest.getInstance("SHA-256").digest("$src#$key".toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
         val ext = if (thumb || media.kind == "image") "jpg" else if (media.mime?.contains("webm") == true) "webm" else "m4a"
-        val file = File(File(c.cacheDir, "e2e").apply { mkdirs() }, "$name.$ext")
-        if (file.exists()) return "file://${file.absolutePath}"
+        val dir = File(c.cacheDir, "e2e").apply { mkdirs() }
+        val file = File(dir, "$name.$ext")
+        if (file.exists()) {
+            file.setLastModified(System.currentTimeMillis())          // recently used: kept longest
+            return "file://${file.absolutePath}"
+        }
         return withContext(Dispatchers.IO) {
             val bytes = api.bytes(src) ?: return@withContext null
-            runCatching { file.writeBytes(E2E.decryptMedia(key, bytes)); "file://${file.absolutePath}" }.getOrNull()
+            runCatching { file.writeBytes(E2E.decryptMedia(key, bytes)); trimE2ECache(dir, keep = file); "file://${file.absolutePath}" }.getOrNull()
         }
+    }
+
+}
+
+/** The decrypted copies stay below this (chat bubbles show full-size photos): the least recently used go first. */
+internal const val E2E_CACHE_LIMIT = 200L * 1024 * 1024
+
+internal fun trimE2ECache(dir: File, keep: File, limit: Long = E2E_CACHE_LIMIT) {
+    val files = dir.listFiles()?.filter { it.isFile }?.sortedBy { it.lastModified() } ?: return
+    var size = files.sumOf { it.length() }
+    for (f in files) {
+        if (size <= limit) break
+        if (f == keep) continue
+        size -= f.length()
+        f.delete()
     }
 }

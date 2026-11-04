@@ -769,9 +769,12 @@ private fun rememberMediaUrl(vm: AppViewModel, media: MediaItem, thumb: Boolean)
     return url
 }
 
-/** A chat photo (an encrypted one is opened here first). */
+/** A chat photo (an encrypted one is opened here first): the full picture - the 480 px thumb is blurry on a
+ *  240 dp bubble (≈ 720 real pixels) - with the thumb meanwhile; archived photos only have the thumb (= Chat.tsx). */
 @Composable
-private fun ChatImage(vm: AppViewModel, media: MediaItem, modifier: Modifier) = RemoteImage(rememberMediaUrl(vm, media, thumb = true), modifier)
+private fun ChatImage(vm: AppViewModel, media: MediaItem, modifier: Modifier) =
+    RemoteImage(rememberMediaUrl(vm, media, thumb = false), modifier,
+        fallback = { RemoteImage(rememberMediaUrl(vm, media, thumb = true), Modifier.fillMaxSize()) })
 
 /** A voice message (an encrypted one is opened here first). */
 @Composable

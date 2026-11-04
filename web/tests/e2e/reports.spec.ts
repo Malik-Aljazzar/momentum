@@ -109,6 +109,19 @@ test("a single chat photo keeps its shape (report #68)", async ({ page, request 
   expect(Math.round(box.width)).toBe(120)                    // portrait, not cut to a square
 })
 
+test("a chat photo's bubble shows the full picture, not the blurry thumb", async ({ page, request }) => {
+  const { ann, ben } = await friends(request)
+  const conv = (await api(request, ann.token, "POST", "/conversations/direct", { username: ben.name })).conversation
+  await openApp(page, ann.token)
+  const one = await uploadPicture(page, ben.token, 1600, 1200)          // the server keeps 1080 px, the thumb 480
+  await api(request, ben.token, "POST", `/conversations/${conv.id}/messages`, { media_id: one.id })
+  await tab(page, "chats").click()
+  await page.getByText(ben.name).first().click()
+  const img = page.locator(".chat-photo img").first()
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete ? i.naturalWidth : 0)).toBe(1080)
+  expect(await page.locator(".chat-photo img").count()).toBe(1)        // the thumb was only the placeholder
+})
+
 test("making a post: a video plays right away, the tile shows the upload's progress (report #65)", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
   // a 1 s video made with the server's ffmpeg

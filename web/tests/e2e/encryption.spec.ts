@@ -3,8 +3,6 @@
 import { devices, expect, test, type Browser } from "@playwright/test"
 import { api, newUser, openApp, tab } from "./helpers"
 
-const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64")
-
 async function phone(browser: Browser) {
   const ctx = await browser.newContext({ ...devices["iPhone 13"], baseURL: test.info().project.use.baseURL })
   return ctx.newPage()
@@ -40,13 +38,21 @@ test("encrypted chat: text and photo readable only in the apps, a new device unl
   await b.getByText(ann.name).first().click()
   await expect(b.locator(".bubble").getByText("Streng geheim")).toBeVisible()
 
-  // a photo: encrypted on the phone, shown decrypted on the other one
+  // a photo: encrypted on the phone, shown decrypted on the other one - in the bubble the full picture, not
+  // the 480 px thumb (blurry on a 240 px bubble)
+  const photo = Buffer.from((await a.evaluate(() => {
+    const c = document.createElement("canvas")
+    c.width = 1000; c.height = 750
+    const g = c.getContext("2d")!
+    g.fillStyle = "#38b764"; g.fillRect(0, 0, 1000, 750)
+    return c.toDataURL("image/png")
+  })).split(",")[1], "base64")
   const chooser = a.waitForEvent("filechooser")
   await a.locator("button[aria-label=photo]").click()
-  await (await chooser).setFiles({ name: "p.png", mimeType: "image/png", buffer: PNG })
+  await (await chooser).setFiles({ name: "p.png", mimeType: "image/png", buffer: photo })
   await a.locator("button[aria-label='send photos']").click()
   const img = b.locator(".chat-photo img").first()
-  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.src.startsWith("blob:") && i.complete && i.naturalWidth > 0), { timeout: 20_000 }).toBe(true)
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.src.startsWith("blob:") && i.complete ? i.naturalWidth : 0), { timeout: 20_000 }).toBe(1000)
 
   // safety codes: what ben sees as ann's code is what ann sees as her own
   await b.locator("button[aria-label='chat info']").click()

@@ -227,6 +227,21 @@ export async function sealMedia(full: Blob, thumb?: Blob | null) {
 }
 
 const opened = new Map<string, Promise<string | null>>()
+/** Full-size photos stay decrypted in memory only this many at a time (a long chat would fill the phone's memory). */
+export const FULL_PHOTOS_KEPT = 40
+const fullPhotos: string[] = []                  // their ids, the least recently used first
+
+function keepFull(id: string) {
+  const i = fullPhotos.indexOf(id)
+  if (i >= 0) fullPhotos.splice(i, 1)
+  fullPhotos.push(id)
+  while (fullPhotos.length > FULL_PHOTOS_KEPT) {
+    const old = fullPhotos.shift()!
+    const p = opened.get(old)
+    opened.delete(old)
+    void p?.then((u) => { if (u) URL.revokeObjectURL(u) })
+  }
+}
 
 /** A local (blob:) address of the decrypted picture / sound; plain media keep their address. */
 export function mediaUrl(media: MediaItem, which: "url" | "thumb"): Promise<string | null> {
@@ -234,6 +249,8 @@ export function mediaUrl(media: MediaItem, which: "url" | "thumb"): Promise<stri
   if (!media.encrypted) return Promise.resolve(src)
   if (!media.key) return Promise.resolve(null)
   const id = `${src}#${media.key}`
+  // an archived photo's full picture is its thumb: the same entry, kept like a thumb
+  if (which === "url" && media.kind === "image" && src !== media.thumb) keepFull(id)
   if (!opened.has(id)) {
     const p = (async () => {
       try {
