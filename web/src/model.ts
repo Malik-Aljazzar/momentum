@@ -222,6 +222,26 @@ export interface LastMessage {
   kind?: string | null; e2e?: ReaderEnvelope | null; sealed?: boolean
   /** member lines: who was added / removed (target_me: me) */
   target?: UserCard | null; target_me?: boolean
+  /** kind "call": what the call line shows */
+  call?: CallLine | null
+}
+
+/** A call as its chat line tells it (server/calls.py call_lines): duration null = nobody answered. */
+export interface CallLine {
+  video: boolean; group: boolean; duration: number | null; reason: string | null; outgoing: boolean; joined: boolean
+}
+
+/** A call running in a chat (its "join" bar): me = my state in it, null = not rung / not in it. */
+export interface CallBrief { id: number; video: boolean; joined: number; me: string | null; status: string }
+
+/** A participant of a live call (server/calls.py call_json). */
+export interface CallPeer { user: { id: number; username: string; display_name: string; avatar?: string | null }; state: string; seq: number; mic: boolean; cam: boolean }
+
+/** A live call: ringing / active / ended; me = my state and the device that's in it. */
+export interface CallInfo {
+  id: number; conversation_id: number; group: boolean; title?: string; video: boolean; status: "ringing" | "active" | "ended"
+  reason?: string | null; started_by?: CallPeer["user"] | null; started_at?: string; answered_at?: string | null; max?: number
+  me?: { state: string; device: string | null } | null; participants: CallPeer[]
 }
 
 export interface Conversation {
@@ -235,6 +255,8 @@ export interface Conversation {
   typing?: Typing[]
   /** end-to-end encryption of new messages; may I switch it (direct: both, group: admins) */
   e2e?: boolean; can_switch_e2e?: boolean
+  /** a call running in this chat */
+  call?: CallBrief | null
 }
 
 /** Someone typing ("text") or recording a voice message ("audio") right now. */
@@ -261,6 +283,8 @@ export interface ChatMessage {
   e2e?: ReaderEnvelope | null; sealed?: boolean; kind?: string | null
   /** member lines (member_join / _add / _remove / _leave, report #56): who was added / removed (target_me: me) */
   target?: UserCard | null; target_me?: boolean
+  /** kind "call": a voice / video call */
+  call?: CallLine | null
 }
 
 export interface Reaction { emoji: string; count: number; mine?: boolean }

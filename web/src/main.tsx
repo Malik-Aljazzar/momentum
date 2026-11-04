@@ -4,11 +4,14 @@ import { App } from "./app"
 import { boot } from "./store"
 import { fontsLoaded } from "./ui/components"
 import { fitIosScreen, refitSoon } from "./viewport"
+import { tones } from "./calltones"
 
 // iOS home-screen app: the screen's real height (reports #28, #36, see viewport.ts)
 fitIosScreen()
 addEventListener("resize", fitIosScreen)
 addEventListener("orientationchange", () => setTimeout(fitIosScreen, 300))
+// iOS allows sounds only after a tap: the call tones' audio is unlocked with every tap (calltones.ts)
+addEventListener("pointerdown", () => tones.unlock(), { passive: true })
 visualViewport?.addEventListener("resize", fitIosScreen)
 visualViewport?.addEventListener("scroll", fitIosScreen)      // iOS pans the view while the keyboard is up
 addEventListener("scroll", fitIosScreen)                      // ... and iOS 26 scrolls the page too (report #59)

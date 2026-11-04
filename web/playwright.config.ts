@@ -22,7 +22,13 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "iphone-webkit", use: { ...devices["iPhone 13"], browserName: "webkit" } },
+    { name: "iphone-webkit", use: { ...devices["iPhone 13"], browserName: "webkit" }, testIgnore: /calls\.spec\.ts/ },
+    // calls (tests/e2e/calls.spec.ts): two pages really talk - Chromium has a fake camera and microphone
+    {
+      name: "calls-chromium", testMatch: /calls\.spec\.ts/,
+      use: { ...devices["Pixel 7"], browserName: "chromium",
+        launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] } },
+    },
   ],
   webServer: {
     command: `${python} -m server.testserver ${PORT}`,

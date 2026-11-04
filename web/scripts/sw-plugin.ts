@@ -51,6 +51,8 @@ self.addEventListener("push", (e) => {
   try { data = e.data ? e.data.json() : {} } catch (err) { data = { title: "Momentum", body: e.data ? e.data.text() : "" } }
   const show = (body) => self.registration.showNotification(data.title || "Momentum", {
     body: body || "", icon: "/app/icon-192.png", badge: "/app/icon-192.png", tag: data.tag, data: { url: data.url || "/app/" },
+    // a call rings (server/calls.py): stays until tapped, buzzes; its "missed" replaces it (same tag)
+    requireInteraction: !!data.ring, renotify: !!data.ring, vibrate: data.ring ? [500, 250, 500, 250, 500] : undefined,
   })
   e.waitUntil(data.e2e ? momentumPush.pushText(data.e2e).catch(() => null).then((text) => show(text || data.body)) : show(data.body))
 })

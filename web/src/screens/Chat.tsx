@@ -3,13 +3,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks"
 import { clock, countdown, dayKey, dayLabel, minuteKey } from "../chattime"
 import { secondsSince } from "../format"
-import { chatLine } from "../lines"
+import { callLine, callMissed, chatLine } from "../lines"
+import { call as currentCall, startCall } from "../calls"
 import { api, ApiError } from "../api"
 import {
   chatKeys, closeMessage, e2eState, keyWarnings, mediaUrl, openLast, openMessage, openMessages, recoveryPending, sealMedia, sealMessage, useMediaUrl,
   type MemberKey,
 } from "../e2e"
-import type { ChatMessage, Conversation, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
+import type { CallBrief, ChatMessage, Conversation, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
 import { nav, stack, tab } from "../nav"
 import { clearNotifications } from "../push"
 import { foreground, onError, online, refresh, req, showToast, state, uploadMedia } from "../store"
@@ -112,8 +113,9 @@ export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
           <div class="col grow">
             <ConversationName c={c} />
             {typingShort(s, c.typing) ? <span class="t-small ellipsis" style={{ color: "var(--lime)" }}>{typingShort(s, c.typing)}</span>
+              : c.call ? <span class="t-small ellipsis" style={{ color: "var(--lime)" }}>{(c.call.video ? "📹 " : "📞 ") + s.callRunning(c.call.joined)}</span>
               : last ? <span class={"t-small ellipsis user-text"} style={{ color: c.mentioned ? "var(--yellow)" : (c.unread ?? 0) > 0 ? "var(--text)" : undefined }}>
-              {(c.mentioned ? s.mentionedPreview + " · " : "") + (last.kind ? chatLine(s, last.kind, last.mine ? null : last.sender ?? "", last.target_me ? null : last.target?.display_name ?? "")
+              {(c.mentioned ? s.mentionedPreview + " · " : "") + (last.kind === "call" && last.call ? callLine(s, last.call) : last.kind ? chatLine(s, last.kind, last.mine ? null : last.sender ?? "", last.target_me ? null : last.target?.display_name ?? "")
                 : who + (last.sealed ? "🔒 " + s.e2eNewMessage : previewOf(s, last.text, last.media_kind, last.share_kind, last.has_media))) + " · " + (sec != null ? s.timeAgo(sec) : "")}
             </span> : c.kind === "group" ? <span class="t-small">{s.members(c.members.length + 1)}</span> : null}
           </div>
@@ -197,9 +199,25 @@ export function ChatRoomScreen({ id }: { id: number }) {
     loadStoryRings()                                        // the pictures' rings: new stories (report #67)
     void poll()
     // in the background: no polling (it would mark messages as read -> no notification)
-    const h = setInterval(() => { if (foreground.value) void poll() }, POLL_MS)
+    let n = 0
+    const h = setInterval(() => {
+      if (!foreground.value) return
+      void poll()
+      // a group's running call (its "join" bar) comes with the chat itself
+      if (convRef.current?.kind === "group" && ++n % 2 === 0) {
+        void api.call<{ conversation: Conversation }>("GET", `/conversations/${id}`).then((r) => setConv(r.conversation)).catch(() => {})
+      }
+    }, POLL_MS)
     return () => clearInterval(h)
   }, [id])
+  // the call ended: the chat line is there at once, the bar goes away
+  const inThisCall = currentCall.value?.info.conversation_id === id ? currentCall.value.phase : null
+  useEffect(() => {
+    if (inThisCall !== "ended") return
+    void poll()
+    void req<{ conversation: Conversation }>("GET", `/conversations/${id}`).then((r) => { if (r) setConv(r.conversation) })
+  }, [inThisCall])
+  const ring = (video: boolean) => { if (conv) void startCall(id, video, conversationTitle(conv), conv.kind === "group" ? conv.avatar ?? null : conv.members[0]?.avatar ?? null) }
 
   const loadOlder = async () => {
     const first = msgs.current[0]?.id
@@ -322,6 +340,8 @@ export function ChatRoomScreen({ id }: { id: number }) {
   const ends = chainEnds(photoGroups(messages), tz)
   return <div class="fill col">
     <TopBar title={c ? conversationTitle(c) : ""}>
+      {c?.member !== false && c && <IconBtn icon="ui_cam" onClick={() => ring(true)} label={s.videoCall} />}
+      {c?.member !== false && c && <IconBtn icon="ui_handset" onClick={() => ring(false)} label={s.voiceCall} />}
       {c && <IconBtn icon={c.muted ? "ui_muted" : "ui_bell"} alpha={c.muted ? .55 : .9} label="mute" onClick={async () => {
         const r = await req<{ conversation: Conversation }>("PUT", `/conversations/${id}/mute`, { muted: !c.muted })
         if (r) { setConv(r.conversation); showToast(r.conversation.muted ? s.chatMuted : s.chatUnmuted); void refresh() }
@@ -330,6 +350,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
       {c?.kind === "direct" && <IconBtn icon="ui_dots" onClick={() => nav.push({ r: "chatInfo", id })} label="chat info" />}
     </TopBar>
     <OfflineStrip />
+    {c?.kind === "group" && c.call && c.call.me !== "joined" && inThisCall == null && <CallBar call={c.call} onJoin={() => ring(c.call!.video)} />}
     {queue.length > 0 && <PhotoQueue queue={queue} onChange={setQueue} onAdd={pickPhotos} onSend={sendQueue} onClose={() => setQueue([])} />}
     {/* reversed: the newest message sits at the bottom, so the chat opens there */}
     <div ref={list} class="scroll" style={{ flex: 1, display: "flex", flexDirection: "column-reverse", padding: "8px 12px 14px", gap: 6 }}>
@@ -341,6 +362,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
             {dayLabel(it.at, tz, lang.value, new Date(), s.today, s.yesterday)}
           </span>
         </div>
+        : it.m.kind === "call" && it.m.call ? <CallLineView key={it.m.id} m={it.m} onCall={(video) => ring(video)} />
         : it.m.kind ? <SystemLine key={it.m.id} m={it.m} />
         : <Bubble key={it.m.id} m={it.m} photos={it.photos} tz={tz} last={ends.has(it.m.id)} group={c?.kind === "group"} read={it.m.id <= readUpto} highlighted={flash === it.m.id}
           onOpenRule={setOpenRule} onReply={() => setReplyTo(it.m)} onQuote={jump} onReactions={(reactions) => {
@@ -404,6 +426,30 @@ function SystemLine({ m }: { m: ChatMessage }) {
     <span class="t-small" style={{ fontSize: 12, textAlign: "center", borderRadius: 10, background: "var(--card2)", padding: "4px 10px" }}>
       {chatLine(s, m.kind ?? "", m.mine ? null : m.user?.display_name ?? "", m.target_me ? null : m.target?.display_name ?? "")}
     </span>
+  </div>
+}
+
+/** A call in the chat: its kind and length, missed ones in red; a tap calls back the same way. */
+function CallLineView({ m, onCall }: { m: ChatMessage; onCall: (video: boolean) => void }) {
+  const s = S.value
+  const c = m.call!
+  const tz = state.value?.settings.timezone || "Europe/Berlin"
+  return <div class="center call-line">
+    <button aria-label={c.video ? s.videoCall : s.voiceCall} onClick={() => onCall(c.video)}>
+      <PixelIcon name={c.video ? "ui_cam" : "ui_handset"} size={14} color={callMissed(c) ? "var(--orange)" : "var(--text)"} />
+      <span class="t-small" style={{ fontSize: 12, color: callMissed(c) ? "var(--orange)" : "var(--text)" }}>{callLine(s, c, false)}</span>
+      <span class="t-small" style={{ fontSize: 11 }}>{clock(m.at, tz)}</span>
+    </button>
+  </div>
+}
+
+/** A group's call is on: who's in, join. */
+function CallBar({ call, onJoin }: { call: CallBrief; onJoin: () => void }) {
+  const s = S.value
+  return <div class="row call-bar">
+    <PixelIcon name={call.video ? "ui_cam" : "ui_handset"} size={18} color="var(--lime)" />
+    <span class="t-small grow" style={{ color: "var(--lime)" }}>{s.callRunning(call.joined)}</span>
+    <PxButton text={s.callJoin} style={{ padding: "8px 14px" }} onClick={onJoin} />
   </div>
 }
 

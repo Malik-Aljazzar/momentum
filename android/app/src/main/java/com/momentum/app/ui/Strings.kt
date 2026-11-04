@@ -485,6 +485,50 @@ interface Strings {
     fun memberLeft(name: String): String
     val youLeft: String
     val removeMember: String
+    // voice / video calls (server/calls.py)
+    val voiceCall: String
+    val videoCall: String
+    val groupVoiceCall: String
+    val groupVideoCall: String
+    val outgoingVoiceCall: String
+    val outgoingVideoCall: String
+    val missedVoiceCall: String
+    val missedVideoCall: String
+    val missedGroupCall: String
+    val callNoAnswerShort: String
+    val callDeclinedShort: String
+    val callBusyShort: String
+    val callIncomingVoice: String
+    val callIncomingVideo: String
+    val callRinging: String
+    val callCalling: String
+    val callConnecting: String
+    val callReconnecting: String
+    val callWaiting: String
+    val callEnded: String
+    val callBusy: String
+    val callDeclined: String
+    val callNoAnswer: String
+    val callAccept: String
+    val callDecline: String
+    val callHangUp: String
+    val callMute: String
+    val callCamera: String
+    val callFlip: String
+    val callSpeaker: String
+    val callMinimize: String
+    val callBackTo: String
+    val callJoin: String
+    val callAlready: String
+    val callNoMic: String
+    val callNoCamera: String
+    val callNeedsInternet: String
+    val callUnsupported: String
+    val callsChannel: String
+    val callOngoing: String
+    val callStateRinging: String
+    fun callRunning(count: Int): String
+    fun callFromIn(name: String, group: String): String
     fun removeMemberAsk(name: String): String
     // someone subscribed to my rule / follows my decay (report #54)
     fun subscribedRule(rule: String): String
@@ -1291,6 +1335,49 @@ object De : Strings {
     override val e2eYouSwitchedOff = "Du hast die Ende-zu-Ende-Verschlüsselung ausgeschaltet"
     override fun memberJoined(name: String) = "$name ist beigetreten"
     override val youJoined = "Du bist beigetreten"
+    override val voiceCall = "Sprachanruf"
+    override val videoCall = "Videoanruf"
+    override val groupVoiceCall = "Gruppenanruf"
+    override val groupVideoCall = "Gruppen-Videoanruf"
+    override val outgoingVoiceCall = "Ausgehender Sprachanruf"
+    override val outgoingVideoCall = "Ausgehender Videoanruf"
+    override val missedVoiceCall = "Verpasster Sprachanruf"
+    override val missedVideoCall = "Verpasster Videoanruf"
+    override val missedGroupCall = "Verpasster Gruppenanruf"
+    override val callNoAnswerShort = "keine Antwort"
+    override val callDeclinedShort = "abgelehnt"
+    override val callBusyShort = "besetzt"
+    override val callIncomingVoice = "Eingehender Sprachanruf"
+    override val callIncomingVideo = "Eingehender Videoanruf"
+    override val callRinging = "Klingelt …"
+    override val callCalling = "Ruft an …"
+    override val callConnecting = "Verbinden …"
+    override val callReconnecting = "Verbindung wird wiederhergestellt …"
+    override val callWaiting = "Warten auf die anderen …"
+    override val callEnded = "Anruf beendet"
+    override val callBusy = "Besetzt"
+    override val callDeclined = "Abgelehnt"
+    override val callNoAnswer = "Keine Antwort"
+    override val callAccept = "Annehmen"
+    override val callDecline = "Ablehnen"
+    override val callHangUp = "Auflegen"
+    override val callMute = "Stumm"
+    override val callCamera = "Kamera"
+    override val callFlip = "Wechseln"
+    override val callSpeaker = "Lautsprecher"
+    override val callMinimize = "Verkleinern"
+    override val callBackTo = "Tippen, um zum Anruf zurückzukehren"
+    override val callJoin = "Beitreten"
+    override val callAlready = "Du bist schon in einem Anruf"
+    override val callNoMic = "Ohne Mikrofon kein Anruf – erlaube den Zugriff in den Einstellungen"
+    override val callNoCamera = "Die Kamera ist nicht verfügbar"
+    override val callNeedsInternet = "Für Anrufe brauchst du Internet"
+    override val callUnsupported = "Dieser Browser kann keine Anrufe"
+    override val callsChannel = "Anrufe"
+    override val callOngoing = "Laufender Anruf"
+    override val callStateRinging = "klingelt"
+    override fun callRunning(count: Int) = "Anruf läuft · $count dabei"
+    override fun callFromIn(name: String, group: String) = "$name · $group"
     override fun memberAdded(actor: String, target: String) = "$actor hat $target hinzugefügt"
     override fun youAdded(target: String) = "Du hast $target hinzugefügt"
     override fun addedYou(actor: String) = "$actor hat dich hinzugefügt"
@@ -2101,6 +2188,49 @@ object En : Strings {
     override val e2eYouSwitchedOff = "You turned end-to-end encryption off"
     override fun memberJoined(name: String) = "$name joined"
     override val youJoined = "You joined"
+    override val voiceCall = "Voice call"
+    override val videoCall = "Video call"
+    override val groupVoiceCall = "Group call"
+    override val groupVideoCall = "Group video call"
+    override val outgoingVoiceCall = "Outgoing voice call"
+    override val outgoingVideoCall = "Outgoing video call"
+    override val missedVoiceCall = "Missed voice call"
+    override val missedVideoCall = "Missed video call"
+    override val missedGroupCall = "Missed group call"
+    override val callNoAnswerShort = "no answer"
+    override val callDeclinedShort = "declined"
+    override val callBusyShort = "busy"
+    override val callIncomingVoice = "Incoming voice call"
+    override val callIncomingVideo = "Incoming video call"
+    override val callRinging = "Ringing …"
+    override val callCalling = "Calling …"
+    override val callConnecting = "Connecting …"
+    override val callReconnecting = "Reconnecting …"
+    override val callWaiting = "Waiting for the others …"
+    override val callEnded = "Call ended"
+    override val callBusy = "Busy"
+    override val callDeclined = "Declined"
+    override val callNoAnswer = "No answer"
+    override val callAccept = "Accept"
+    override val callDecline = "Decline"
+    override val callHangUp = "Hang up"
+    override val callMute = "Mute"
+    override val callCamera = "Camera"
+    override val callFlip = "Flip"
+    override val callSpeaker = "Speaker"
+    override val callMinimize = "Minimize"
+    override val callBackTo = "Tap to return to the call"
+    override val callJoin = "Join"
+    override val callAlready = "You're already in a call"
+    override val callNoMic = "No call without the microphone – allow access in the settings"
+    override val callNoCamera = "The camera isn't available"
+    override val callNeedsInternet = "Calls need the internet"
+    override val callUnsupported = "This browser can't make calls"
+    override val callsChannel = "Calls"
+    override val callOngoing = "Ongoing call"
+    override val callStateRinging = "ringing"
+    override fun callRunning(count: Int) = "Call on · $count in it"
+    override fun callFromIn(name: String, group: String) = "$name · $group"
     override fun memberAdded(actor: String, target: String) = "$actor added $target"
     override fun youAdded(target: String) = "You added $target"
     override fun addedYou(actor: String) = "$actor added you"

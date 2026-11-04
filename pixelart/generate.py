@@ -1182,6 +1182,157 @@ def backspace(cv):
         cv.rect(12 - i, 6 + i, 13 - i, 6 + i, None)
 
 
+def _art(cv, rows):
+    """Draws a 16x16 glyph from text rows ("X" = white)."""
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch == "X":
+                cv.set(x, y, "white")
+
+
+def _slash(cv):
+    """Crossed out (like the muted bell): a gap along the diagonal, then the line."""
+    for i in range(16):
+        cv.set(i, i, None)
+        if i + 1 < 16:
+            cv.set(i + 1, i, None)
+    for i in range(1, 15):
+        cv.set(i, i - 1, "white")
+
+
+# calls (server/calls.py): the chat's buttons and the call screen
+
+@ui_icon
+def handset(cv):
+    _art(cv, [
+        "................",
+        ".XXX............",
+        "XXXXX...........",
+        "XXXXX...........",
+        "XXXX............",
+        ".XXX............",
+        ".XXX............",
+        "..XXX...........",
+        "..XXXX..........",
+        "...XXXX.....X...",
+        "....XXXXX..XXX..",
+        ".....XXXXXXXXXX.",
+        "......XXXXXXXXXX",
+        "........XXXXXXX.",
+        "..........XXXX..",
+        "................",
+    ])
+
+
+@ui_icon
+def hangup(cv):
+    _art(cv, [
+        "................",
+        "................",
+        "................",
+        "................",
+        "................",
+        ".....XXXXXX.....",
+        "...XXXXXXXXXX...",
+        ".XXXXXXXXXXXXXX.",
+        "XXXXXX....XXXXXX",
+        "XXXXX......XXXXX",
+        "XXXX........XXXX",
+        ".XXX........XXX.",
+        "................",
+        "................",
+        "................",
+        "................",
+    ])
+
+
+_CAM = [
+    "................",
+    "................",
+    "................",
+    ".XXXXXXXXX......",
+    ".XXXXXXXXX...XX.",
+    ".XXXXXXXXX..XXX.",
+    ".XXXXXXXXX.XXXX.",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXXXXXXX.XXXX.",
+    ".XXXXXXXXX..XXX.",
+    ".XXXXXXXXX...XX.",
+    ".XXXXXXXXX......",
+    "................",
+    "................",
+    "................",
+]
+
+
+@ui_icon
+def cam(cv):
+    _art(cv, _CAM)
+
+
+@ui_icon
+def camoff(cv):
+    _art(cv, _CAM)
+    _slash(cv)
+
+
+@ui_icon
+def micoff(cv):
+    cv.rect(6, 1, 9, 9, "white")                       # = mic
+    cv.rect(5, 2, 10, 8, "white")
+    cv.rect(3, 6, 3, 9, "white"); cv.rect(12, 6, 12, 9, "white")
+    cv.rect(4, 10, 11, 11, "white")
+    cv.rect(7, 12, 8, 13, "white")
+    cv.rect(4, 14, 11, 14, "white")
+    _slash(cv)
+
+
+@ui_icon
+def flip(cv):
+    """Front / back camera: two arrows going round."""
+    _art(cv, [
+        "................",
+        ".....XXXXXX.....",
+        "...XXX....XXX...",
+        "..XX........XX..",
+        "..X..........X..",
+        ".............X..",
+        "...........XXXXX",
+        "............XXX.",
+        ".XXX.........X..",
+        "XXXXX...........",
+        "..X.............",
+        "..X..........X..",
+        "..XX........XX..",
+        "...XXX....XXX...",
+        ".....XXXXXX.....",
+        "................",
+    ])
+
+
+@ui_icon
+def speaker(cv):
+    _art(cv, [
+        "................",
+        "................",
+        ".......X....X...",
+        "......XX.....X..",
+        ".....XXX..X...X.",
+        ".XXXXXXX...X..X.",
+        ".XXXXXXX...X..X.",
+        ".XXXXXXX...X..X.",
+        ".XXXXXXX...X..X.",
+        ".XXXXXXX...X..X.",
+        ".....XXX..X...X.",
+        "......XX.....X..",
+        ".......X....X...",
+        "................",
+        "................",
+        "................",
+    ])
+
+
 @ui_icon
 def video(cv):
     cv.poly([(4, 2), (14, 8), (4, 14)], "white")
@@ -1377,7 +1528,7 @@ def notap(cv):
 
 UI_ICONS = [home, gauge, up, down, gear, plus, edit, back, feed, heart, comment, chat, search, send, image,
             dots, close, video, grid, rules, clock, lock, share, group, eye, mic, play, pause, updown, cup, grip, bell, muted,
-            notap, backspace]
+            notap, backspace, handset, hangup, cam, camoff, micoff, flip, speaker]
 
 
 # Scene pieces for the app's card backgrounds. Strips/tiles wrap horizontally.

@@ -16,6 +16,8 @@ import { OverlayHost } from "./ui/overlay"
 import { MediaHost } from "./screens/media"
 import { StoryHost } from "./screens/Stories"
 import { OnTop } from "./ui/video"
+import { CallHost } from "./screens/Call"
+import { connectCalls, disconnectCalls, openCall } from "./calls"
 
 export function App() {
   const sc = screen.value
@@ -36,6 +38,7 @@ export function App() {
     <OverlayHost />
     <StoryHost />
     <MediaHost />
+    {sc === "main" && <CallHost />}
     {updateRequired.value && <UpdateScreen />}
   </>
 }
@@ -81,10 +84,20 @@ function MainScreen() {
     else if (kind === "post" && n) nav.push({ r: "post", id: n })
     else if (kind === "challenge" && n) nav.push({ r: "challenge", id: n })
     else if (kind === "notifications") { tab.value = "feed"; nav.push({ r: "notifications" }) }
+    // the ringing notification: still ringing -> the call screen, over -> its chat
+    else if (kind === "call" && n) void openCall(n).then((c) => {
+      if (c && c.status === "ended") { tab.value = "chats"; nav.push({ r: "chat", id: c.conversation_id }) }
+    })
   }, [])
   // encrypted chats: my key on this device (made on the first device, else unlocked with the recovery key)
   const myId = st?.user.id
   useEffect(() => { if (myId != null && online.value) void startE2E(myId) }, [myId, online.value])
+  // calls: the socket that brings the ringing (server/calls.py), open while logged in
+  useEffect(() => {
+    if (myId == null) return
+    connectCalls()
+    return () => disconnectCalls()
+  }, [myId])
   // keep unread badges fresh while the app is open
   useEffect(() => {
     const h = setInterval(() => { if (foreground.value) void refresh() }, 20_000)
