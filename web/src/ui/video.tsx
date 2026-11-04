@@ -3,7 +3,7 @@
 //    with sound until it's turned off again
 //  - only one plays at a time: the most visible one on the screen that is on top
 //  - nothing plays while the app is in the background
-//  - the position carries over (feed -> comments shows the same moment)
+//  - the position carries over (feed -> comments shows the same moment); scrolled away and back, a video starts over
 // iOS plays muted videos inline on its own; sound needs a tap first (the switch is that tap).
 import type { ComponentChildren } from "preact"
 import { createContext } from "preact"
@@ -45,8 +45,9 @@ function winner(): object | null {
   return best
 }
 
-/** Takes part in "only the most visible medium plays"; returns whether this one is active. */
-function useMediaFocus(ref: { current: HTMLElement | null }, playing: boolean): boolean {
+/** Takes part in "only the most visible medium plays"; returns whether this one is active, and whether it is only held
+ *  (covered by another screen / layer, in the background, not its turn): see useTrack. */
+function useMediaFocus(ref: { current: HTMLElement | null }, playing: boolean): [boolean, boolean] {
   const onTop = useContext(OnTop)
   const cover = useContext(Cover)
   const key = useRef({}).current
@@ -64,25 +65,32 @@ function useMediaFocus(ref: { current: HTMLElement | null }, playing: boolean): 
     if (eligible && visible > 0) m.set(key, visible); else m.delete(key)
     candidates.value = m
   }, [eligible, visible])
-  return eligible && winner() === key
+  return [eligible && winner() === key, !eligible]
 }
 
-/** Plays [el] (looping) while [active], remembering the position; volume follows the sound switch. */
-function useTrack(el: HTMLMediaElement | null, url: string | null | undefined, active: boolean, audible: boolean) {
+/** Plays [el] (looping) while [active]; volume follows the sound switch. Stopped while [held] (covered, in the
+ *  background, not its turn), it goes on at that moment next time - also in another player of the same url (feed ->
+ *  comments / big view and back). Gone from view (scrolled away, another medium more visible), it starts over, like on
+ *  Instagram. */
+function useTrack(el: HTMLMediaElement | null, url: string | null | undefined, active: boolean, held: boolean, audible: boolean) {
+  const was = useRef(false)                                                          // it was playing
   useEffect(() => {
     if (!el || !url) return
     const want = active && audible && soundOn.value
     el.muted = !want
     if (active) {
+      // only when it starts playing (the sound switch alone must not move it)
       const pos = positions.get(url)
-      if (pos != null && Math.abs(pos - el.currentTime) > .3) el.currentTime = pos
+      if (!was.current && pos != null && Math.abs(pos - el.currentTime) > .3) el.currentTime = pos
       el.play().catch(() => { el.muted = true; void el.play().catch(() => {}) })      // no sound allowed yet: play muted
     } else {
-      positions.set(url, el.currentTime)
+      if (was.current) positions.set(url, held ? el.currentTime : 0)
       el.pause()
     }
+    was.current = active
   }, [el, url, active, audible, soundOn.value])
-  useEffect(() => () => { if (el && url) positions.set(url, el.currentTime) }, [el, url])
+  // closed while playing (comments -> feed): the feed goes on at this moment
+  useEffect(() => () => { if (el && url && was.current) positions.set(url, el.currentTime) }, [el, url])
 }
 
 function SoundBadge() {
@@ -99,9 +107,9 @@ export function VideoPlayer({ url, thumb, playing, soundUrl, preview }: {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [first, setFirst] = useState(false)
-  const active = useMediaFocus(box, playing)
-  useTrack(video, url, active, !soundUrl && !preview)
-  useTrack(audio, soundUrl, active, true)
+  const [active, held] = useMediaFocus(box, playing)
+  useTrack(video, url, active, held, !soundUrl && !preview)
+  useTrack(audio, soundUrl, active, held, true)
   return <div ref={box} class="fill" style={{ overflow: "hidden" }} onClick={preview ? undefined : () => { soundOn.value = !soundOn.value }}>
     <video ref={setVideo} src={url} poster={thumb ?? undefined} playsInline muted loop preload="metadata"
       onLoadedData={() => setFirst(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -115,8 +123,8 @@ export function VideoPlayer({ url, thumb, playing, soundUrl, preview }: {
 export function SoundArea({ url, children, style }: { url: string; children: ComponentChildren; style?: preact.JSX.CSSProperties }) {
   const box = useRef<HTMLDivElement>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
-  const active = useMediaFocus(box, true)
-  useTrack(audio, url, active, true)
+  const [active, held] = useMediaFocus(box, true)
+  useTrack(audio, url, active, held, true)
   return <div ref={box} style={{ position: "relative", ...style }} onClick={() => { soundOn.value = !soundOn.value }}>
     {children}
     <audio ref={setAudio} src={url} loop preload="none" />

@@ -52,7 +52,8 @@ import androidx.media3.ui.PlayerView
  *  - only one plays at a time: the most visible one on the screen that is on top (a screen opened
  *    above the feed, e.g. the comments, pauses the feed)
  *  - nothing plays while the app is in the background or the screen is off
- *  - the position carries over (feed -> comments shows the same moment)
+ *  - the position carries over (feed -> comments shows the same moment); scrolled away and back, a
+ *    video starts over
  *  - audio focus: another app's sound pauses ours, unplugging headphones mutes
  */
 object Videos {
@@ -104,11 +105,14 @@ private fun player(context: android.content.Context, url: String) = ExoPlayer.Bu
 }
 
 /**
- * Takes part in "only the most visible medium plays": returns whether this one is active, and a
- * modifier that measures how much of it is visible.
+ * Where a medium stands in "only the most visible medium plays": [active] = it plays; [held] = it may not
+ * play now (covered by another screen / layer, in the background, not its turn) - see rememberTrack;
+ * [measure] measures how much of it is visible.
  */
+private class Focus(val active: Boolean, val held: Boolean, val measure: Modifier)
+
 @Composable
-private fun mediaFocus(playing: Boolean): Pair<Boolean, Modifier> {
+private fun mediaFocus(playing: Boolean): Focus {
     val onTop = LocalOnTop.current
     val key = remember { Any() }
     var resumed by remember { mutableStateOf(true) }
@@ -134,20 +138,30 @@ private fun mediaFocus(playing: Boolean): Pair<Boolean, Modifier> {
         val shown = (minOf(b.bottom, screenH) - maxOf(b.top, 0f)).coerceAtLeast(0f) * b.width
         visible = if (full > 0) (shown / full).coerceIn(0f, 1f) else 0f
     }
-    return (eligible && Videos.winner() == key) to measure
+    return Focus(eligible && Videos.winner() == key, !eligible, measure)
 }
 
-/** Plays [url] (looping) while [active], remembering the position; volume follows the sound switch. */
+/**
+ * Plays [url] (looping) while [active]; volume follows the sound switch. Stopped while [held] (covered,
+ * in the background, not its turn), it goes on at that moment next time - also in another player of the
+ * same url (feed -> comments / big view and back). Gone from view (scrolled away, another medium more
+ * visible), it starts over, like on Instagram.
+ */
 @Composable
-private fun rememberTrack(url: String?, active: Boolean, audible: Boolean): ExoPlayer? {
+private fun rememberTrack(url: String?, active: Boolean, held: Boolean, audible: Boolean): ExoPlayer? {
     val context = LocalContext.current
     val p = remember(url) { url?.let { player(context, it) } } ?: return null
+    val was = remember(p) { booleanArrayOf(false) }                     // it was playing
+    val now by androidx.compose.runtime.rememberUpdatedState(active || held)
     DisposableEffect(p) {
-        onDispose { Videos.positions[url!!] = p.currentPosition; p.release() }
+        // closed while playing (comments -> feed): the feed goes on at this moment; gone before the effect
+        // below saw it stop (a fast scroll): from the start
+        onDispose { if (was[0]) Videos.positions[url!!] = if (now) p.currentPosition else 0L; p.release() }
     }
     LaunchedEffect(active) {
-        if (!active) Videos.positions[url!!] = p.currentPosition
-        else Videos.positions[url!!]?.let { if (kotlin.math.abs(it - p.currentPosition) > 300) p.seekTo(it) }
+        if (active) Videos.positions[url!!]?.let { if (kotlin.math.abs(it - p.currentPosition) > 300) p.seekTo(it) }
+        else if (was[0]) Videos.positions[url!!] = if (held) p.currentPosition else 0L
+        was[0] = active
         p.playWhenReady = active
     }
     LaunchedEffect(active, audible, Videos.soundOn) { p.volume = if (active && audible && Videos.soundOn) 1f else 0f }
@@ -162,9 +176,10 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
                 /** a preview (making a post, report #65): always muted, taps go to what's around it */
                 preview: Boolean = false) {
     var firstFrame by remember { mutableStateOf(false) }
-    val (active, measure) = mediaFocus(playing)
-    val video = rememberTrack(url, active, audible = soundUrl == null && !preview)!!
-    rememberTrack(soundUrl, active, audible = true)
+    val focus = mediaFocus(playing)
+    val active = focus.active
+    val video = rememberTrack(url, active, focus.held, audible = soundUrl == null && !preview)!!
+    rememberTrack(soundUrl, active, focus.held, audible = true)
     DisposableEffect(video) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() { firstFrame = true }
@@ -172,7 +187,7 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
         video.addListener(listener)
         onDispose { video.removeListener(listener) }
     }
-    Box(modifier.clipToBounds().then(measure).then(if (preview) Modifier else Modifier.clickable { Videos.soundOn = !Videos.soundOn })) {
+    Box(modifier.clipToBounds().then(focus.measure).then(if (preview) Modifier else Modifier.clickable { Videos.soundOn = !Videos.soundOn })) {
         AndroidView({
             (android.view.LayoutInflater.from(it).inflate(com.momentum.app.R.layout.video_player, null) as PlayerView)
                 .also { v -> v.player = video }
@@ -188,9 +203,9 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
  */
 @Composable
 fun SoundArea(url: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val (active, measure) = mediaFocus(playing = true)
-    rememberTrack(url, active, audible = true)
-    Box(modifier.then(measure).clickable { Videos.soundOn = !Videos.soundOn }) {
+    val focus = mediaFocus(playing = true)
+    rememberTrack(url, focus.active, focus.held, audible = true)
+    Box(modifier.then(focus.measure).clickable { Videos.soundOn = !Videos.soundOn }) {
         content()
         SoundBadge(Modifier.align(Alignment.BottomEnd).padding(10.dp))
     }
