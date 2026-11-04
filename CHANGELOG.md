@@ -6,6 +6,18 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04 d
+
+### DE
+- iPhone: Ist die App zu, klingelt ein Anruf jetzt alle paar Sekunden erneut – Ton und Vibration, bis du rangehst, ablehnst oder er verpasst ist. Bisher kam nur ein kurzer Ton, den man in der Tasche leicht überhört.
+- Android: Klingelton und Vibration laufen bei geschlossener App durch, bis du rangehst oder ablehnst – bisher vibrierte das Handy nur ein paar Sekunden.
+- Nach dem Annehmen oder Ablehnen verschwindet die Anruf-Benachrichtigung, und ein App-Update lädt die App nicht mehr mitten im Anruf neu.
+
+### EN
+- iPhone: with the app closed, a call now rings again every few seconds – sound and vibration until you answer, decline or it's missed. It used to be one short sound, easily missed in a pocket.
+- Android: with the app closed, ringtone and vibration go on until you answer or decline – the phone used to vibrate for just a few seconds.
+- After answering or declining, the call notification goes away, and an app update no longer reloads the app in the middle of a call.
+
 ## 2026-11-04 c
 
 ### DE

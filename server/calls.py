@@ -23,6 +23,7 @@ that answered gets the call's signals). Then:
                    {"type": "pong"}
     app -> server  {"type": "signal", "call": id, "to": user id, "data": {"sdp": {...}} | {"ice": [...]}}
                    {"type": "media", "call": id, "mic": bool, "cam": bool}
+                   {"type": "ringing", "call": id}        about every second while the incoming call is on screen
                    {"type": "ping"}
 Who sends the offer: the one who joined later (higher "seq") to everyone already in.
 
@@ -32,7 +33,10 @@ RING_SECONDS; a group call waits that long for members it didn't ring). It then 
 answer gets a "missed call" push. Live calls are kept in memory (one server process, like typing); a restart ends
 them (their Call rows are closed on the next start). Ringing is pushed at once to every device of the players it
 rings for (FCM data "call": Android shows the incoming call screen; Web Push: a notification), the end of an
-unanswered call as FCM "call_end" / a "missed call" notification in its place.
+unanswered call as FCM "call_end" / a "missed call" notification in its place. Android rings by itself until it
+stops; a web push is one short sound / buzz on an iPhone, so the ringing push to the players' web devices comes
+again every RING_AGAIN seconds ("round" 1, 2 ...) - except to a phone whose screen shows the ringing right now
+(its socket's "ringing", SEEN_SECONDS fresh) - until they answer, decline or it is missed.
 """
 import asyncio
 import base64
@@ -56,7 +60,9 @@ from .social import is_blocked, iso
 log = logging.getLogger("momentum.calls")
 
 RING_SECONDS = 45          # unanswered that long: missed
-LOST_SECONDS = 30          # in the call, but no socket for that long (app killed, no network): left
+RING_AGAIN = 4             # the web devices' ringing push comes again this often (iOS: a push sounds / buzzes once)
+SEEN_SECONDS = 3           # a socket's "ringing" (the incoming call on screen) counts that long
+LOST_SECONDS = 30         # in the call, but no socket for that long (app killed, no network): left
 MAX_JOINED = 8             # mesh: every phone sends its picture to every other one
 TURN_TTL = 24 * 3600
 SIGNAL_MAX = 64 * 1024     # an offer with all its candidates is a few kB
@@ -88,6 +94,9 @@ class Peer:
     cam: bool = False
     since: float = field(default_factory=time.monotonic)
     lost_at: float | None = None
+    rung_at: float | None = None        # ringing: the last ringing push to the player's web devices
+    rounds: int = 0                     # ... how many came after the first
+    seen: dict = field(default_factory=dict)    # session token -> when that phone last showed the ringing on screen
 
 
 @dataclass
@@ -304,7 +313,7 @@ async def start(s, app, user, conv, video, device):
         if reg.busy(m.user_id):
             c.peers[m.user_id] = Peer("busy")
         else:
-            c.peers[m.user_id] = Peer("ringing")
+            c.peers[m.user_id] = Peer("ringing", rung_at=now)
             rung.append(m.user_id)
     reg.live[c.id] = c
     if should_end(c, now):
@@ -376,7 +385,8 @@ async def settle(s, app, c: Live, now=None):
 
 
 async def sweep(app, now=None):
-    """Every second: nobody answered in time, a participant's socket stayed away too long."""
+    """Every second: nobody answered in time, a participant's socket stayed away too long, the web devices' ringing
+    comes again (not right before it is missed)."""
     reg = registry(app)
     now = now if now is not None else time.monotonic()
     over = []
@@ -386,6 +396,11 @@ async def sweep(app, now=None):
             if p.state == "ringing" and now - p.since >= RING_SECONDS:
                 p.state, changed = "missed", True
                 timed_out.append(u)
+            elif p.state == "ringing" and p.rung_at is not None and now - p.rung_at >= RING_AGAIN \
+                    and now - p.since + RING_AGAIN <= RING_SECONDS:
+                p.rung_at, p.rounds = now, p.rounds + 1
+                on_screen = {t for t, at in p.seen.items() if now - at < SEEN_SECONDS}
+                spawn(push_call(app, c, [u], "call", again=p.rounds, skip=on_screen))
             elif p.state == "joined" and p.lost_at is not None and now - p.lost_at >= LOST_SECONDS:
                 p.state, p.since, changed = "left", now, True
         if timed_out:
@@ -427,8 +442,9 @@ def socket_gone(app, uid, device):
             p.lost_at = time.monotonic()
 
 
-def on_message(app, uid, device, msg):
-    """What a phone sends over the socket: WebRTC signals to one participant, its microphone / camera."""
+def on_message(app, uid, device, msg, token=None, now=None):
+    """What a phone sends over the socket: WebRTC signals to one participant, its microphone / camera, that it shows
+    the ringing on screen (its session [token] gets no ringing pushes meanwhile)."""
     reg = registry(app)
     if not isinstance(msg, dict):
         return None
@@ -440,6 +456,10 @@ def on_message(app, uid, device, msg):
     except (TypeError, ValueError):
         return None
     me = c.peers.get(uid) if c else None
+    if kind == "ringing":
+        if me is not None and me.state == "ringing" and token:
+            me.seen[token[:64]] = now if now is not None else time.monotonic()     # = PushToken.auth
+        return None
     if me is None or me.state != "joined" or me.device != device:
         return None
     if kind == "signal":
@@ -486,9 +506,11 @@ def spawn(coro):
 _tasks: set = set()
 
 
-async def push_call(app, c: Live, user_ids, kind, missed=False):
+async def push_call(app, c: Live, user_ids, kind, missed=False, again=0, skip=()):
     """Ringing ("call") / its end ("call_end": the phone stops ringing; missed = it shows "missed call") to every
-    device of these players (server/push.py's senders). The PWA only hears of a missed call (iOS shows every push)."""
+    device of these players (server/push.py's senders). The PWA only hears of a missed call (iOS shows every push).
+    [again]: the web devices' ringing once more (round 1, 2 ...; Android rings by itself), not to the sessions in [skip]
+    (their screen shows the ringing)."""
     senders = getattr(app, "push_senders", None)
     if not senders:
         return
@@ -497,31 +519,34 @@ async def push_call(app, c: Live, user_ids, kind, missed=False):
     caller = c.cards.get(c.started_by) or {}
     data = dict(type=kind, call=c.id, conv=c.conv_id, video=int(c.video), name=caller.get("display_name") or "",
                 user=caller.get("username") or "", group=c.title, avatar=caller.get("avatar") or "", missed=int(missed))
+    # a round is worth something only until the next one; the first one as long as it may ring
+    web_ttl = (RING_AGAIN * 2 if again else RING_SECONDS) if kind == "call" else 3600
     try:
         async with app.db.session() as s:
             tokens = list(await s.scalars(select(PushToken).where(
                 PushToken.user_id.in_(user_ids), PushToken.auth.in_(select(AuthToken.token)))))
         for t in tokens:
             if t.platform == "fcm" and fcm:
-                await asyncio.to_thread(fcm.send, t.token, data, ttl=RING_SECONDS if kind == "call" else 3600)
-            elif t.platform == "web" and web and (kind == "call" or missed):
-                payload = web_payload(c, kind, TEXTS.get(t.lang, TEXTS["de"]))
-                await asyncio.to_thread(web.send, json.loads(t.keys or "{}"), payload,
-                                        ttl=RING_SECONDS if kind == "call" else 3600, urgency="high")
+                if not again:
+                    await asyncio.to_thread(fcm.send, t.token, data, ttl=RING_SECONDS if kind == "call" else 3600)
+            elif t.platform == "web" and web and (kind == "call" or missed) and t.auth not in skip:
+                payload = web_payload(c, kind, TEXTS.get(t.lang, TEXTS["de"]), again)
+                await asyncio.to_thread(web.send, json.loads(t.keys or "{}"), payload, ttl=web_ttl, urgency="high")
     except Exception:                       # a push must never break the call
         log.exception("call push failed")
 
 
-def web_payload(c: Live, kind, t):
+def web_payload(c: Live, kind, t, again=0):
+    """The notification (web/scripts/sw-plugin.ts): tag "call-<id>" - the service worker shows every ringing round as
+    a notification of its own (iOS sounds / buzzes only for a new one) and closes the call's earlier ones."""
     caller = (c.cards.get(c.started_by) or {}).get("display_name") or ""
-    what = t["call_video" if c.video else "call_voice"]
     if kind == "call":
         body = t["call_incoming_video" if c.video else "call_incoming_voice"]
         return dict(title=c.title or caller, body=f"{caller}: {body}" if c.group else body, tag=f"call-{c.id}",
-                    url=f"/app/?open=call:{c.id}", call=c.id, ring=True)
+                    url=f"/app/?open=call:{c.id}", call=c.id, ring=True, round=again)
     body = t["call_missed_video" if c.video else "call_missed_voice"]
     return dict(title=c.title or caller, body=f"{caller}: {body}" if c.group else body, tag=f"call-{c.id}",
-                url=f"/app/?open=chat:{c.conv_id}")
+                url=f"/app/?open=chat:{c.conv_id}", call=c.id)
 
 
 # ---------------------------------------------------------------- endpoints
@@ -649,7 +674,7 @@ def register(app, authed, ApiError, session_user):
                     msg = json.loads(raw)
                 except (TypeError, ValueError):
                     continue
-                answer = on_message(app, uid, device, msg)
+                answer = on_message(app, uid, device, msg, token)
                 if answer:
                     q.put_nowait(answer)
 

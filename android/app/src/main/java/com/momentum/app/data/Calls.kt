@@ -10,6 +10,7 @@ import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.PowerManager
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.compose.runtime.getValue
@@ -844,9 +845,14 @@ internal object Tones {
             }
         }.getOrNull()
         val vib = ctx.getSystemService(Vibrator::class.java)
-        if (vib?.hasVibrator() == true) {
+        val am = ctx.getSystemService(AudioManager::class.java)
+        // like the phone's own calls: buzzes unless the phone is set to silent; as a ringtone's vibration, so it goes
+        // on when the screen turns off (vibrations of other kinds stop in the background)
+        if (vib?.hasVibrator() == true && am?.ringerMode != AudioManager.RINGER_MODE_SILENT) {
             buzzing = true
-            vib.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 700), 0))
+            val effect = VibrationEffect.createWaveform(longArrayOf(0, 500, 700), 0)
+            if (Build.VERSION.SDK_INT >= 33) vib.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_RINGTONE))
+            else @Suppress("DEPRECATION") vib.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build())
         }
         vibrator = vib
     }

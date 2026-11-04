@@ -3,9 +3,16 @@
 import { expect, test, type Browser, type Page } from "@playwright/test"
 import { api, NEWEST_RELEASE, newUser } from "./helpers"
 
+/** What each phone sent over its call socket. */
+const sentBy = new Map<Page, string[]>()
+const ringingSent = (page: Page) => (sentBy.get(page) ?? []).filter((f) => f.includes('"type":"ringing"')).length
+
 async function phone(browser: Browser, token: string, open: string): Promise<Page> {
   const ctx = await browser.newContext({ permissions: ["microphone", "camera"] })
   const page = await ctx.newPage()
+  const sent: string[] = []
+  sentBy.set(page, sent)
+  page.on("websocket", (ws) => ws.on("framesent", (f) => sent.push(String(f.payload))))
   await page.addInitScript(([t, seen]) => {
     localStorage.setItem("token", JSON.stringify(t))
     localStorage.setItem("language", "de")
@@ -38,9 +45,15 @@ test("a voice call: ring, answer, talk, camera on, minimize, hang up, the chat l
   // ben's app rings (over whatever he looks at)
   await expect(screen(b)).toContainText("Eingehender Sprachanruf")
   await expect(screen(b)).toContainText(ann.name)
+  // ... and tells the server it shows the ringing (no ringing pushes to this phone meanwhile: server/calls.py RING_AGAIN)
+  await expect.poll(() => ringingSent(b), { timeout: 5000 }).toBeGreaterThanOrEqual(2)
   await b.getByRole("button", { name: "Annehmen" }).click()
   // connected: the time runs on both sides, and the sound comes through
   for (const p of [a, b]) await expect(p.locator(".call-status")).toHaveText(/^\d+:\d\d$/, { timeout: 20_000 })
+  const rang = ringingSent(b)
+  await b.waitForTimeout(2200)
+  expect(ringingSent(b)).toBe(rang)                  // answered: it stopped
+  expect(ringingSent(a)).toBe(0)                     // the caller never rang
   await hears(a)
   await hears(b)
 

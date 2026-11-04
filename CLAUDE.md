@@ -377,8 +377,12 @@ Every connection has an audio and a video line from the start (camera on/off = r
   `clients.CALLS_APP` don't get those lines - raise it to the versionCode of the first APK that has calls.
 - Live calls are in memory (one hypercorn worker); a restart ends them (`close_leftovers`). Sockets gone `LOST_SECONDS`
   = left. Blocks: no calls in a blocked direct chat. Busy = in / ringing in another call.
-- Pushes go out at once (`push_call`, `app.push_senders`): FCM `call` (Android rings itself) / `call_end` (`missed` 0/1:
-  stop ringing / "missed call"); Web Push only for ringing and missed (iOS shows every push).
+- Pushes go out at once (`push_call`, `app.push_senders`): FCM `call` (Android rings itself; its notification is
+  `FLAG_INSISTENT` = ringtone + vibration loop) / `call_end` (`missed` 0/1: stop ringing / "missed call"); Web Push only
+  for ringing and missed (iOS shows every push). A web push is one short sound / buzz on an iPhone (no vibration API, no
+  custom sound, no CallKit), so `sweep` sends the ringing again every `RING_AGAIN` s (`round`; the service worker shows
+  each round as a new notification `call-<id>-<round>` and closes the earlier ones) - not to a session whose screen
+  shows the ringing (the PWA's socket `ringing` every second while visible, `SEEN_SECONDS`).
 - TURN: coturn in `deploy/docker-compose.yml` (host network, 3478 + 49160-49200/udp), `TURN_HOST` / `TURN_SECRET` /
   `TURN_IP` in the server's `.env` (deploy.sh adds them once); without them only a public STUN (direct paths only).
   nginx needs the websocket location (`deploy/nginx-momentum.conf`).

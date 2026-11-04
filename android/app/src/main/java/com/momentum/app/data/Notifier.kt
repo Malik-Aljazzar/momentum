@@ -95,6 +95,9 @@ object Notifier {
             .setGroup(CHANNEL_CALLS)                      // not bundled with the chat / activity notifications
             .setTimeoutAfter(45_000)
             .build()
+        // the channel's ringtone and vibration over and over (else once, ~4 s of buzzing - easily missed in a pocket)
+        // until it's answered, declined, opened or over (cancelCall); the app's own ringing takes over when it opens
+        n.flags = n.flags or android.app.Notification.FLAG_INSISTENT
         NotificationManagerCompat.from(ctx).notify(callTag(id), 1, n)
     }
 

@@ -120,8 +120,18 @@ function onEvent(e: { type: string; ice?: RTCIceServer[]; call?: CallInfo | numb
   else if (e.type === "signal" && typeof e.call === "number" && e.from != null && e.data) onSignal(e.call, e.from, e.data)
 }
 
+/** A call's notifications: the ringing rounds ("call-<id>-<round>", scripts/sw-plugin.ts) and the missed one. */
+export const callNote = (id: number) => (tag: string) => tag === `call-${id}` || tag.startsWith(`call-${id}-`)
+const clearCallNotes = (id: number) => { if (id) void clearNotifications(callNote(id)) }
+
 if (typeof window !== "undefined") {
   foreground.subscribe((fg) => { if (fg) connectCalls() })
+  // a ringing round came for a call that doesn't ring here any more (answered just then): it goes again
+  navigator.serviceWorker?.addEventListener("message", (e: MessageEvent) => {
+    const d = e.data as { type?: string; call?: number } | null
+    const cur = call.value
+    if (d?.type === "call-push" && d.call && cur?.info.id === d.call && cur.phase !== "incoming") clearCallNotes(d.call)
+  })
   // the page closes in the middle of a call: hang up (the others don't wait for the lost-phone timeout)
   addEventListener("pagehide", () => {
     const id = call.value?.info.id
@@ -141,7 +151,7 @@ export function applyInfo(info: CallInfo) {
   const cur = call.value
   const me = info.me
   if (!cur || !isCurrent(cur, info)) {
-    if (info.status === "ended") { void clearNotifications((t) => t === `call-${info.id}`); return }
+    if (info.status === "ended") { clearCallNotes(info.id); return }
     if (cur) return                                  // in another call: the server tells them I'm busy
     if (me?.state === "ringing") { ringing(info); return }
     // this page was reloaded in the middle of the call: its sound is gone, so it leaves
@@ -153,7 +163,7 @@ export function applyInfo(info: CallInfo) {
     if (me?.state === "ringing") { update({ info }); return }
     tones.stop()                                     // answered on another device, declined, missed
     call.value = null
-    void clearNotifications((t) => t === `call-${info.id}`)
+    clearCallNotes(info.id)
     return
   }
   if (me?.state !== "joined" || me.device !== device) {
@@ -176,6 +186,19 @@ function ringing(info: CallInfo) {
     facing: "user", minimized: false, since: null,
   }
   tones.ring()
+  showsRinging(info.id)
+}
+
+/** While the incoming call is on screen the server sends this phone no ringing pushes (server/calls.py RING_AGAIN):
+ *  it hears so every second. Locked / in the background the page stops - and the pushes ring again. */
+function showsRinging(id: number) {
+  const tick = () => {
+    const cur = call.value
+    if (cur?.info.id !== id || cur.phase !== "incoming") { clearInterval(timer); return }
+    if (document.visibilityState === "visible") send({ type: "ringing", call: id })
+  }
+  const timer = setInterval(tick, 1000)
+  tick()
 }
 
 function ended(info: CallInfo) {
@@ -189,7 +212,7 @@ function ended(info: CallInfo) {
     : s.callEnded
   const wasRinging = cur.phase === "incoming"
   cleanup()
-  void clearNotifications((t) => t === `call-${info.id}`)
+  clearCallNotes(info.id)
   if (wasRinging) { call.value = null; return }     // a missed call: the chat line tells it
   tones.end()
   call.value = { ...cur, info, phase: "ended", endText, local: null, remotes: {}, minimized: false }
@@ -253,6 +276,7 @@ export async function acceptCall() {
   if (!cur || cur.phase !== "incoming") return
   tones.stop()
   tones.unlock()
+  clearCallNotes(cur.info.id)                        // the ringing notification (iOS keeps it otherwise)
   connectCalls()
   accepting = true
   update({ phase: "connecting" })
@@ -281,7 +305,9 @@ export async function declineCall(id = call.value?.info.id) {
   tones.stop()
   cleanup()
   call.value = null
-  if (id) await api.raw("POST", `/calls/${id}/decline`).catch(() => {})
+  if (!id) return
+  clearCallNotes(id)
+  await api.raw("POST", `/calls/${id}/decline`).catch(() => {})
 }
 
 export async function hangUp() {
@@ -289,7 +315,7 @@ export async function hangUp() {
   if (!cur) return
   const id = cur.info.id
   cleanup()
-  if (cur.phase === "incoming") { call.value = null; if (id) await api.raw("POST", `/calls/${id}/decline`).catch(() => {}); return }
+  if (cur.phase === "incoming") { call.value = null; await declineCall(id); return }
   tones.end()
   call.value = { ...cur, phase: "ended", endText: S.value.callEnded, local: null, remotes: {} }
   setTimeout(() => { if (call.value?.phase === "ended" && call.value.info.id === id) call.value = null }, 1200)

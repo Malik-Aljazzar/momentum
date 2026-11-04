@@ -199,6 +199,70 @@ def test_missed_declined_busy_and_pushes(tmp_path):
     run(tmp_path, scenario)
 
 
+def test_web_devices_ring_again_until_answered_unless_the_screen_shows_it(tmp_path):
+    """A web push is one short sound / buzz on an iPhone (in the pocket easily missed): the ringing comes again every
+    RING_AGAIN seconds - only to web devices (Android rings by itself), not to a phone that shows the ringing on its
+    screen, not right before it is missed, never after the answer."""
+    async def scenario(app, c):
+        fcm, web = FakeSender(), FakeSender()
+        app.push_senders = (fcm, web)
+        ann, ben = await user(c, "ann"), await user(c, "ben")
+        await befriend(ann, ben)
+        await ben.req("post", "/api/push/register", json={"platform": "fcm", "token": "ben-fcm"})
+        await ben.req("post", "/api/push/register", json={"platform": "web", "lang": "de",
+                                                           "subscription": {"endpoint": "https://push/ben", "keys": {}}})
+        ab = (await ann.req("post", "/api/conversations/direct", json={"username": "ben"}))["conversation"]["id"]
+        call = (await ann.req("post", f"/api/conversations/{ab}/call", json={"device": "a"}))["call"]
+        ben_id = ann_id(call, "ben")
+        peer = app.calls.live[call["id"]].peers[ben_id]
+        await asyncio.sleep(0.2)
+        assert [d["round"] for _, d, _ in web.sent] == [0] and len(fcm.sent) == 1
+
+        async def sweep_after(seconds):
+            """[seconds] after the last ringing push."""
+            now = peer.rung_at + seconds
+            await calls.sweep(app, now=now)
+            await asyncio.sleep(0.2)
+            return now
+
+        await sweep_after(calls.RING_AGAIN - 1)                 # not yet
+        assert len(web.sent) == 1
+        await sweep_after(calls.RING_AGAIN)
+        _, again, ttl = web.sent[-1]
+        assert len(web.sent) == 2 and again["round"] == 1 and again["ring"] and again["tag"] == f"call-{call['id']}"
+        assert again["url"].endswith(f"call:{call['id']}") and ttl <= 2 * calls.RING_AGAIN
+        assert len(fcm.sent) == 1                               # Android rings by itself until it stops
+        # ben's phone shows the ringing on screen (its socket says so): no push to it meanwhile ...
+        calls.on_message(app, ben_id, "ben-phone", {"type": "ringing", "call": call["id"]},
+                         token=await token_of(ben), now=peer.rung_at + calls.RING_AGAIN - 1)
+        await sweep_after(calls.RING_AGAIN)
+        assert len(web.sent) == 2 and peer.rounds == 2
+        # ... the phone went into the pocket (no more "ringing" from it): it rings again
+        await sweep_after(calls.RING_AGAIN)
+        assert len(web.sent) == 3 and web.sent[-1][1]["round"] == 3
+        # someone else's "ringing" (not rung for them) changes nothing
+        calls.on_message(app, ann_id(call, "ann"), "a", {"type": "ringing", "call": call["id"]}, token=await token_of(ann))
+        assert app.calls.live[call["id"]].peers[ann_id(call, "ann")].seen == {}
+        # not right before it is missed: then "missed" comes instead
+        peer.since = peer.rung_at + calls.RING_AGAIN - calls.RING_SECONDS + 1
+        await sweep_after(calls.RING_AGAIN)
+        assert len(web.sent) == 3
+        # answered: no more ringing
+        peer.since = time.monotonic()
+        await ben.req("post", f"/api/calls/{call['id']}/accept", json={"device": "ben-phone"})
+        await sweep_after(2 * calls.RING_AGAIN)
+        assert len(web.sent) == 3
+        await ann.req("post", f"/api/calls/{call['id']}/leave")
+
+        # missed: the notification closes the ringing rounds (same call, sw-plugin.ts)
+        call = (await ann.req("post", f"/api/conversations/{ab}/call", json={"device": "a"}))["call"]
+        await calls.sweep(app, now=time.monotonic() + calls.RING_SECONDS + 1)
+        await asyncio.sleep(0.2)
+        missed = web.sent[-1][1]
+        assert missed["call"] == call["id"] and missed["tag"] == f"call-{call['id']}" and not missed.get("ring")
+    run(tmp_path, scenario)
+
+
 def test_group_call_rings_the_unmuted_joins_and_ends_when_alone(tmp_path, monkeypatch):
     monkeypatch.setattr(calls, "MAX_JOINED", 3)
     monkeypatch.setattr(calls, "LOST_SECONDS", 10_000)       # these players have no sockets open

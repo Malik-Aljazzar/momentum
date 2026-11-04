@@ -53,18 +53,36 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let data = {}
   try { data = e.data ? e.data.json() : {} } catch (err) { data = { title: "Momentum", body: e.data ? e.data.text() : "" } }
+  // a call rings in rounds (server/calls.py RING_AGAIN): every round is a notification of its own - an iPhone sounds
+  // and buzzes only for a new one, not for a replaced one - and the call's earlier ones (rounds, ringing) are closed
+  const tag = data.call && data.ring ? data.tag + "-" + (data.round || 0) : data.tag
   const show = (body) => self.registration.showNotification(data.title || "Momentum", {
-    body: body || "", icon: "/app/icon-192.png", badge: "/app/icon-192.png", tag: data.tag, data: { url: data.url || "/app/" },
-    // a call rings (server/calls.py): stays until tapped, buzzes; its "missed" replaces it (same tag)
+    body: body || "", icon: "/app/icon-192.png", badge: "/app/icon-192.png", tag, data: { url: data.url || "/app/" },
+    // ringing (Android Chrome; iOS ignores these): stays until tapped, buzzes
     requireInteraction: !!data.ring, renotify: !!data.ring, vibrate: data.ring ? [500, 250, 500, 250, 500] : undefined,
   })
-  e.waitUntil(data.e2e ? momentumPush.pushText(data.e2e).catch(() => null).then((text) => show(text || data.body)) : show(data.body))
+  const shown = data.e2e ? momentumPush.pushText(data.e2e).catch(() => null).then((text) => show(text || data.body)) : show(data.body)
+  e.waitUntil(data.call ? shown.then(() => callShown(data.call, tag)) : shown)
 })
+// a call's notification is up: its other ones closed, an open app told (it clears what it no longer rings for: calls.ts)
+async function callShown(id, keep) {
+  try {
+    const base = "call-" + id
+    for (const n of await self.registration.getNotifications()) {
+      if (n.tag !== keep && (n.tag === base || n.tag.startsWith(base + "-"))) n.close()
+    }
+    for (const w of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) w.postMessage({ type: "call-push", call: id })
+  } catch (err) { /* the notification is shown, that's what counts */ }
+}
 self.addEventListener("notificationclick", (e) => {
   e.notification.close()
   const target = (e.notification.data && e.notification.data.url) || "/app/"
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-    for (const w of list) if (w.url.includes("/app/")) { w.navigate(target); return w.focus() }
+    for (const w of list) if (w.url.includes("/app/")) {
+      // (without navigate the app opens as it was - its call socket still brings the ringing)
+      try { w.navigate(target).catch(() => {}) } catch (err) { /* no navigate */ }
+      return w.focus()
+    }
     return self.clients.openWindow(target)
   }))
 })

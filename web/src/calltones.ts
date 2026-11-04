@@ -15,14 +15,16 @@ function context(): AudioContext | null {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!ctx && Ctx) ctx = new Ctx()
-    if (ctx?.state === "suspended") void ctx.resume().catch(() => {})
+    // "suspended" until the first tap, iOS: "interrupted" after a phone call / when the app was away
+    if (ctx && ctx.state !== "running" && ctx.state !== "closed") void ctx.resume().catch(() => {})
   } catch { /* no audio */ }
   return ctx
 }
 
 function play(notes: Note[], wave: OscillatorType, volume: number) {
   const c = context()
-  if (!c) return
+  // not running (no tap yet): nothing queued - a stopped clock would play every queued round at once after a tap
+  if (!c || c.state !== "running") return
   const t0 = c.currentTime + .02
   for (const [freq, start, length] of notes) {
     const osc = c.createOscillator(), gain = c.createGain()
