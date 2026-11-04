@@ -39,6 +39,10 @@ cd $DIR
 tar xzf /tmp/momentum-deploy.tgz && rm /tmp/momentum-deploy.tgz
 # secrets are created once and kept
 [ -f .env ] || printf 'MINIO_USER=momentum\nMINIO_PASSWORD=%s\n' "\$(openssl rand -hex 24)" > .env
+# calls: the TURN relay's shared secret, its public address and name (server/calls.py, coturn in the compose file)
+grep -q '^TURN_SECRET=' .env || printf 'TURN_SECRET=%s\n' "\$(openssl rand -hex 32)" >> .env
+grep -q '^TURN_IP=' .env || printf 'TURN_IP=%s\n' "\$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if (\$i == "src") print \$(i + 1)}')" >> .env
+grep -q '^TURN_HOST=' .env || printf 'TURN_HOST=momentum.mal-zeta.de\n' >> .env
 chmod 600 .env
 docker compose up -d --build
 docker compose ps

@@ -27,7 +27,9 @@ change, with tests on both sides, and both are deployed together by `deploy/depl
 Platform-only things are listed here and nowhere else:
 
 - Android only: home-screen widgets, CameraX in-app camera, Media3 on-device video
-  compression, WorkManager background checks, volume-key sound toggle.
+  compression, WorkManager background checks, volume-key sound toggle; calls: the phone's ringtone, full-screen
+  CallStyle ringing over the lock screen (FCM), the speaker switch, screen off at the ear, CallService (background).
+- PWA calls: 8-bit tones from Web Audio (`calltones.ts`), no speaker switch, rings only while open (else a Web Push).
 - The **admin app** (`android/admin`, own APK at `/admin.apk`, no PWA): reports, statistics,
   storage + its limit. Not part of the parity rule.
 - PWA substitutes: camera/gallery via the system file picker; images shrunk in a canvas before
@@ -49,6 +51,7 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   community.py   subscriptions/copies of rules (chain_copy, remove_copies…), group rules, bulk endpoints
   challenges.py  group challenges, rewards → credit
   chat.py        DMs/groups, mentions, mute, replies, group search/ranking, encryption switch + members' keys
+  calls.py       voice/video calls: live calls in memory, websocket /api/calls/ws (ringing + WebRTC signals), TURN logins
   e2e.py         end-to-end encryption: keys/backup endpoints, envelope checks, encrypted media uploads
   social.py      users, follows, notifications, leaderboards
   posts.py       feed, posts, comments, sound, text overlays, pagination (page_args)
@@ -359,6 +362,29 @@ Scheme in `server/e2e.py` (docstring); the same code three times: `web/src/e2ecr
   the apps reload the keys and send again (also photos / voice, if the chat's encryption still matches). `eph` must be a
   point on the curve (server `valid_public_key`, Android `E2E.publicKey`). The offline chat caches keep encrypted messages
   as they came (`closeMessage`), never the opened text / media keys.
+
+## Calls (`server/calls.py`, clients: `web/src/calls.ts` + `screens/Call.tsx`, `data/Calls.kt` + `ui/Call.kt`)
+
+WebRTC mesh (every phone to every other, `MAX_JOINED` = 8); the server only rings and passes offers / answers / ICE
+over the socket `/api/calls/ws` (first message `{token, device}`; device = random id per app start, the one that
+answered gets the signals). Start / accept / decline / leave are REST. Who offers: the later `seq` to the earlier one.
+Every connection has an audio and a video line from the start (camera on/off = replaceTrack, no new offer).
+
+- A call ends when < 2 are in and nobody rings (a group waits `RING_SECONDS` for members it didn't ring - muted groups
+  don't ring, they see the "join" bar: `conversation.call`); then a chat line `Message.kind "call"` + `Message.call_id`
+  (`call_lines`: duration / reason per viewer; texts `lines.ts callLine` = `Lines.kt`). Android apps older than
+  `clients.CALLS_APP` don't get those lines - raise it to the versionCode of the first APK that has calls.
+- Live calls are in memory (one hypercorn worker); a restart ends them (`close_leftovers`). Sockets gone `LOST_SECONDS`
+  = left. Blocks: no calls in a blocked direct chat. Busy = in / ringing in another call.
+- Pushes go out at once (`push_call`, `app.push_senders`): FCM `call` (Android rings itself) / `call_end` (`missed` 0/1:
+  stop ringing / "missed call"); Web Push only for ringing and missed (iOS shows every push).
+- TURN: coturn in `deploy/docker-compose.yml` (host network, 3478 + 49160-49200/udp), `TURN_HOST` / `TURN_SECRET` /
+  `TURN_IP` in the server's `.env` (deploy.sh adds them once); without them only a public STUN (direct paths only).
+  nginx needs the websocket location (`deploy/nginx-momentum.conf`).
+- Tests: `test_calls.py` (sockets via the Quart test client), e2e `tests/e2e/calls.spec.ts` runs in Chromium (project
+  `calls-chromium`: fake camera / microphone, two pages really talk). Android: emulator + the PWA in Playwright against
+  the test server works (10.0.2.2); FCM can be faked with `adb root` + `am broadcast -a com.google.android.c2dm.intent.RECEIVE
+  -n com.momentum.app/com.google.firebase.iid.FirebaseInstanceIdReceiver --es type call --es call <id> ...`.
 
 ## Groups
 

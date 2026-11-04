@@ -6,6 +6,24 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-04 b
+
+### DE
+- Anrufe wie bei WhatsApp: Sprach- und Videoanrufe in Privatchats und Gruppen (bis zu 8 Personen) – über die Buttons oben im Chat.
+- Es klingelt auch, wenn die App zu ist: Annehmen oder Ablehnen direkt aus der Benachrichtigung, auf Android im Vollbild auch über dem Sperrbildschirm.
+- Im Anruf: Kamera an und aus, Kamera wechseln, stummschalten, auf Android der Lautsprecher; verkleinert läuft der Anruf in einem kleinen Fenster weiter, während du die App benutzt.
+- Gruppenanrufe: Wer nicht dabei ist, sieht im Chat „Anruf läuft“ und kann jederzeit beitreten.
+- Jeder Anruf steht danach im Chat – mit seiner Dauer oder als verpasst, abgelehnt oder besetzt; ein Tipp darauf ruft zurück. Verpasste Anrufe kommen als Benachrichtigung.
+- Ton und Bild gehen verschlüsselt direkt von Handy zu Handy – der Server sieht und hört nichts davon.
+
+### EN
+- Calls like on WhatsApp: voice and video calls in direct chats and groups (up to 8 people) – with the buttons at the top of the chat.
+- It rings even when the app is closed: answer or decline right from the notification, on Android full screen, also over the lock screen.
+- During a call: camera on and off, switch the camera, mute, on Android the speaker; minimized, the call goes on in a small window while you use the app.
+- Group calls: whoever isn't in it sees "Call on" in the chat and can join any time.
+- Every call shows up in the chat afterwards – with its length or as missed, declined or busy; tapping it calls back. Missed calls come as a notification.
+- Sound and picture go encrypted straight from phone to phone – the server neither sees nor hears any of it.
+
 ## 2026-11-04
 
 ### DE

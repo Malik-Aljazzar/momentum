@@ -18,7 +18,8 @@ export default defineConfig({
   server: {
     port: 5173,
     fs: { allow: [".."] },      // src/changelog.ts imports the project's CHANGELOG.md
-    proxy: Object.fromEntries(["/api", "/media", "/avatars"].map((p) => [p, { target: backend, changeOrigin: true }])),
+    // ws: the call socket (/api/calls/ws)
+    proxy: Object.fromEntries(["/api", "/media", "/avatars"].map((p) => [p, { target: backend, changeOrigin: true, ws: p === "/api" }])),
   },
   build: { outDir: "dist", emptyOutDir: true, sourcemap: true },
   test: {

@@ -32,6 +32,9 @@ services:
       MAIL_CLIENT_ID: ${MAIL_CLIENT_ID:-}
       MAIL_CLIENT_SECRET: ${MAIL_CLIENT_SECRET:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # calls (server/calls.py): the TURN relay below - its address and the shared secret for its logins
+      TURN_HOST: ${TURN_HOST:-}
+      TURN_SECRET: ${TURN_SECRET:-}
     volumes:
       - app-data:/data
       # the release APK offered at /app.apk (copied here on deploy)
@@ -50,6 +53,45 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     volumes:
       - minio-data:/bitnami/minio/data
+
+  # TURN relay for calls (server/calls.py): phones that can't reach each other directly talk through it (the sound
+  # and picture stay encrypted, the relay can't read them). Host network: UDP/TCP 3478 and the relay ports
+  # 49160-49200/udp (registered in /opt/USED_PORTS.md, open in the firewall). Logins: time-limited, made by the app
+  # from TURN_SECRET; relaying into private / local networks is refused.
+  coturn:
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    logging: *logging
+    network_mode: host
+    command:
+      - -n
+      - --listening-port=3478
+      - --listening-ip=${TURN_IP}
+      - --relay-ip=${TURN_IP}
+      - --min-port=49160
+      - --max-port=49200
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=momentum.mal-zeta.de
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --total-quota=100
+      - --max-bps=3000000
+      - --log-file=stdout
+      - --simple-log
 
 volumes:
   app-data:
