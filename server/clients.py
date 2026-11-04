@@ -15,7 +15,7 @@ CONFIRM_APP = 895_206
 SUBSCRIPTION_KINDS = ("sub_rule", "sub_decay")
 # Android builds that can call (server/calls.py, from 2026-11-04 on) show the calls' chat lines; older ones would
 # show them as "encryption switched off"
-CALLS_APP = 896_620
+CALLS_APP = 896_679
 CALL_KINDS = ("call",)
 
 
