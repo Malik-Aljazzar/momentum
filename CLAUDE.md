@@ -168,7 +168,7 @@ docs/SPEC.md   the original (German) product spec
   `screens/media.tsx` = `ui/Sensitive.kt`; a new full-size media view must use it). Profile / group pictures refuse
   from `FLAG`. Admin app tab "Prüfen" (`/api/admin/flagged`: ok / keep / remove). Chats and texts aren't filtered.
   Tests: off unless `create_app(moderator=...)`; `ColorModel` (cyan = refused, magenta = covered) in tests + e2e server.
-  Android apps older than `clients.MODERATION_APP` get the cover instead of the media - raise it with the next APK.
+  Android apps older than `clients.MODERATION_APP` (897_050; the APK 897_163 of 2026-11-04 has it) get only the cover.
 - Pixel look everywhere: no rounded Material checkboxes/arrows – draw controls on a pixel grid
   (Android: `ui/PixelControls.kt`).
 - Emojis are always pixel art: `pixelart/emoji.py` turns Twemoji into 18×18 sprites and builds two fonts
