@@ -246,7 +246,7 @@ object E2EStore {
                 ?.let { runCatching { json.decodeFromString(E2EBody.serializer(), it) }.getOrNull() }
             out = if (body != null) {
                 if (!m.mine && m.user?.id != null) checkKey(m.user.id, env.spk)
-                m.copy(text = body.t, sealed = false,
+                m.copy(text = body.t, sealed = false, link = body.l,
                     media = m.media?.let { md -> body.m?.let { md.copy(key = it.k, mime = it.mime) } ?: md })
             } else m.copy(sealed = true)
         }
@@ -263,7 +263,7 @@ object E2EStore {
      *  the phone's chat cache keeps - it's opened again when the chat loads. */
     fun closeMessage(m: ChatMessage): ChatMessage {
         var out = m
-        if (m.e2e != null) out = m.copy(text = "", sealed = false, media = m.media?.copy(key = null, mime = null))
+        if (m.e2e != null) out = m.copy(text = "", sealed = false, media = m.media?.copy(key = null, mime = null), link = null)
         val reply = m.reply
         if (reply?.e2e != null) out = out.copy(reply = reply.copy(text = ""))
         return out
@@ -295,12 +295,13 @@ object E2EStore {
         Regex("@([a-z0-9_.]{3,30})", RegexOption.IGNORE_CASE).findAll(text).map { it.groupValues[1].trimEnd('.').lowercase() }.distinct().toList()
 
     /** A new message for everyone in the chat who has a key (me too: my other devices) -> {e2e, mentions}. */
-    suspend fun sealMessage(api: Api, convId: Int, text: String, media: Triple<String, String, String>? = null): JsonObject =
+    suspend fun sealMessage(api: Api, convId: Int, text: String, media: Triple<String, String, String>? = null,
+                            link: LinkPreview? = null): JsonObject =
         withContext(Dispatchers.Default) {
             val my = me ?: throw IllegalStateException("locked")
             val set = keySet(api, convId, refresh = false)
             val readers = set.keys.mapNotNull { k -> k.public?.let { k.userId to it } }.toMap()
-            val body = json.encodeToString(E2EBody.serializer(), E2EBody(text, media?.let { E2EMediaKey(it.first, it.second) }))
+            val body = json.encodeToString(E2EBody.serializer(), E2EBody(text, media?.let { E2EMediaKey(it.first, it.second) }, link))
             val preview = json.encodeToString(E2EPreview.serializer(), E2EPreview(text.take(180), media?.third))
             val env = E2E.encryptEnvelope(my.priv, my.pub, convId, readers, body, preview).copy(kh = set.hash)
             buildJsonObject {

@@ -31,8 +31,8 @@ data class Envelope(val v: Int, val eph: String, val spk: String, val ct: String
 @Serializable
 data class ReaderEnvelope(val v: Int = 1, val eph: String, val spk: String, val pv: String, val ct: String? = null, val key: String? = null)
 
-/** A message's body: the text and, for a photo / voice message, its key and type. */
-@Serializable data class E2EBody(val t: String = "", val m: E2EMediaKey? = null)
+/** A message's body: the text, for a photo / voice message its key and type, a link's preview (server/linkpreview.py). */
+@Serializable data class E2EBody(val t: String = "", val m: E2EMediaKey? = null, val l: LinkPreview? = null)
 @Serializable data class E2EMediaKey(val k: String, val mime: String = "")
 /** The preview (chat list, quotes, notifications): the start of the text, "image" / "audio". */
 @Serializable data class E2EPreview(val t: String = "", val k: String? = null)

@@ -290,7 +290,19 @@ data class ChatMessage(
     @SerialName("target_me") val targetMe: Boolean = false,
     /** kind "call": a voice / video call */
     val call: CallLine? = null,
+    /** the preview of a link in the text (server/linkpreview.py; encrypted: opened from the envelope) */
+    val link: LinkPreview? = null,
 )
+
+/** A web page's preview as the sender's app fetched it (= web/src/model.ts LinkPreview): the small picture is
+ *  base64 WebP. The same object goes inside an encrypted message's body ("l"). */
+@Serializable
+data class LinkPreview(
+    val url: String, val title: String = "", val description: String = "", val site: String = "",
+    val image: String? = null, val width: Int = 0, val height: Int = 0,
+)
+
+@Serializable data class LinkPreviewResponse(val preview: LinkPreview? = null)
 
 @Serializable
 data class Reaction(val emoji: String, val count: Int = 1, val mine: Boolean = false)

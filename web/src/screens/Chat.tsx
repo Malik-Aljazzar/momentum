@@ -10,12 +10,13 @@ import {
   chatKeys, closeMessage, e2eState, keyWarnings, mediaUrl, openLast, openMessage, openMessages, recoveryPending, sealMedia, sealMessage, useMediaUrl,
   type MemberKey,
 } from "../e2e"
-import type { CallBrief, ChatMessage, Conversation, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
+import type { CallBrief, ChatMessage, Conversation, LinkPreview, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
 import { nav, stack, tab } from "../nav"
 import { clearNotifications } from "../push"
 import { foreground, onError, online, refresh, req, showToast, state, uploadMedia } from "../store"
 import { cache } from "../storage"
 import { lang, S, type Strings } from "../strings"
+import { DraftLink, LinkCard, shownLink, useLinkDraft } from "../linkpreview"
 import { photoSize } from "../chatphoto"
 import {
   Avatar, EmptyFriends, IconBtn, Label, LoadMore, MentionSuggestions, MentionText, OfflineState, OfflineStrip, PixelIcon,
@@ -239,8 +240,11 @@ export function ChatRoomScreen({ id }: { id: number }) {
     try {
       if (convRef.current?.e2e) {
         if (e2eState.value !== "ready") { showToast(s.e2eNeedsUnlock, true); return }
-        Object.assign(body, await sealMessage(id, out.text ?? "", out.media?.key ? { key: out.media.key, mime: out.media.mime ?? "", kind: out.media.kind } : null))
-      } else if (out.text) body.text = out.text
+        Object.assign(body, await sealMessage(id, out.text ?? "", out.media?.key ? { key: out.media.key, mime: out.media.mime ?? "", kind: out.media.kind } : null, out.link))
+      } else if (out.text) {
+        body.text = out.text
+        if (out.link) body.link = out.link              // the link's preview (encrypted: inside the envelope)
+      }
       const m = await openMessage(id, (await api.call<{ message: ChatMessage }>("POST", `/conversations/${id}/messages`, body)).message)
       if (!msgs.current.some((x) => x.id === m.id)) {
         const all = [...msgs.current, m]
@@ -261,11 +265,13 @@ export function ChatRoomScreen({ id }: { id: number }) {
       onError(e)
     }
   }
+  // a web link in the text: its preview is fetched while typing and goes with the message (like WhatsApp)
+  const draft = useLinkDraft(text)
   const sendText = () => {
     const t = text.trim()
     if (!t) return
     setText("")
-    void send({ text: t })
+    void send({ text: t, link: draft.preview })
   }
   const [queue, setQueue] = useState<QueuedPhoto[]>([])
   const addFiles = (files: File[]) =>
@@ -389,6 +395,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
       </div>
       <IconBtn icon="ui_close" alpha={.6} onClick={() => setReplyTo(null)} label="cancel reply" />
     </div>}
+    {recording == null && !(c?.e2e && e2eState.value !== "ready") && <DraftLink preview={draft.preview} loading={draft.loading} onDismiss={draft.dismiss} />}
     {c?.e2e && e2eState.value === "locked" ? <div class="col" style={{ background: "var(--card)", padding: "10px 12px calc(var(--safe-bottom) + 10px)" }}>
       <PxButton text={s.unlockTitle} style={{ width: "100%" }} onClick={() => nav.push({ r: "e2eUnlock" })} />
     </div> : c?.e2e && e2eState.value === "off" ? <div class="center" style={{ background: "var(--card)", padding: "14px 12px calc(var(--safe-bottom) + 14px)" }}>
@@ -417,7 +424,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
 }
 
 /** What the room sends: a text, an uploaded photo / voice message (with its key when encrypted), a shared item. */
-interface Outgoing { text?: string; media?: (MediaItem & { key?: string; mime?: string }) | null; share?: unknown }
+interface Outgoing { text?: string; media?: (MediaItem & { key?: string; mime?: string }) | null; share?: unknown; link?: LinkPreview | null }
 
 /** A line from the chat itself: who switched the encryption. */
 function SystemLine({ m }: { m: ChatMessage }) {
@@ -690,6 +697,7 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
   const start = useRef<{ x: number; y: number; on: boolean } | null>(null)
   const TRIGGER = 64
   const bare = m.share?.kind === "post" && !m.text?.trim()
+  const link = collage ? null : shownLink(m)
   // the open emoji bar lifts this message above its neighbours (report #37: it sat behind the next message)
   return <div data-msg={m.id} style={{ position: "relative", zIndex: picking ? 40 : undefined, background: highlighted ? "rgba(255,205,117,0.12)" : undefined, flex: "none" }}
     onTouchStart={(e) => { const t = e.touches[0]; start.current = { x: t.clientX, y: t.clientY, on: false } }}
@@ -734,7 +742,7 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
       {reactors && <ReactorsSheet messageId={m.id} onClose={() => setReactors(false)} />}
       <div class="col bubble" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => clearTimeout(press.current.timer)}
         onContextMenu={(e) => e.preventDefault()} style={{
-        maxWidth: 280, borderRadius: 18, overflow: "hidden", padding: m.media || m.share ? 4 : 0,
+        maxWidth: 280, borderRadius: 18, overflow: "hidden", padding: m.media || m.share || link ? 4 : 0,
         WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none",
         // a shared post is a card of its own: no bubble around it
         background: bare ? "transparent" : m.mine ? "#2b4a3a" : m.mentions_me ? "#3a3424" : "var(--card2)",
@@ -761,6 +769,7 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
               <ChatImage media={m.media} style={{ ...photoSize(m.media.width, m.media.height), borderRadius: 14 }} />
             </div>)}
         {m.share && <ShareCard share={m.share} onOpenRule={onOpenRule} />}
+        {link && <LinkCard link={link} />}
         {!collage && m.text?.trim() && <div style={{ padding: "8px 12px 0" }}><MentionText text={m.text} /></div>}
         {/* the time once per run of the same minute (report #49); mine: ✓ sent, eye: read (by everyone in the chat) */}
         {/* a single photo: as wide as the photo (the countdown may wrap), so the bubble keeps the photo's shape */}

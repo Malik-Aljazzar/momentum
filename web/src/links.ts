@@ -29,3 +29,29 @@ export function textParts(text: string): TextPart[] {
   plain(text.slice(last))
   return out
 }
+
+/** The preview a message shows (sent along by the sender, server/linkpreview.py): only for a link that is in its
+ *  text, and only once it's opened (not sealed). */
+export function shownLink<L extends { url: string }>(m: { link?: L | null; sealed?: boolean; text?: string }): L | null {
+  const l = m.link
+  if (!l || m.sealed || typeof l.url !== "string" || !linksIn(m.text ?? "").includes(l.url)) return null
+  return l
+}
+
+/** The web links of a text, as they open (server/linkpreview.py links_in). */
+export const linksIn = (text: string): string[] => textParts(text).flatMap((p) => ("url" in p ? [p.url] : []))
+
+/** The first web link of a text: its preview goes with the message (like WhatsApp). */
+export const firstLink = (text: string): string | null => linksIn(text)[0] ?? null
+
+/** The host a link preview names - always taken from the link itself, never from the sender: "www.x.de/a" -> "x.de". */
+export function linkHost(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, "") } catch { return "" }
+}
+
+/** A link preview's picture: wide ones over the text ("big"), others small beside it, none without one. */
+export function linkLayout(p: { image?: string | null; width?: number; height?: number }): "big" | "small" | "none" {
+  if (!p.image) return "none"
+  const w = p.width ?? 0, h = p.height ?? 0
+  return w >= 300 && h > 0 && w >= 1.3 * h ? "big" : "small"
+}

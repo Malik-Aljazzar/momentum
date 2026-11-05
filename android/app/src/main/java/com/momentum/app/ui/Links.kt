@@ -38,3 +38,26 @@ fun textParts(text: String): List<TextPart> {
     plain(text.substring(last))
     return out
 }
+
+/** The web links of a text, as they open (server/linkpreview.py links_in). */
+fun linksIn(text: String): List<String> = textParts(text).mapNotNull { (it as? TextPart.Link)?.url }
+
+/** The first web link of a text: its preview goes with the message (like WhatsApp). */
+fun firstLink(text: String): String? = linksIn(text).firstOrNull()
+
+/** The host a link preview names - always taken from the link itself, never from the sender: "www.x.de/a" -> "x.de". */
+fun linkHost(url: String): String =
+    runCatching { java.net.URI(url).host?.removePrefix("www.") }.getOrNull().orEmpty()
+
+enum class LinkLayout { Big, Small, None }
+
+/** A link preview's picture: wide ones over the text, others small beside it, none without one. */
+fun linkLayout(hasImage: Boolean, width: Int, height: Int): LinkLayout = when {
+    !hasImage -> LinkLayout.None
+    width >= 300 && height > 0 && width >= 1.3 * height -> LinkLayout.Big
+    else -> LinkLayout.Small
+}
+
+/** The preview a message shows (sent along by the sender): only for a link that is in its text, once opened. */
+fun shownLink(m: com.momentum.app.data.ChatMessage): com.momentum.app.data.LinkPreview? =
+    m.link?.takeIf { !m.sealed && it.url in linksIn(m.text) }

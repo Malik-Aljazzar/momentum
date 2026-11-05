@@ -325,7 +325,8 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
         messages.clear(); messages.addAll(all)
     }
     // encrypted chats: text and the media key go into the envelope, only members can open it (E2EStore)
-    suspend fun send(text: String = "", media: MediaItem? = null, reply: ChatMessage? = replyTo, retry: Boolean = true) {
+    suspend fun send(text: String = "", media: MediaItem? = null, reply: ChatMessage? = replyTo, retry: Boolean = true,
+                     link: com.momentum.app.data.LinkPreview? = null) {
         replyTo = null
         if (!vm.online) { vm.showToast(S.needsInternet, error = true); return }
         // an answer to a swiped message quotes it
@@ -333,11 +334,13 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
             reply?.let { put("reply_to", it.id) }
             media?.let { put("media_id", it.id) }
             if (conv?.e2e != true && text.isNotBlank()) put("text", text)
+            // the link's preview (encrypted: inside the envelope)
+            if (conv?.e2e != true && link != null) put("link", vm.api.json.encodeToJsonElement(com.momentum.app.data.LinkPreview.serializer(), link))
         }
         try {
             val body = if (conv?.e2e == true) {
                 if (E2EStore.status != E2EStore.Status.Ready) { vm.showToast(S.e2eNeedsUnlock, error = true); return }
-                JsonObject(base + E2EStore.sealMessage(vm.api, id, text, media?.key?.let { Triple(it, media.mime.orEmpty(), media.kind) }))
+                JsonObject(base + E2EStore.sealMessage(vm.api, id, text, media?.key?.let { Triple(it, media.mime.orEmpty(), media.kind) }, link))
             } else base
             val m = E2EStore.openMessage(id, vm.api.call<MessageResponse>("POST", "/conversations/$id/messages", body).message)
             if (messages.none { it.id == m.id }) messages.add(m)
@@ -349,7 +352,7 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
                 fresh?.let { conv = it }
                 runCatching { E2EStore.chatKeys(vm.api, id, refresh = true) }
                 // a photo / voice message is uploaded encrypted or plain already: it goes again if the chat still matches
-                if (media == null || (fresh != null && fresh.e2e == (media.key != null))) return send(text, media, reply, retry = false)
+                if (media == null || (fresh != null && fresh.e2e == (media.key != null))) return send(text, media, reply, retry = false, link = link)
             }
             if (e.status == 0) vm.showToast(S.needsInternet, error = true) else vm.onError(e)
         }
@@ -422,6 +425,8 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
         queue += uris.take(MAX_PHOTOS - queue.size).map { QueuedPhoto(it) }
     }
 
+    // a web link in the text: its preview is fetched while typing and goes with the message (like WhatsApp)
+    val linkDraft = rememberLinkDraft(vm, text)
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().imePadding()) {
         val c = conv
@@ -529,6 +534,7 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
                 IconBtn("ui_close", alpha = .6f) { replyTo = null }
             }
         }
+        if (recordingSince == null && !(c?.e2e == true && E2EStore.status != E2EStore.Status.Ready)) DraftLink(linkDraft)
         if (c?.e2e == true && E2EStore.status == E2EStore.Status.Locked) Box(
             Modifier.fillMaxWidth().background(Px.Card).navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
@@ -545,7 +551,8 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
                 val t = text.trim()
                 if (t.isNotEmpty()) {
                     text = ""
-                    scope.launch { send(t) }
+                    val link = linkDraft.preview
+                    scope.launch { send(t, link = link) }
                 }
             }
             Box(Modifier.weight(1f)) {
@@ -600,6 +607,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
     var armed by remember { mutableStateOf(false) }
     // reactions: hold for the emoji row, double tap for a heart (like Instagram)
     var picking by remember { mutableStateOf(false) }
+    val link = if (photos.size > 1) null else shownLink(m)
     var readers by remember { mutableStateOf(false) }
     var reactors by remember { mutableStateOf(false) }
     fun react(emoji: String) = scope.launch {
@@ -686,7 +694,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
                 .background(if (m.share?.kind == "post" && m.text.isBlank()) Color.Transparent
                     else if (m.mine) Color(0xFF2B4A3A) else if (m.mentionsMe) Color(0xFF3A3424) else Px.Card2)
                 .then(if (m.mentionsMe) Modifier.border(1.5.dp, Px.Yellow, RoundedCornerShape(18.dp)) else Modifier)
-                .padding(if (m.media != null || m.share != null) 4.dp else 0.dp),
+                .padding(if (m.media != null || m.share != null || link != null) 4.dp else 0.dp),
         ) {
             if (showSender && !m.mine && m.user != null) {
                 Text(m.user.displayName, style = T.small.copy(fontSize = 12.sp, color = Px.Yellow),
@@ -717,6 +725,7 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
                 else photoSize(it.width, it.height).let { (w, h) -> ChatImage(vm, it, Modifier.size(w.dp, h.dp).clip(RoundedCornerShape(14.dp))) }
             }
             m.share?.let { ShareCard(vm, it, onOpenRule) }
+            link?.let { LinkCard(it) { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); picking = true } }
             // a collage's captions are in the big view; a single photo shows it right under it
             if (m.text.isNotBlank() && photos.size <= 1) {
                 Box(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp)) {

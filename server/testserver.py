@@ -26,6 +26,26 @@ class TestMailer:
             self.codes[to] = found.group()
 
 
+def test_link_preview(url):
+    """Link previews without the internet (server/linkpreview.py): pages on example.com have one (wide picture),
+    on square.example.com a square picture, on bare.example.com none; everything else has no preview."""
+    import io
+    from urllib.parse import urlsplit
+
+    from PIL import Image
+
+    from .linkpreview import small_image
+    host = urlsplit(url).hostname or ""
+    if host not in ("example.com", "www.example.com", "square.example.com", "bare.example.com"):
+        return None
+    out = dict(url=url, title="Example page", description="A page for the tests", site="Example")
+    if host != "bare.example.com":
+        buf = io.BytesIO()
+        Image.new("RGB", (400, 400) if host == "square.example.com" else (1200, 630), (120, 200, 90)).save(buf, "PNG")
+        out["image"], out["width"], out["height"] = small_image(buf.getvalue())
+    return out
+
+
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     db = Path(tempfile.mkdtemp(prefix="momentum-e2e-")) / "e2e.db"
@@ -35,7 +55,7 @@ if __name__ == "__main__":
     # the content filter with a stand-in model: cyan pictures are refused, magenta ones covered (server/moderation.py)
     from .moderation import ColorModel, Moderator
     app = create_app(f"sqlite+aiosqlite:///{db.as_posix()}", blobs=MemoryStore(), mail=mailer,
-                     moderator=Moderator(ColorModel()))
+                     moderator=Moderator(ColorModel()), link_preview=test_link_preview)
 
     @app.get("/api/test/mail")
     async def test_mail():

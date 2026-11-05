@@ -60,9 +60,9 @@ describe("chat encryption", () => {
   it("caches an opened message without its text and media key", () => {
     const env = { v: 1, eph: "e", spk: "s", pv: "p", ct: "c", key: "k" }
     const opened = { id: 1, at: "", text: "geheim", sealed: false, e2e: env, media: { id: 2, kind: "image", url: "/m", thumb: "/t", encrypted: true, key: "K", mime: "image/jpeg" },
-      reply: { id: 0, text: "zitat", e2e: env } }
+      reply: { id: 0, text: "zitat", e2e: env }, link: { url: "https://x.de", title: "Linktitel" } }
     const closed = closeMessage(opened)
-    expect(JSON.stringify(closed)).not.toMatch(/geheim|zitat|"K"|jpeg/)
+    expect(JSON.stringify(closed)).not.toMatch(/geheim|zitat|"K"|jpeg|Linktitel/)
     expect(closed.e2e).toBe(env)
     expect(closed.media?.encrypted).toBe(true)
     const plain = { id: 3, at: "", text: "offen" }

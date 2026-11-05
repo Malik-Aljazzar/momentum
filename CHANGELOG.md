@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-05 b
+
+### DE
+- Links im Chat bekommen eine Vorschau wie bei WhatsApp: Schreibst du einen Link, siehst du schon beim Tippen Titel, Text und Bild der Seite, und die Vorschau geht mit der Nachricht mit. Ein Tipp auf die Karte öffnet die Seite, das ✕ schickt den Link ohne Vorschau. In verschlüsselten Chats ist auch die Vorschau verschlüsselt.
+
+### EN
+- Links in chats get a preview like on WhatsApp: when you write a link, you see the page's title, text and picture while typing, and the preview goes along with the message. A tap on the card opens the page, the ✕ sends the link without a preview. In encrypted chats the preview is encrypted too.
+
 ## 2026-11-05
 
 ### DE

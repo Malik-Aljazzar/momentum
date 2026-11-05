@@ -285,7 +285,12 @@ export interface ChatMessage {
   target?: UserCard | null; target_me?: boolean
   /** kind "call": a voice / video call */
   call?: CallLine | null
+  /** the preview of a link in the text (server/linkpreview.py; encrypted: opened from the envelope) */
+  link?: LinkPreview | null
 }
+
+/** A web page's preview as the sender's app fetched it: the small picture is base64 WebP. */
+export interface LinkPreview { url: string; title?: string; description?: string; site?: string; image?: string | null; width?: number; height?: number }
 
 export interface Reaction { emoji: string; count: number; mine?: boolean }
 

@@ -664,6 +664,8 @@ interface Strings {
     fun replyingTo(name: String): String
     // chat: typing / recording indicator (report #32), images pasted from the clipboard (report #31)
     val pasteImage: String
+    /** a web link in the message being typed: its preview is on the way (sent along like WhatsApp) */
+    val linkPreviewLoading: String
     fun typingOne(name: String): String
     fun typingTwo(a: String, b: String): String
     fun typingMany(n: Int): String
@@ -1521,6 +1523,7 @@ object De : Strings {
     override val viewPost = "Post ansehen"
     override fun replyingTo(name: String) = "↩ $name"
     override val pasteImage = "Bild aus der Zwischenablage einfügen"
+    override val linkPreviewLoading = "Vorschau wird geladen…"
     override fun typingOne(name: String) = "$name schreibt…"
     override fun typingTwo(a: String, b: String) = "$a und $b schreiben…"
     override fun typingMany(n: Int) = "$n Leute schreiben…"
@@ -2375,6 +2378,7 @@ object En : Strings {
     override val viewPost = "View post"
     override fun replyingTo(name: String) = "↩ $name"
     override val pasteImage = "Paste image from clipboard"
+    override val linkPreviewLoading = "Loading preview…"
     override fun typingOne(name: String) = "$name is typing…"
     override fun typingTwo(a: String, b: String) = "$a and $b are typing…"
     override fun typingMany(n: Int) = "$n people are typing…"

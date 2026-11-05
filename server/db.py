@@ -451,6 +451,9 @@ class Message(Base):
     target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # kind "call": the call it tells about (server/calls.py Call)
     call_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # a plain message's link preview as the sender's app attached it (server/linkpreview.py, JSON); encrypted
+    # messages carry it inside the envelope
+    link: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

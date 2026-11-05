@@ -7,7 +7,8 @@ keeps and that never reach the server - as a backup here, so a new device can ge
 
 A message (built by the clients: android/.../data/E2E.kt = web/src/e2e.ts):
     K    = 32 random bytes
-    ct   = iv || AES-256-GCM(K, iv, {"t": text, "m": {"k": media key, "mime": ...}}, aad "momentum-msg-v1:<conv>")
+    ct   = iv || AES-256-GCM(K, iv, {"t": text, "m": {"k": media key, "mime": ...},
+                                     "l": a link preview (server/linkpreview.py) or absent}, aad "momentum-msg-v1:<conv>")
     pv   = iv || AES-256-GCM(K, iv, {"t": first 180 chars, "k": "image" | "audio" | null}, aad "...:pv")
            (the preview: chat list, quotes, push notifications)
     eph  = a new key pair per message; for every member u (the sender too):
@@ -36,7 +37,7 @@ from .db import Media
 from .mentions import referenced_ids
 
 VERSION = 1
-MAX_CT = 64_000          # base64 characters of a message body
+MAX_CT = 100_000         # base64 characters of a message body (a link preview's small picture travels inside)
 MAX_PV = 2_000
 MAX_WRAPPED = 200
 MAX_BACKUP = 2_000

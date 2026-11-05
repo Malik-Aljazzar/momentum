@@ -59,6 +59,7 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   overlay.py     text on photos/videos burned in at posting (font server/fonts/pixelify_bold.ttf)
   deezer.py      song search + 30 s previews for post sounds (proxied: no CORS, links expire)
   places.py      place search for a post's location (OpenStreetMap via Photon)
+  linkpreview.py chat link previews: fetches a page's title / description / picture safely (SSRF-guarded)
   stories.py     stories (24 h, seen marks), highlights, archive
   moderation.py  content filter for post / story / profile pictures (local ONNX model from nsfw_model.py)
   triggers.py    profile rules tapped with a post's slide / a story (≤5 per slide, ×1..10)
@@ -139,6 +140,11 @@ docs/SPEC.md   the original (German) product spec
 - Subscribing to a person's rule / following their decay (also a group doing it) notifies the owner (`sub_rule`,
   `sub_decay`, `Notification.rule_id` / `group_id`, `social.notify_once`); a group's own rules don't.
 - Links in user text are tappable (`web/src/links.ts` = `ui/Links.kt`, used by MentionText).
+- Chat link previews (`server/linkpreview.py`, clients `web/src/linkpreview.tsx` = `ui/LinkPreview.kt`): the sender's app
+  asks `GET /api/link-preview?url=` while typing (the server fetches: public addresses only, pinned IP, redirects
+  re-checked; cached in memory) and sends the preview along - plain chats `Message.link` (checked by `clean_link`),
+  encrypted ones inside the envelope body (`"l"`). Readers fetch nothing; clients show it only for a link in the text
+  (`shownLink`), the host from that link. The e2e server fakes previews for example.com (`testserver.test_link_preview`).
 - iOS PWA: photos from the front camera via the file input come unmirrored - `pickFiles` mirrors them like the preview
   (EXIF lens "front camera"), = Android's camera. Sounds are always uploaded as audio (a picked video otherwise
   becomes a video and the story / post refuses it).

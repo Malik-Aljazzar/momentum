@@ -1,4 +1,5 @@
 """Direct messages and group chats. Clients poll for new messages (prototype)."""
+import json
 import time
 from datetime import timedelta
 
@@ -227,6 +228,7 @@ async def _messages_json(s, me_id, msgs):
                  mine=mm.user_id == me_id, media=media.get(mm.id), share=shares.get(mm.id),
                  mentions_me=mm.user_id != me_id and me_id in mentioned_ids(mm), reply=reply(mm),
                  reactions=reactions.get(mm.id, []), e2e=envelope_for(mm, me_id), kind=mm.kind,
+                 link=json.loads(mm.link) if mm.link else None,
                  **({"target": people.get(mm.target_id), "target_me": mm.target_id == me_id} if mm.target_id else {}),
                  **({"call": calls[mm.id]} if mm.id in calls else {}))
             for mm in msgs]
@@ -725,7 +727,11 @@ def register(app, authed, api_error):
             raise api_error("Dieser Chat ist verschlüsselt", "This chat is encrypted", 409)
         if not conv.e2e and data.get("e2e") is not None:
             raise api_error("Die Verschlüsselung ist in diesem Chat aus", "Encryption is off in this chat", 409)
-        text = await encode(g.s, str(data.get("text", "")).strip()[:MAX_TEXT])     # "@tim" -> account reference
+        raw_text = str(data.get("text", "")).strip()[:MAX_TEXT]
+        text = await encode(g.s, raw_text)                    # "@tim" -> account reference
+        # the preview of a link in the text, as the sender's app fetched it (encrypted: inside the envelope)
+        from .linkpreview import clean_link
+        link = clean_link(data.get("link"), raw_text) if raw_text else None
         envelope = mentions = None
         if data.get("e2e") is not None:
             members = await _member_keys(g.s, conv.id)
@@ -765,7 +771,8 @@ def register(app, authed, api_error):
                 raise api_error("Nachricht nicht gefunden", "Message not found", 404)
             reply_to = target.id
         msg = Message(conversation_id=conv.id, user_id=g.user.id, text=text, media_id=media.id if media else None,
-                      share_kind=share_kind, share_ref=share_ref, reply_to_id=reply_to, e2e=envelope, mentions=mentions)
+                      share_kind=share_kind, share_ref=share_ref, reply_to_id=reply_to, e2e=envelope, mentions=mentions,
+                      link=json.dumps(link, separators=(",", ":")) if link else None)
         set_typing(conv.id, g.user.id, None)                 # sent: no longer typing
         g.s.add(msg)
         conv.last_message_at = utcnow()

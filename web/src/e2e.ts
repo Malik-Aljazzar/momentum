@@ -6,7 +6,7 @@ import { useEffect, useState } from "preact/hooks"
 import { api, ApiError } from "./api"
 import * as C from "./e2ecrypto"
 import * as K from "./e2ekeys"
-import type { ChatMessage, LastMessage, MediaItem } from "./model"
+import type { ChatMessage, LastMessage, LinkPreview, MediaItem } from "./model"
 
 /** off: this browser can't (no WebCrypto / IndexedDB); locked: my key exists, this device needs the recovery key */
 export type E2EState = "loading" | "ready" | "locked" | "off"
@@ -21,7 +21,7 @@ let me: Me | null = null
 let userId: number | null = null
 let known: Record<string, string> = {}
 
-export interface MessageBody { t?: string; m?: { k: string; mime?: string } | null }
+export interface MessageBody { t?: string; m?: { k: string; mime?: string } | null; l?: LinkPreview | null }
 export interface Preview { t?: string; k?: string | null }
 
 function use(id: number, stored: K.StoredKey) {
@@ -170,7 +170,8 @@ export async function openMessage(convId: number, m: ChatMessage): Promise<ChatM
   if (m.e2e) {
     const body = me ? await C.openEnvelope<MessageBody>(me.priv, convId, me.id, m.e2e, "ct") : null
     if (body) {
-      out = { ...m, text: body.t ?? "", sealed: false, media: m.media && body.m ? { ...m.media, key: body.m.k, mime: body.m.mime } : m.media }
+      out = { ...m, text: body.t ?? "", sealed: false, media: m.media && body.m ? { ...m.media, key: body.m.k, mime: body.m.mime } : m.media,
+        link: body.l ?? null }
       if (!m.mine && m.user?.id != null) checkKey(m.user.id, m.e2e.spk)
     } else out = { ...m, sealed: true }
   }
@@ -187,7 +188,7 @@ export const openMessages = (convId: number, list: ChatMessage[]) => Promise.all
  *  the device's chat cache keeps - it's opened again when the chat loads. */
 export function closeMessage(m: ChatMessage): ChatMessage {
   let out = m
-  if (m.e2e) out = { ...m, text: "", sealed: undefined, media: m.media ? { ...m.media, key: undefined, mime: undefined } : m.media }
+  if (m.e2e) out = { ...m, text: "", sealed: undefined, media: m.media ? { ...m.media, key: undefined, mime: undefined } : m.media, link: undefined }
   if (m.reply?.e2e) out = { ...out, reply: { ...m.reply, text: "" } }
   return out
 }
@@ -205,11 +206,11 @@ export function mentionNames(text: string): string[] {
 }
 
 /** A new message for everyone in the chat who has a key (me too: my other devices). */
-export async function sealMessage(convId: number, text: string, media?: { key: string; mime: string; kind: string } | null) {
+export async function sealMessage(convId: number, text: string, media?: { key: string; mime: string; kind: string } | null, link?: LinkPreview | null) {
   if (!me) throw new Error("locked")
   const set = await keySet(convId)
   const readers = set.keys.filter((k): k is MemberKey & { public: string } => !!k.public)
-  const body: MessageBody = { t: text, m: media ? { k: media.key, mime: media.mime } : null }
+  const body: MessageBody = { t: text, m: media ? { k: media.key, mime: media.mime } : null, ...(link ? { l: link } : {}) }
   const preview: Preview = { t: text.slice(0, 180), k: media?.kind ?? null }
   return { e2e: { ...await C.encryptEnvelope(me, convId, readers, body, preview), kh: set.hash }, mentions: mentionNames(text) }
 }
