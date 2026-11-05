@@ -55,6 +55,10 @@ def test_daily_limit_from_yesterdays_average(tmp_path):
             at = limits.day_bounds(yesterday)[0] + timedelta(hours=8)
             for kind, extra in (("acc", dict(auto_from_rule_id=1)), ("daily", {}), ("acc", dict(undone=True))):
                 s.add(Event(user_id=3, kind=kind, label="x", delta=10, momentum_after=10, created_at=at, **extra))
+            # ben counts for his own taps below - then his automatic taps are part of his growth (+20)
+            for delta in (-40, 60):
+                s.add(Event(user_id=2, kind="dec" if delta < 0 else "acc", label="x", delta=delta, momentum_after=0,
+                            created_at=at, auto_from_rule_id=1))
             # yesterday's own limit is not under test here (offline taps count against their own day)
             # yesterday's rate 300: today's average 116.7 lies between 0.25 and 0.75 of it -> stays 300
             s.add(DailyCap(day=yesterday, average=0, bias=300, cap=300, players=0))
@@ -72,9 +76,9 @@ def test_daily_limit_from_yesterdays_average(tmp_path):
         async with app.db.session() as s:
             await s.execute(delete(DailyCap).where(DailyCap.day == limits.server_day()))
             await s.commit()
-        # cat didn't tap herself -> not counted. Average (300 + 50) / 2 = 175 -> the rate stays 300
+        # cat didn't tap herself -> not counted. Average (300 + 50 + 20) / 2 = 185 -> the rate stays 300
         st = (await cat.req("get", "/api/state"))["state"]
-        assert st["limit"]["cap"] == 300 and st["limit"]["average"] == 175 and st["limit"]["players"] == 2
+        assert st["limit"]["cap"] == 300 and st["limit"]["average"] == 185 and st["limit"]["players"] == 2
         r = await cat.req("post", f"/api/rules/{rule_id(st, 'Workout')}/trigger")        # 400 -> capped
         assert r["delta"] == 300 and r["capped"] and r["state"]["limit"]["remaining"] < 1
         r = await cat.req("post", f"/api/rules/{rule_id(st, 'Task done')}/trigger", status=409)

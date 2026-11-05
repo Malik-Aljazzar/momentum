@@ -124,7 +124,8 @@ docs/SPEC.md   the original (German) product spec
 - iOS Safari once drew a card's animated banner canvas over everything on it (frame, badge, numbers): momentum cards use `.banner-card` (own compositing layers). The PWA blocks the browser's long-press menu (main.tsx).
 - The limit info shows where tomorrow's rate is heading (`limits.status`: today_average, next_cap).
 - The limit's average counts only competing players who tapped an acc/dec themselves that day (not automatic
-  idle taps, not the decay, not undone taps) - `limits.average_growth`; `UserActivity` is admin statistics only.
+  idle taps, not the decay, not undone taps) - `limits.average_growth`; but a counted player's growth includes their
+  automatic taps (`net_by_user`, owner's call 2026-11-05); `UserActivity` is admin statistics only.
 - Limit used up: an accelerator with an active automatic (idle_days + idle_rule, not paused) can still be tapped by
   hand - +0, it only restarts the idle time (`service.guards_idle` = `logic.ts guardsIdle` = `AppViewModel.guardsIdle`).
 - New kinds of chat lines (`Message.kind`) or activity (`Notification.kind`) would show wrongly in Android apps that

@@ -3,7 +3,8 @@
 The limit is a growth rate that adapts once per day to how much the competition grew:
 the average growth (accelerators minus decelerators, zero included) of the competing players
 who tapped a rule themselves on day D-1 is compared with D-1's rate (automatic taps of idle rules
-and the daily decay don't make a player count; undone taps neither):
+and the daily decay don't make a player count; undone taps neither - but a counted player's growth
+includes their automatic taps):
 
     average > 0.75 * rate  ->  rate doubles (at most 12800)
     average < 0.25 * rate  ->  rate halves (at least 25)
