@@ -319,7 +319,9 @@ by the server, stored in the config table as PEM – pywebpush needs it as a `Va
 PEM string makes every round crash) with the text in the user's language (`TEXTS`, keep in
 sync with Strings.kt). Android: FCM data message = wake-up, the app runs `checkUpdates` itself
 (`data/Push.kt`); WorkManager polling stays as fallback. Firebase project `momentum-df519`,
-`android/app/google-services.json` is in the repo. The service account key is on the server at
+`android/app/google-services.json` is not in the repo (ignored since 2026-11-05: GitHub's secret scanning
+flagged its API key, the history was rewritten without it); the build needs it - it stays in the main tree, copy it
+into worktrees (like `local.properties`), a fresh clone gets it from the Firebase console. The service account key is on the server at
 `/data/firebase-admin.json` (in the data volume, survives deploys; locally `secrets/firebase-admin.json`) –
 without it the log says "Android keeps polling". Devices are bound to their login session (logout = no pushes).
 Read notifications disappear: tags `chat:<id>` / `activity` (Android) and `chat-<id>` / `note-<id>`

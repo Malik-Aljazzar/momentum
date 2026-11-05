@@ -2,6 +2,7 @@
 secrets/
 android/keystore.properties
 android/local.properties
+android/app/google-services.json
 .env
 *.env
 
