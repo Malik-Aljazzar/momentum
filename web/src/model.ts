@@ -19,6 +19,8 @@ export interface DailyLimit {
   cap: number; gained: number; remaining: number; average: number; bias: number; players: number
   /** today's average growth so far and the rate it would give tomorrow (report #46) */
   today_average?: number; today_players?: number; next_cap?: number
+  /** the day before's limit (null on the very first day): a day's first start says when it changed (limitnews.ts) */
+  prev_cap?: number | null
   day?: string | null; tz?: string
   provisional?: boolean
 }

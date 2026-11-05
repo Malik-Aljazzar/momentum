@@ -45,6 +45,11 @@ class Prefs(context: Context) {
         get() = sp.getString("changelog_seen", null)
         set(value) = sp.edit().putString("changelog_seen", value).apply()
 
+    /** The last server day whose limit this device saw (data/LimitNews.kt); null = fresh install. */
+    var limitSeenDay: String?
+        get() = sp.getString("limit_seen_day", null)
+        set(value) = sp.edit().putString("limit_seen_day", value).apply()
+
     /** "de" or "en"; defaults to the phone language. */
     var language: String
         get() = sp.getString("language", null) ?: if (Locale.getDefault().language == "de") "de" else "en"

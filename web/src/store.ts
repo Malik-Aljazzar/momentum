@@ -5,6 +5,7 @@
 import { batch, signal } from "@preact/signals"
 import { api, ApiError } from "./api"
 import { pendingReleases, type Release } from "./changelog"
+import { checkLimitNews, type LimitNews } from "./limitnews"
 import { fmt } from "./format"
 import { googleReturn } from "./googlelogin"
 import { applyLocal, applyTap, currentDay, moveRule as moveLocal, offlineCapable, OFFLINE_SETTINGS, revertLocal } from "./logic"
@@ -38,6 +39,8 @@ export const online = signal(typeof navigator === "undefined" ? true : navigator
 export const updateRequired = signal(false)
 /** after an update: the changelog's versions this device hasn't seen yet (null = nothing to show) */
 export const whatsNew = signal<Release[] | null>(null)
+/** a day's first start: the daily limit is higher / lower than the day before (shown after whatsNew) */
+export const limitNews = signal<LimitNews | null>(null)
 export const systemFont = signal(local.get("system_font", false))
 export const notifications = signal(local.get("notifications", true))
 export const devMode = signal(local.get("dev", false))
@@ -67,6 +70,8 @@ export function showToast(text: string, error = false) {
 
 function putState(s: AppState) {
   state.value = s
+  const news = checkLimitNews(s)
+  if (news) limitNews.value = news
   if (foreground.value) {   // on screen: what's in the state is seen
     local.set("last_message_seen", Math.max(local.get("last_message_seen", 0), s.unread.latest_message_id ?? 0))
     local.set("last_notification_seen", Math.max(local.get("last_notification_seen", 0), s.unread.latest_notification_id ?? 0))

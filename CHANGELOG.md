@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-05
+
+### DE
+- Neuer Tag, neues Limit: Hat sich dein Tageslimit seit gestern geändert, sagt dir die App das beim ersten Öffnen des Tages – höher oder niedriger, mit beiden Zahlen. Gibt es nach einem Update auch Neuigkeiten, kommen sie zuerst, danach das Limit.
+- Die Erklärung zum Tageslimit stimmt jetzt: Automatische Taps zählen beim Schnitt mit, wenn der Spieler am selben Tag auch selbst getippt hat.
+
+### EN
+- New day, new limit: if your daily limit changed since yesterday, the app tells you when you first open it that day – higher or lower, with both numbers. If there's also news after an update, it comes first, then the limit.
+- The daily limit's explanation is right now: automatic taps count towards the average when the player also tapped themselves that day.
+
 ## 2026-11-04 g
 
 ### DE

@@ -151,7 +151,9 @@ async def status(s, user_id):
     # where tomorrow's rate is heading: today's average so far (report #46; it can change until midnight)
     today_average, today_players = await average_growth(s, day)
     next_cap = await next_rate(s, day + timedelta(days=1), today_average, freeze=False)
+    # the day before's limit: the apps say so on a day's first start when it changed (null on the very first day)
+    prev_cap = await s.scalar(select(DailyCap.cap).where(DailyCap.day < day).order_by(DailyCap.day.desc()).limit(1))
     return dict(cap=cap.cap, gained=gained, remaining=max(0.0, cap.cap - gained),
                 average=round(cap.average, 1), bias=cap.bias, players=cap.players,
                 today_average=round(today_average, 1), today_players=today_players, next_cap=next_cap,
-                day=day.isoformat(), tz=SERVER_TZ.key)
+                prev_cap=prev_cap, day=day.isoformat(), tz=SERVER_TZ.key)

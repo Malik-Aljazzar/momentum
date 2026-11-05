@@ -429,6 +429,11 @@ interface Strings {
     val whatsNewHint: String
     val whatsNewOpen: String
     val whatsNewOk: String
+    // the daily limit changed since the day before (a day's first start, data/LimitNews.kt)
+    val limitUpTitle: String
+    val limitDownTitle: String
+    fun limitChangeText(prev: String, cap: String): String
+    fun limitChangeWhy(average: String): String
     val systemFontSetting: String
     val notificationsSetting: String
     val systemFontHint: String
@@ -1230,7 +1235,7 @@ object De : Strings {
     override val limitProvisional = "Du bist offline und es ist ein neuer Tag: Bis zur nächsten Verbindung gilt das Limit von gestern. Beim Synchronisieren rechnet der Server mit dem echten Limit von heute."
     override fun limitInfo(cap: String, average: String, bias: String, gained: String, left: String) = listOf(
         "Heute kannst du bis zu $cap Momentum sammeln.",
-        "Das Limit ist eine Wachstumsrate, die sich täglich anpasst. Gestern sind die Spieler im Wettbewerb, die selbst etwas getippt haben, im Schnitt um $average gewachsen (automatische Taps und der tägliche Verfall zählen nicht): Liegt der Schnitt über 75 % der Rate, verdoppelt sie sich (bis 12.800), unter 25 % halbiert sie sich (bis 25). Sie gilt für alle gleich und steht für den ganzen Tag fest.",
+        "Das Limit ist eine Wachstumsrate, die sich täglich anpasst. Gestern sind die Spieler im Wettbewerb, die selbst etwas getippt haben, im Schnitt um $average gewachsen (ihre automatischen Taps zählen mit, der tägliche Verfall nicht): Liegt der Schnitt über 75 % der Rate, verdoppelt sie sich (bis 12.800), unter 25 % halbiert sie sich (bis 25). Sie gilt für alle gleich und steht für den ganzen Tag fest.",
         "Beschleuniger zählen dazu, Entschleuniger ziehen wieder ab. Du stehst heute bei $gained – noch $left möglich.",
         "Entschleuniger wirken immer, auch wenn das Limit erreicht ist.",
     )
@@ -1288,6 +1293,10 @@ object De : Strings {
     override val whatsNewHint = "Nach jedem Update zeigt dir Momentum, was sich geändert hat."
     override val whatsNewOpen = "Alle Änderungen"
     override val whatsNewOk = "Alles klar"
+    override val limitUpTitle = "Tageslimit gestiegen"
+    override val limitDownTitle = "Tageslimit gesunken"
+    override fun limitChangeText(prev: String, cap: String) = "Heute kannst du bis zu $cap Momentum sammeln – gestern waren es $prev."
+    override fun limitChangeWhy(average: String) = "Die Spieler im Wettbewerb sind gestern im Schnitt um $average gewachsen."
     override val systemFontSetting = "Systemschrift für Texte"
     override val notificationsSetting = "Benachrichtigungen"
     override val systemFontHint = "Nachrichten, Kommentare, Post-Texte und Bios in der normalen Schrift deines Handys statt in Pixel-Schrift."
@@ -2080,7 +2089,7 @@ object En : Strings {
     override val limitProvisional = "You're offline and it's a new day: until you're back online, yesterday's limit applies. When syncing, the server uses today's real limit."
     override fun limitInfo(cap: String, average: String, bias: String, gained: String, left: String) = listOf(
         "Today you can collect up to $cap momentum.",
-        "The limit is a growth rate that adapts every day. Yesterday the players in the competition who tapped something themselves grew by $average on average (automatic taps and the daily decay don't count): above 75 % of the rate it doubles (up to 12,800), below 25 % it halves (down to 25). It's the same for everyone and fixed for the whole day.",
+        "The limit is a growth rate that adapts every day. Yesterday the players in the competition who tapped something themselves grew by $average on average (their automatic taps count too, the daily decay doesn't): above 75 % of the rate it doubles (up to 12,800), below 25 % it halves (down to 25). It's the same for everyone and fixed for the whole day.",
         "Accelerators count towards it, decelerators take it back down. You're at $gained today – $left left.",
         "Decelerators always apply, even when the limit is reached.",
     )
@@ -2138,6 +2147,10 @@ object En : Strings {
     override val whatsNewHint = "After every update Momentum shows you what changed."
     override val whatsNewOpen = "All changes"
     override val whatsNewOk = "Got it"
+    override val limitUpTitle = "Daily limit up"
+    override val limitDownTitle = "Daily limit down"
+    override fun limitChangeText(prev: String, cap: String) = "Today you can collect up to $cap momentum – yesterday it was $prev."
+    override fun limitChangeWhy(average: String) = "Yesterday the players in the competition grew by $average on average."
     override val systemFontSetting = "System font for texts"
     override val notificationsSetting = "Notifications"
     override val systemFontHint = "Messages, comments, captions and bios in your phone's regular font instead of the pixel font."

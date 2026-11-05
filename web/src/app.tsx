@@ -1,7 +1,7 @@
 // The app root (android/.../ui/App.kt): login / main screen, tabs, opened screens, overlays.
 import { useEffect, useRef, useState } from "preact/hooks"
 import { keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
-import { foreground, hyperLore, hyperspace, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
+import { foreground, hyperLore, hyperspace, limitNews, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
 import { startE2E } from "./e2e"
 import { installed, isIos, notifyPermission, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
@@ -10,7 +10,7 @@ import { ConfirmEmailScreen, LoginScreen, OfflineScreen, UsernameScreen } from "
 import { HomeScreen } from "./screens/Home"
 import { RulesScreen } from "./screens/Rules"
 import { RouteScreen, TabScreen } from "./screens/registry"
-import { HyperLoreOverlay, HyperspaceOverlay, MilestoneOverlay, UpdateScreen, WhatsNewOverlay } from "./screens/Overlays"
+import { HyperLoreOverlay, HyperspaceOverlay, LimitChangeOverlay, MilestoneOverlay, UpdateScreen, WhatsNewOverlay } from "./screens/Overlays"
 import { NineIcon, NineOverlay } from "./screens/Nine"
 import { OverlayHost } from "./ui/overlay"
 import { MediaHost } from "./screens/media"
@@ -34,6 +34,8 @@ export function App() {
     {hyperLore.value && <HyperLoreOverlay bkey={hyperLore.value} onClose={() => { hyperLore.value = null }} />}
     {nineLore.value && <NineOverlay nkey={nineLore.value} onClose={() => { nineLore.value = null }} />}
     {sc === "main" && whatsNew.value && <WhatsNewOverlay releases={whatsNew.value} onClose={() => { whatsNew.value = null }} />}
+    {/* both want the screen: what's new first, then the limit's change */}
+    {sc === "main" && !whatsNew.value && limitNews.value && <LimitChangeOverlay news={limitNews.value} onClose={() => { limitNews.value = null }} />}
     {sc === "main" && <NotifyAsk />}
     <OverlayHost />
     <StoryHost />

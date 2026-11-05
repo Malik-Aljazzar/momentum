@@ -424,6 +424,24 @@ fun WhatsNewSheet(releases: List<com.momentum.app.data.Release>, lang: Lang, onD
     }
 }
 
+/** A day's first start: the daily limit changed since the day before (web: LimitChangeOverlay in screens/Overlays.tsx). */
+@Composable
+fun LimitChangeSheet(news: com.momentum.app.data.LimitNews, onDismiss: () -> Unit) {
+    val S = LocalStrings.current
+    PxSheet(onDismiss) {
+        Label(if (news.up) S.limitUpTitle else S.limitDownTitle, color = Px.Yellow)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(com.momentum.app.fmt(news.prev), style = T.block.copy(fontSize = 20.sp, color = Px.Muted), modifier = Modifier.alignByBaseline())
+            Text("→", style = T.block.copy(fontSize = 20.sp), modifier = Modifier.alignByBaseline())
+            Text(com.momentum.app.fmt(news.cap), style = T.block.copy(fontSize = 32.sp, color = if (news.up) Px.Lime else Px.Orange),
+                modifier = Modifier.alignByBaseline())
+        }
+        Text(S.limitChangeText(com.momentum.app.fmt(news.prev), com.momentum.app.fmt(news.cap)), style = T.body)
+        Text(S.limitChangeWhy(com.momentum.app.fmt(news.average)), style = T.small)
+        PxButton(S.whatsNewOk, Modifier.fillMaxWidth()) { onDismiss() }
+    }
+}
+
 @Composable
 private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.clickable { onChange(!checked) }, verticalAlignment = Alignment.CenterVertically) {

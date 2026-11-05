@@ -57,6 +57,8 @@ data class DailyLimit(
     @kotlinx.serialization.SerialName("today_average") val todayAverage: Double = 0.0,
     @kotlinx.serialization.SerialName("today_players") val todayPlayers: Int = 0,
     @kotlinx.serialization.SerialName("next_cap") val nextCap: Double? = null,
+    /** the day before's limit (null on the very first day): a day's first start says when it changed (LimitNews) */
+    @kotlinx.serialization.SerialName("prev_cap") val prevCap: Double? = null,
     /** server day the values belong to, and the server's time zone */
     val day: String? = null,
     val tz: String = "Europe/Berlin",

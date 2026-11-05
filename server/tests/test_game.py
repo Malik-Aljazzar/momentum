@@ -47,6 +47,7 @@ def test_no_milestone_animation_on_last_stage(tmp_path):
 def test_daily_limit_from_yesterdays_average(tmp_path):
     async def scenario(app, c):
         ann, ben, cat = await user(c, "ann"), await user(c, "ben"), await user(c, "cat")
+        assert (await ann.req("get", "/api/state"))["state"]["limit"]["prev_cap"] is None   # the very first day
         yesterday = limits.server_day() - timedelta(days=1)
         async with app.db.session() as s:
             for uid in (1, 2, 3):                           # all three were online yesterday (doesn't count)
@@ -79,6 +80,7 @@ def test_daily_limit_from_yesterdays_average(tmp_path):
         # cat didn't tap herself -> not counted. Average (300 + 50 + 20) / 2 = 185 -> the rate stays 300
         st = (await cat.req("get", "/api/state"))["state"]
         assert st["limit"]["cap"] == 300 and st["limit"]["average"] == 185 and st["limit"]["players"] == 2
+        assert st["limit"]["prev_cap"] == 300               # yesterday's limit: the apps compare (no change here)
         r = await cat.req("post", f"/api/rules/{rule_id(st, 'Workout')}/trigger")        # 400 -> capped
         assert r["delta"] == 300 and r["capped"] and r["state"]["limit"]["remaining"] < 1
         r = await cat.req("post", f"/api/rules/{rule_id(st, 'Task done')}/trigger", status=409)

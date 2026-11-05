@@ -61,4 +61,26 @@ if __name__ == "__main__":
             await s.commit()
         return jsonify(done=len(rows))
 
+    @app.post("/api/test/limit/yesterday")
+    async def test_limit_yesterday():
+        """Test-only: yesterday's daily limit {"cap": n} (today's stays) - the apps compare them on a day's first start.
+        The PWA only shows it with a stored limit_seen_day, so the specs running in parallel don't notice."""
+        from datetime import timedelta
+
+        from quart import jsonify, request
+
+        from . import limits
+        from .db import DailyCap
+        cap = float((await request.get_json(silent=True) or {}).get("cap", 50))
+        day = limits.server_day()
+        async with app.db.session() as s:
+            await limits.cap_for(s, day)                      # today's limit is fixed first (from the days before)
+            row = await s.get(DailyCap, day - timedelta(days=1))
+            if row is None:
+                s.add(DailyCap(day=day - timedelta(days=1), average=0, bias=cap, cap=cap, players=0))
+            else:
+                row.cap = row.bias = cap
+            await s.commit()
+        return jsonify(cap=cap)
+
     app.run(host="127.0.0.1", port=port, debug=False)

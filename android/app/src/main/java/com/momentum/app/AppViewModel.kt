@@ -98,6 +98,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var openRequest by mutableStateOf<Int?>(null)
     /** after an update: the changelog's versions this device hasn't seen yet (null = nothing to show) */
     var whatsNew by mutableStateOf<List<com.momentum.app.data.Release>?>(null)
+    /** a day's first start: the daily limit is higher / lower than the day before (shown after whatsNew) */
+    var limitNews by mutableStateOf<com.momentum.app.data.LimitNews?>(null)
 
     /** The whole changelog (CHANGELOG.md, bundled at build time). */
     fun changelog() = com.momentum.app.data.Changelog.load(getApplication())
@@ -206,6 +208,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun putState(s: AppState) {
         state = s
+        com.momentum.app.data.LimitNews.check(prefs, s)?.let { limitNews = it }
         s.user.id?.let { com.momentum.app.data.Calls.attach(getApplication(), api, it) }
         // encrypted chats: my key on this phone (made on the first device, else unlocked with the recovery key)
         val uid = s.user.id

@@ -123,6 +123,9 @@ docs/SPEC.md   the original (German) product spec
 - Chat photos: after 14 days (`chat.CHAT_IMAGE_DAYS`) an hourly job keeps only the 480 px thumb (`Media.archived`); messages carry `expires_at` / `archived`, clients show the countdown. Messages show their time and day separators in the player's time zone (`web/src/chattime.ts` = `ui/ChatTime.kt`).
 - iOS Safari once drew a card's animated banner canvas over everything on it (frame, badge, numbers): momentum cards use `.banner-card` (own compositing layers). The PWA blocks the browser's long-press menu (main.tsx).
 - The limit info shows where tomorrow's rate is heading (`limits.status`: today_average, next_cap).
+- A day's first server state with a limit other than the day before's (`limit.prev_cap`) shows a sheet "higher / lower"
+  (`web/src/limitnews.ts` = `data/LimitNews.kt`, stored `limit_seen_day`; competitors only, not on a fresh install, not
+  for a provisional limit). It waits for the what's-new sheet: popups that both want the screen come one after the other.
 - The limit's average counts only competing players who tapped an acc/dec themselves that day (not automatic
   idle taps, not the decay, not undone taps) - `limits.average_growth`; but a counted player's growth includes their
   automatic taps (`net_by_user`, owner's call 2026-11-05); `UserActivity` is admin statistics only.

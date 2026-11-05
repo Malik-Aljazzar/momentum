@@ -100,6 +100,8 @@ fun MomentumApp(vm: AppViewModel) {
                     .padding(bottom = if (vm.screen == Screen.Main) TAB_BAR_HEIGHT + 16.dp else 32.dp),
             )
             vm.whatsNew?.let { if (vm.screen == Screen.Main) WhatsNewSheet(it, vm.lang) { vm.whatsNew = null } }
+            // both want the screen: what's new first, then the limit's change
+            if (vm.whatsNew == null) vm.limitNews?.let { if (vm.screen == Screen.Main) LimitChangeSheet(it) { vm.limitNews = null } }
             if (vm.milestone && !vm.hyperspace) MilestoneOverlay(vm) { vm.milestone = false }
             if (vm.hyperspace) HyperspaceOverlay(vm) { vm.hyperspace = false; vm.milestone = false }
             val golden = vm.state?.user?.hyperspace == true

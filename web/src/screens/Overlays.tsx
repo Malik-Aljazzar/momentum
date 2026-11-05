@@ -8,6 +8,8 @@ import { meta, req, save, showToast, state } from "../store"
 import { S } from "../strings"
 import { BannerBg, FitText, HyperText, Label, LiveCanvas, PixelIcon, PxButton, SceneBg, Sheet, VehicleSprite } from "../ui/components"
 import type { Release } from "../changelog"
+import { fmt } from "../format"
+import type { LimitNews } from "../limitnews"
 
 const CONFETTI = ["#FFCD75", "#EF7D57", "#A7F070", "#73EFF7", "#F4F4F4", "#B13E53", "#41A6F6"]
 
@@ -185,6 +187,24 @@ export function WhatsNewOverlay({ releases, onClose }: { releases: Release[]; on
         <span class="t-body">{line}</span>
       </div>)}
     </div>)}
+    <PxButton text={s.whatsNewOk} onClick={onClose} />
+  </Sheet>
+}
+
+/** A day's first start: the daily limit changed since the day before (android: LimitChangeSheet in ui/Settings.kt). */
+export function LimitChangeOverlay({ news, onClose }: { news: LimitNews; onClose: () => void }) {
+  const s = S.value
+  const up = news.cap > news.prev
+  const title = up ? s.limitUpTitle : s.limitDownTitle
+  return <Sheet onClose={onClose} label={title}>
+    <Label text={title} color="var(--yellow)" />
+    <div class="row limit-change" style={{ gap: 12, alignItems: "baseline" }}>
+      <span class="t-title" style={{ fontSize: 20, color: "var(--muted)" }}>{fmt(news.prev)}</span>
+      <span class="t-title" style={{ fontSize: 20 }}>→</span>
+      <span class="t-title" style={{ fontSize: 32, color: up ? "var(--lime)" : "var(--orange)" }}>{fmt(news.cap)}</span>
+    </div>
+    <span class="t-body">{s.limitChangeText(fmt(news.prev), fmt(news.cap))}</span>
+    <span class="t-small">{s.limitChangeWhy(fmt(news.average))}</span>
     <PxButton text={s.whatsNewOk} onClick={onClose} />
   </Sheet>
 }
