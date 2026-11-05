@@ -1,8 +1,12 @@
-// The size of a single chat photo (android/.../ui/Chat.kt photoSize).
+// Photos and videos in a chat bubble (android/.../ui/Chat.kt CHAT_MEDIA_DP, videoLength).
 
-/** A single chat photo in its own shape (report #68: it was cut to a square): 240 px on its long side,
- *  very long / wide ones a little cut. */
-export function photoSize(width?: number, height?: number): { width: number; height: number } {
-  const ratio = width && height ? Math.min(2, Math.max(.5, width / height)) : 1
-  return ratio >= 1 ? { width: 240, height: Math.round(240 / ratio) } : { width: Math.round(240 * ratio), height: 240 }
+/** A single chat photo / video: a 240 px square, cut to fit like WhatsApp (it was its own shape, report #68);
+ *  the big view shows all of it. */
+export const CHAT_MEDIA = 240
+
+/** A video's length on its still: "0:07", "1:00", "10:05" ("" without one). */
+export function videoLength(seconds?: number): string {
+  const s = Math.round(seconds ?? 0)
+  if (!(s > 0)) return ""
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }

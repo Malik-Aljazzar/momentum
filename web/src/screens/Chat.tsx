@@ -17,7 +17,8 @@ import { foreground, onError, online, refresh, req, showToast, state, uploadMedi
 import { cache } from "../storage"
 import { lang, S, type Strings } from "../strings"
 import { DraftLink, LinkCard, shownLink, useLinkDraft } from "../linkpreview"
-import { photoSize } from "../chatphoto"
+import { CHAT_MEDIA, videoLength } from "../chatphoto"
+import { isVideoFile, secureVideo } from "../chatvideo"
 import {
   Avatar, EmptyFriends, IconBtn, Label, LoadMore, MentionSuggestions, MentionText, OfflineState, OfflineStrip, PixelIcon,
   PxButton, PxTextField, RemoteImage, Sheet, TopBar, usePress, UserRow,
@@ -25,6 +26,7 @@ import {
 import { pickFiles, securePhoto, shrinkImage } from "../ui/media"
 import { AudioBubble, MicButton, RecordingIndicator } from "../ui/voice"
 import { ChallengeMini } from "./Community"
+import { UploadBar } from "./Compose"
 import { ConnectedPeople } from "./Feed"
 import { openViewer } from "./media"
 import { loadStoryRings, openSharedStory, openStoriesOf, StoryAvatar, unseenStories } from "./Stories"
@@ -33,9 +35,10 @@ import { ConversationAvatar, ConversationName, conversationTitle, MilestoneTile,
 const POLL_MS = 3000
 
 /** One line for a message: its text, or what it contains. */
-function previewOf(s: Strings, text: string | undefined, mediaKind?: string | null, shareKind?: string | null, hasMedia = false) {
+export function previewOf(s: Strings, text: string | undefined, mediaKind?: string | null, shareKind?: string | null, hasMedia = false) {
   if (text?.trim()) return text
   if (mediaKind === "audio") return `♪ ${s.voiceMessage}`
+  if (mediaKind === "video") return `▶ ${s.videoLabel}`
   if (mediaKind || hasMedia) return `▣ ${s.photo}`
   if (shareKind === "rule") return `↗ ${s.sharedRule}`
   if (shareKind === "post") return `↗ ${s.sharedPost}`
@@ -275,7 +278,9 @@ export function ChatRoomScreen({ id }: { id: number }) {
   }
   const [queue, setQueue] = useState<QueuedPhoto[]>([])
   const addFiles = (files: File[]) =>
-    setQueue((q) => [...q, ...files.slice(0, MAX_PHOTOS - q.length).map((file) => ({ file, url: URL.createObjectURL(file), caption: "" }))])
+    setQueue((q) => [...q, ...files.slice(0, MAX_PHOTOS - q.length).map((file) => ({ file, url: URL.createObjectURL(file), caption: "", video: isVideoFile(file) }))])
+  // a video on its way: shrunk on the phone (encrypted chats), sent, then the server's turn (plain chats)
+  const [upload, setUpload] = useState<{ progress?: number; compressing?: boolean } | null>(null)
   // a pasted picture (a copied screenshot, ...) goes into the photo queue (report #31)
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -305,19 +310,47 @@ export function ChatRoomScreen({ id }: { id: number }) {
     const h = setInterval(() => ping("audio"), 3000)
     return () => { clearInterval(h); ping(null) }
   }, [recording != null])
-  const pickPhotos = async (camera = false) => {
+  /** the gallery: photos and videos; the camera one type at a time (with both, Chrome opens the gallery instead) */
+  const pickPhotos = async (camera: "photo" | "video" | null = null) => {
     if (!online.value) { showToast(s.needsInternet, true); return }
     if (sendingPhoto) return
-    addFiles(await pickFiles("image/*", !camera, camera ? "environment" : undefined))
+    addFiles(await pickFiles(camera === "photo" ? "image/*" : camera === "video" ? "video/*" : "image/*,video/*", !camera, camera ? "environment" : undefined))
+  }
+  /** A video in its own message: encrypted chats shrink and seal it here (the server can't), plain ones send it
+   *  as it is (the server re-encodes it). False: stop sending (locked). */
+  const sendVideo = async (file: File, caption: string): Promise<boolean> => {
+    try {
+      if (convRef.current?.e2e) {
+        if (e2eState.value !== "ready") { showToast(s.e2eNeedsUnlock, true); return false }
+        setUpload({ compressing: true, progress: 0 })
+        const v = await secureVideo(file, (done) => setUpload({ compressing: true, progress: done }))
+        if (!v) { showToast(s.videoCantSend, true); return true }
+        const sealed = await sealMedia(v.full, v.still)
+        setUpload({ progress: 0 })
+        const m = await uploadMedia(sealed.full, "application/octet-stream",
+          `/encrypted?kind=video&width=${v.width}&height=${v.height}&duration=${v.duration.toFixed(1)}`, (done) => setUpload({ progress: done }))
+        const md = m && sealed.thumb ? await uploadMedia(sealed.thumb, "application/octet-stream", `/${m.id}/thumb`) : m
+        if (md) await send({ text: caption, media: { ...md, key: sealed.key, mime: v.mime } })
+      } else {
+        setUpload({ progress: 0 })
+        const m = await uploadMedia(file, file.type || "video/mp4", "", (done) => setUpload({ progress: done }))
+        if (m) await send({ media: m, text: caption })
+      }
+      return true
+    } finally {
+      setUpload(null)
+    }
   }
   const sendQueue = async () => {
     const items = queue
     setQueue([])
     setSendingPhoto(true)
-    // one message per photo, in order, each with its own caption
+    // one message per photo / video, in order, each with its own caption
     for (const it of items) {
       const caption = it.caption.trim()
-      if (convRef.current?.e2e) {
+      if (it.video) {
+        if (!await sendVideo(it.file, caption)) break
+      } else if (convRef.current?.e2e) {
         // encrypted here: the server can't shrink it, so it gets the picture and its small copy ready-made
         if (e2eState.value !== "ready") { showToast(s.e2eNeedsUnlock, true); break }
         const p = await securePhoto(it.file)
@@ -358,6 +391,7 @@ export function ChatRoomScreen({ id }: { id: number }) {
     <OfflineStrip />
     {c?.kind === "group" && c.call && c.call.me !== "joined" && inThisCall == null && <CallBar call={c.call} onJoin={() => ring(c.call!.video)} />}
     {queue.length > 0 && <PhotoQueue queue={queue} onChange={setQueue} onAdd={pickPhotos} onSend={sendQueue} onClose={() => setQueue([])} />}
+    {upload && <div class="video-upload" style={{ background: "var(--card)", padding: "8px 16px 0" }}><UploadBar progress={upload.progress} compressing={upload.compressing} /></div>}
     {/* reversed: the newest message sits at the bottom, so the chat opens there */}
     <div ref={list} class="scroll" style={{ flex: 1, display: "flex", flexDirection: "column-reverse", padding: "8px 12px 14px", gap: 6 }}>
       {/* photos one person sent in a row: one collage (the newest message carries it) */}
@@ -485,6 +519,21 @@ function ChatImage({ media, class: klass, style }: { media: MediaItem; class?: s
     fallback={thumb && <RemoteImage url={thumb} class="fill" />} />
 }
 
+/** A chat video: its still (an encrypted one opened here first) with ▶ and its length; archived only the still. */
+function ChatVideo({ media, busy }: { media: MediaItem; busy: boolean }) {
+  const still = useMediaUrl(media, "thumb")
+  const length = media.archived ? "" : videoLength(media.duration)
+  return <div class="chat-video" style={{ position: "relative", width: CHAT_MEDIA, height: CHAT_MEDIA, borderRadius: 14, overflow: "hidden", background: "#000" }}>
+    {still && <RemoteImage url={still} class="fill" />}
+    {!media.archived && <div class="center" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+      width: 44, height: 44, borderRadius: 22, background: "rgba(0,0,0,0.6)", opacity: busy ? .45 : 1 }}>
+      <PixelIcon name="ui_play" size={20} />
+    </div>}
+    {length && <span class="t-small video-length" style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, color: "#fff",
+      borderRadius: 8, background: "rgba(0,0,0,0.6)", padding: "1px 6px" }}>{length}</span>}
+  </div>
+}
+
 /** A voice message (an encrypted one is opened here first). */
 function ChatAudio({ media }: { media: MediaItem }) {
   const url = useMediaUrl(media, "url")
@@ -541,7 +590,7 @@ const REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👍"]
 
 const MAX_PHOTOS = 10
 
-interface QueuedPhoto { file: File; url: string; caption: string }
+interface QueuedPhoto { file: File; url: string; caption: string; video: boolean }
 
 const isPhoto = (m: ChatMessage) => m.media?.kind === "image" && !m.share
 
@@ -579,11 +628,13 @@ export function chainEnds(groups: { m: ChatMessage }[], tz: string): Set<number>
   return out
 }
 
-/** Under a chat photo: when only its small copy is left (report #48). */
+/** Under a chat photo / video: when only its small copy (a video's still) is left (report #48). */
 function PhotoExpiry({ photos }: { photos: ChatMessage[] }) {
   const s = S.value
   const media = photos.map((p) => p.media!).filter(Boolean)
-  if (media.length && media.every((md) => md.archived)) return <span class="t-small photo-expiry grow" style={{ fontSize: 10 }}>{s.photoArchived}</span>
+  if (media.length && media.every((md) => md.archived)) return <span class="t-small photo-expiry grow" style={{ fontSize: 10 }}>
+    {media[0].kind === "video" ? s.videoArchived : s.photoArchived}
+  </span>
   const soonest = media.map((md) => md.expires_at).filter((x): x is string => !!x).sort()[0]
   const left = soonest ? countdown(soonest, new Date()) : null
   return left ? <span class="t-small photo-expiry grow" style={{ fontSize: 10 }}>{s.deletedIn(left.days, left.hm)}</span> : null
@@ -606,7 +657,7 @@ function Collage({ photos, onOpen }: { photos: ChatMessage[]; onOpen: (i: number
 
 /** The photos picked for sending: a big preview with its caption, the strip, add more, send. */
 function PhotoQueue({ queue, onChange, onAdd, onSend, onClose }: {
-  queue: QueuedPhoto[]; onChange: (q: QueuedPhoto[]) => void; onAdd: (camera: boolean) => void; onSend: () => void; onClose: () => void
+  queue: QueuedPhoto[]; onChange: (q: QueuedPhoto[]) => void; onAdd: (camera: "photo" | "video" | null) => void; onSend: () => void; onClose: () => void
 }) {
   const s = S.value
   const [sel, setSel] = useState(0)
@@ -619,18 +670,24 @@ function PhotoQueue({ queue, onChange, onAdd, onSend, onClose }: {
       <span class="t-small grow" style={{ color: "var(--text)" }}>{i + 1} / {queue.length}</span>
     </div>
     <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-      <img src={cur.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+      {cur.video ? <video key={cur.url} src={cur.url} muted autoPlay loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+        : <img src={cur.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />}
     </div>
     <div class="col" style={{ gap: 8, padding: "10px 10px calc(var(--safe-bottom) + 10px)", background: "var(--card)" }}>
       <div class="row" style={{ gap: 6, overflowX: "auto" }}>
         {queue.map((q, k) => <div key={q.url} style={{ position: "relative", flex: "none" }}>
-          <img src={q.url} onClick={() => setSel(k)} style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, outline: k === i ? "2px solid var(--cyan)" : undefined }} />
+          {/* a video's first frame ("#t=" makes iOS draw one) */}
+          {q.video ? <video src={q.url + "#t=0.1"} muted playsInline preload="metadata" onClick={() => setSel(k)}
+            style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, display: "block", outline: k === i ? "2px solid var(--cyan)" : undefined }} />
+            : <img src={q.url} onClick={() => setSel(k)} style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, outline: k === i ? "2px solid var(--cyan)" : undefined }} />}
+          {q.video && <div style={{ position: "absolute", left: 4, bottom: 4, pointerEvents: "none" }}><PixelIcon name="ui_video" size={12} /></div>}
           <button aria-label="remove photo" class="center t-block" onClick={() => { onChange(queue.filter((_, j) => j !== k)); setSel(Math.max(0, k - 1)) }}
             style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: 6, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10 }}>✕</button>
         </div>)}
         {queue.length < MAX_PHOTOS && <>
-          <button aria-label="add photos" class="center" onClick={() => onAdd(false)} style={{ width: 54, height: 54, borderRadius: 8, border: "2px dashed var(--line)", flex: "none" }}><PixelIcon name="ui_image" size={18} /></button>
-          <button aria-label="camera" class="center" onClick={() => onAdd(true)} style={{ width: 54, height: 54, borderRadius: 8, border: "2px dashed var(--line)", flex: "none" }}><PixelIcon name="camera" size={18} /></button>
+          <button aria-label="add photos" class="center" onClick={() => onAdd(null)} style={{ width: 54, height: 54, borderRadius: 8, border: "2px dashed var(--line)", flex: "none" }}><PixelIcon name="ui_image" size={18} /></button>
+          <button aria-label="camera" class="center" onClick={() => onAdd("photo")} style={{ width: 54, height: 54, borderRadius: 8, border: "2px dashed var(--line)", flex: "none" }}><PixelIcon name="camera" size={18} /></button>
+          <button aria-label="record video" class="center" onClick={() => onAdd("video")} style={{ width: 54, height: 54, borderRadius: 8, border: "2px dashed var(--line)", flex: "none" }}><PixelIcon name="ui_video" size={18} /></button>
         </>}
       </div>
       <div class="row" style={{ gap: 8 }}>
@@ -646,12 +703,15 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
   m: ChatMessage; photos?: ChatMessage[]; tz: string; last?: boolean; group: boolean; read: boolean; highlighted: boolean; onOpenRule: (id: number) => void; onReply: () => void; onQuote: (id: number) => void
   onReactions: (r: Reaction[]) => void
 }) {
-  // a tap on a photo: the big view (all photos of the group, each with its caption)
+  // a tap on a photo: the big view (all photos of the group, each with its caption); on a video: it plays there
   // (after the double-tap time: a double tap is the heart)
   const opening = useRef(0)
+  const video = !m.sealed && m.media?.kind === "video" && !m.share ? m.media : null
+  const [loadingVideo, setLoadingVideo] = useState(false)
   const view = (i: number) => {
     clearTimeout(opening.current)
     opening.current = window.setTimeout(async () => {
+      if (video) { await playVideo(video); return }
       const items = await Promise.all(photos.map(async (p) => {
         const md = p.media!
         if (!md.encrypted) return { media: md, caption: p.text }
@@ -660,6 +720,21 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
       }))
       openViewer(items, i)
     }, 300)
+  }
+  // an encrypted video is downloaded and opened on the phone first; an archived one is only its still
+  const playVideo = async (md: MediaItem) => {
+    if (md.archived) {
+      const url = (md.encrypted ? await mediaUrl(md, "thumb") : md.thumb) ?? ""
+      openViewer([{ media: { ...md, kind: "image", url, thumb: url }, caption: m.text }])
+      return
+    }
+    if (!md.encrypted) { openViewer([{ media: md, caption: m.text }]); return }
+    if (loadingVideo) return
+    setLoadingVideo(true)
+    const [url, thumb] = await Promise.all([mediaUrl(md, "url"), mediaUrl(md, "thumb")])
+    setLoadingVideo(false)
+    if (url) openViewer([{ media: { ...md, url, thumb: thumb ?? "" }, caption: m.text }])
+    else showToast(s.notAvailable, true)
   }
   const collage = photos.length > 1
   const s = S.value
@@ -765,17 +840,18 @@ function Bubble({ m, photos = [], tz, last = true, group, read, highlighted, onO
         </div>}
         {collage ? <Collage photos={photos} onOpen={view} />
           : m.media && !m.sealed && (m.media.kind === "audio" ? <ChatAudio media={m.media} />
+            : video ? <div style={{ cursor: "pointer" }} onClick={() => view(0)}><ChatVideo media={video} busy={loadingVideo} /></div>
             : <div class="chat-photo" style={{ cursor: "pointer" }} onClick={() => view(0)}>
-              <ChatImage media={m.media} style={{ ...photoSize(m.media.width, m.media.height), borderRadius: 14 }} />
+              <ChatImage media={m.media} style={{ width: CHAT_MEDIA, height: CHAT_MEDIA, borderRadius: 14 }} />
             </div>)}
         {m.share && <ShareCard share={m.share} onOpenRule={onOpenRule} />}
         {link && <LinkCard link={link} />}
         {!collage && m.text?.trim() && <div style={{ padding: "8px 12px 0" }}><MentionText text={m.text} /></div>}
         {/* the time once per run of the same minute (report #49); mine: ✓ sent, eye: read (by everyone in the chat) */}
-        {/* a single photo: as wide as the photo (the countdown may wrap), so the bubble keeps the photo's shape */}
-        {last || m.mine || photos.length > 0 ? <div class="row msg-meta" style={{ alignSelf: photos.length ? "stretch" : "flex-end", gap: 5, padding: "2px 10px 6px 12px",
-          width: photos.length === 1 && m.media ? photoSize(m.media.width, m.media.height).width + 8 : undefined, boxSizing: "border-box" }}>
-          {photos.length > 0 && <PhotoExpiry photos={photos} />}
+        {/* a single photo / video: as wide as the square (the countdown may wrap), so the bubble keeps its shape */}
+        {last || m.mine || photos.length > 0 || video ? <div class="row msg-meta" style={{ alignSelf: photos.length || video ? "stretch" : "flex-end", gap: 5, padding: "2px 10px 6px 12px",
+          width: (photos.length === 1 || video) && m.media ? CHAT_MEDIA + 8 : undefined, boxSizing: "border-box" }}>
+          {(photos.length > 0 || video) && <PhotoExpiry photos={photos.length ? photos : [m]} />}
           {last && <span class="t-small msg-time" style={{ fontSize: 11 }}>{clock(m.at, tz)}</span>}
           {m.mine && (read ? <PixelIcon name="ui_eye" size={14} color="var(--lime)" /> : <span class="t-small" style={{ fontSize: 11 }}>✓</span>)}
         </div> : <div style={{ height: 8 }} />}

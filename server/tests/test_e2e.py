@@ -149,7 +149,7 @@ def test_encrypted_photos_and_voice(tmp_path):
                             ctype="application/octet-stream"))["media"]
         md = (await ann.req("post", f"/api/media/{md['id']}/thumb", data=small, ctype="application/octet-stream"))["media"]
         assert md["encrypted"] and md["thumb"] != md["url"] and md["width"] == 1080
-        await ann.req("post", "/api/media/encrypted?kind=video", data=full, ctype="application/octet-stream", status=400)
+        await ann.req("post", "/api/media/encrypted?kind=gif", data=full, ctype="application/octet-stream", status=400)
         # a plain photo doesn't go into an encrypted chat
         plain = (await ann.req("post", "/api/media", data=_png(), ctype="image/png"))["media"]
         await send(ann, cid, "", media_id=plain["id"], status=400)

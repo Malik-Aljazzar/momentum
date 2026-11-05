@@ -1,5 +1,5 @@
 // Reports #63-#68 and the upload progress bar: who reacted, the chat list at its top, story rings in the chats,
-// single chat photos in their own shape, a video playing while making a post, the bar while uploading.
+// single chat photos (squares again since 2026-11-05), a video playing while making a post, the bar while uploading.
 import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -94,7 +94,7 @@ test("the chat list shows its top chats whenever it comes up (report #66)", asyn
   await expect(list.locator(".list-item").first()).toContainText("Hallo 9")
 })
 
-test("a single chat photo keeps its shape (report #68)", async ({ page, request }) => {
+test("a single chat photo is a square, cut to fit like WhatsApp (it had its own shape after report #68)", async ({ page, request }) => {
   const { ann, ben } = await friends(request)
   const conv = (await api(request, ann.token, "POST", "/conversations/direct", { username: ben.name })).conversation
   await openApp(page, ann.token)
@@ -106,7 +106,9 @@ test("a single chat photo keeps its shape (report #68)", async ({ page, request 
   await expect(img).toBeVisible()
   const box = (await img.boundingBox())!
   expect(Math.round(box.height)).toBe(240)
-  expect(Math.round(box.width)).toBe(120)                    // portrait, not cut to a square
+  expect(Math.round(box.width)).toBe(240)                    // portrait, cut to the square
+  const shown = await img.evaluate((i: HTMLImageElement) => getComputedStyle(i).objectFit)
+  expect(shown).toBe("cover")
 })
 
 test("a chat photo's bubble shows the full picture, not the blurry thumb", async ({ page, request }) => {

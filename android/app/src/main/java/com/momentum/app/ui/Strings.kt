@@ -702,6 +702,9 @@ interface Strings {
     val yesterday: String
     fun deletedIn(days: Int, hm: String): String
     val photoArchived: String
+    /** chat videos: archived after two weeks (only the still is left); one that can't be sent (encrypted chats) */
+    val videoArchived: String
+    val videoCantSend: String
     val originalSound: String
     val addSound: String
     val searchSong: String
@@ -1555,6 +1558,8 @@ object De : Strings {
     override val yesterday = "Gestern"
     override fun deletedIn(days: Int, hm: String) = "Gelöscht in $days T $hm"
     override val photoArchived = "Archiviert · kleine Kopie"
+    override val videoArchived = "Archiviert · nur das Standbild"
+    override val videoCantSend = "Dieses Video lässt sich hier nicht senden – höchstens 60 s und 100 MB"
     override val originalSound = "Originalton"
     override val addSound = "Sound hinzufügen"
     override val searchSong = "Song suchen…"
@@ -2410,6 +2415,8 @@ object En : Strings {
     override val yesterday = "Yesterday"
     override fun deletedIn(days: Int, hm: String) = "Deleted in $days d $hm"
     override val photoArchived = "Archived · small copy"
+    override val videoArchived = "Archived · still image only"
+    override val videoCantSend = "This video can't be sent here – at most 60 s and 100 MB"
     override val originalSound = "Original sound"
     override val addSound = "Add a sound"
     override val searchSong = "Search a song…"

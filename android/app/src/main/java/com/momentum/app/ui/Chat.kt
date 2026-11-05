@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -194,6 +195,7 @@ fun ChatsScreen(vm: AppViewModel, isTab: Boolean = false,
                                 else -> who + last.text.ifBlank {
                                     when {
                                         last.mediaKind == "audio" -> "♪ ${S.voiceMessage}"
+                                        last.mediaKind == "video" -> "▶ ${S.videoLabel}"
                                         last.hasMedia -> "▣ ${S.photo}"
                                         last.shareKind == "rule" -> "↗ ${S.sharedRule}"
                                         last.shareKind == "post" -> "↗ ${S.sharedPost}"
@@ -237,6 +239,9 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     var text by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var sendingPhoto by remember { mutableStateOf(false) }
+    // a video on its way: shrunk here, sent, the server's turn (a bar above the input field)
+    var videoBar by remember { mutableStateOf(false) }
+    var videoProgress by remember { mutableStateOf<com.momentum.app.data.UploadProgress?>(null) }
     var readUpto by remember { mutableStateOf(0) }       // read receipts: my messages up to here were read
     var openRule by remember { mutableStateOf<Int?>(null) }
     var recordingSince by remember { mutableStateOf<Long?>(null) }
@@ -359,25 +364,53 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val queue = remember { mutableStateListOf<QueuedPhoto>() }
-    val photoPicker = rememberMediaPicker(multiple = true) { uris ->
-        queue += uris.take(MAX_PHOTOS - queue.size).map { QueuedPhoto(it) }
+    // photos and videos (camera: photo or video; gallery: both)
+    val photoPicker = rememberMediaPicker(video = true, multiple = true) { uris ->
+        queue += uris.take(MAX_PHOTOS - queue.size).map { queuedOf(ctx, it) }
+    }
+    /** An encrypted chat's video: shrunk and sealed here with its still (the server can't re-encode it). */
+    suspend fun sendSecureVideo(q: QueuedPhoto, caption: String) {
+        videoProgress = com.momentum.app.data.UploadProgress.Compressing(0f)
+        videoBar = true
+        try {
+            val v = com.momentum.app.data.secureVideo(ctx, q.uri) { videoProgress = com.momentum.app.data.UploadProgress.Compressing(it) }
+            if (v == null) { vm.showToast(S.videoCantSend, error = true); return }
+            val (key, full, thumb) = withContext(Dispatchers.Default) { E2EStore.sealMedia(v.bytes, v.still) }
+            videoProgress = com.momentum.app.data.UploadProgress.Sending(0f)
+            val seconds = "%.1f".format(java.util.Locale.US, v.duration)
+            val m = vm.uploadEncrypted("/encrypted?kind=video&width=${v.width}&height=${v.height}&duration=$seconds", full) {
+                videoProgress = if (it < 1f) com.momentum.app.data.UploadProgress.Sending(it) else com.momentum.app.data.UploadProgress.Processing
+            } ?: return
+            // without a still (unreadable frame) the bubble stays dark with its play badge
+            val md = thumb?.let { vm.uploadEncrypted("/${m.id}/thumb", it) } ?: m
+            send(caption, md.copy(key = key, mime = "video/mp4"))
+        } finally {
+            videoBar = false
+        }
     }
     fun sendQueue() {
         val items = queue.toList()
         queue.clear()
         scope.launch {
             sendingPhoto = true
-            // one message per photo, in order, each with its own caption
+            // one message per photo / video, in order, each with its own caption
             for (q in items) {
+                val caption = q.caption.trim()
                 if (conv?.e2e == true) {
                     // encrypted here: the server can't shrink it, so it gets the picture and its small copy ready-made
                     if (E2EStore.status != E2EStore.Status.Ready) { vm.showToast(S.e2eNeedsUnlock, error = true); break }
+                    if (q.video) { sendSecureVideo(q, caption); continue }
                     val p = withContext(Dispatchers.IO) { com.momentum.app.data.securePhoto(ctx, q.uri) } ?: continue
                     val (key, full, thumb) = withContext(Dispatchers.Default) { E2EStore.sealMedia(p.full, p.thumb) }
                     val m = vm.uploadEncrypted("/encrypted?kind=image&width=${p.width}&height=${p.height}", full) ?: continue
                     val md = vm.uploadEncrypted("/${m.id}/thumb", thumb!!) ?: continue
-                    send(q.caption.trim(), md.copy(key = key, mime = "image/jpeg"))
-                } else vm.uploadMedia(q.uri)?.let { m -> send(q.caption.trim(), m) }
+                    send(caption, md.copy(key = key, mime = "image/jpeg"))
+                } else if (q.video) {
+                    // plain: the server re-encodes it (a big one is shrunk here first)
+                    videoProgress = null
+                    videoBar = true
+                    try { vm.uploadMedia(q.uri) { videoProgress = it }?.let { m -> send(caption, m) } } finally { videoBar = false }
+                } else vm.uploadMedia(q.uri)?.let { m -> send(caption, m) }
             }
             sendingPhoto = false
         }
@@ -535,6 +568,9 @@ fun ChatRoomScreen(vm: AppViewModel, id: Int) {
             }
         }
         if (recordingSince == null && !(c?.e2e == true && E2EStore.status != E2EStore.Status.Ready)) DraftLink(linkDraft)
+        if (videoBar) Box(Modifier.fillMaxWidth().background(Px.Card).padding(horizontal = 48.dp, vertical = 6.dp)) {
+            UploadBar(videoProgress)
+        }
         if (c?.e2e == true && E2EStore.status == E2EStore.Status.Locked) Box(
             Modifier.fillMaxWidth().background(Px.Card).navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
@@ -600,6 +636,31 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var collageRect by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // a single video (never in a photo group): opened in the big view; an encrypted one is decrypted first
+    val video = m.media?.takeIf { it.isVideo && !m.sealed }
+    var opening by remember { mutableStateOf(false) }
+    fun openVideo(md: MediaItem) = scope.launch {
+        if (opening) return@launch
+        opening = true
+        try {
+            if (md.archived) {
+                // only the still is left: shown as a photo
+                val still = if (md.encrypted) E2EStore.mediaFile(ctx, vm.api, md, thumb = true) else md.thumb
+                if (still != null) MediaViewing.open(listOf(ViewerItem(md.copy(kind = "image", url = still, thumb = still), m.text)))
+                else vm.showToast(S.notAvailable, error = true)
+            } else if (!md.encrypted) MediaViewing.open(listOf(ViewerItem(md, m.text)))
+            else {
+                val file = E2EStore.mediaFile(ctx, vm.api, md, thumb = false)
+                if (file == null) vm.showToast(S.notAvailable, error = true)
+                else {
+                    val still = E2EStore.mediaFile(ctx, vm.api, md, thumb = true)
+                    MediaViewing.open(listOf(ViewerItem(md.copy(url = file, thumb = still ?: md.thumb), m.text)))
+                }
+            }
+        } finally {
+            opening = false
+        }
+    }
     // swipe to the right to answer (like WhatsApp)
     val swipe = remember { androidx.compose.animation.core.Animatable(0f) }
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -671,13 +732,14 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
         if (reactors) ReactorsSheet(vm, m.id) { reactors = false }
         Column(
             Modifier.widthIn(max = 280.dp)
-                .pointerInput(m.id, m.reactions) {
+                .pointerInput(m.id, m.reactions, video) {
                     detectTapGestures(
                         onLongPress = { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); picking = true },
                         onDoubleTap = { if (m.reactions.none { it.emoji == REACTIONS[0] && it.mine }) react(REACTIONS[0]) },
                         // a tap on a photo (after the double-tap time): the big view of the group, each with its caption
                         onTap = { at ->
-                            if (photos.isNotEmpty()) scope.launch {
+                            if (video != null) openVideo(video)
+                            else if (photos.isNotEmpty()) scope.launch {
                                 // encrypted photos: decrypted on the phone first
                                 val items = photos.map { p ->
                                     val md = p.media!!
@@ -722,26 +784,27 @@ private fun Bubble(vm: AppViewModel, m: ChatMessage, photos: List<ChatMessage> =
             if (photos.size > 1) Collage(vm, photos, Modifier.onGloballyPositioned { collageRect = it.boundsInParent() })
             else m.media?.takeIf { !m.sealed }?.let {
                 if (it.kind == "audio") ChatAudio(vm, it)
-                else photoSize(it.width, it.height).let { (w, h) -> ChatImage(vm, it, Modifier.size(w.dp, h.dp).clip(RoundedCornerShape(14.dp))) }
+                else if (it.isVideo) ChatVideo(vm, it, opening)
+                else ChatImage(vm, it, Modifier.size(CHAT_MEDIA_DP.dp).clip(RoundedCornerShape(14.dp)).testTag("chat-photo"))
             }
             m.share?.let { ShareCard(vm, it, onOpenRule) }
             link?.let { LinkCard(it) { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); picking = true } }
-            // a collage's captions are in the big view; a single photo shows it right under it
+            // a collage's captions are in the big view; a single photo / video shows it right under it
             if (m.text.isNotBlank() && photos.size <= 1) {
                 Box(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp)) {
                     MentionText(null, m.text)
                 }
             }
-            // a photo: when only its small copy is left (report #48); the time once per run of the same minute
-            // (report #49); mine: ✓ sent, eye: read (by everyone in the chat)
-            // a single photo: as wide as the photo (the countdown may wrap), so the bubble keeps the photo's shape
-            if (last || m.mine || photos.isNotEmpty()) Row(
-                (if (photos.size == 1 && m.media != null) Modifier.width((photoSize(m.media.width, m.media.height).first + 8).dp)
-                else if (photos.isNotEmpty()) Modifier.width(248.dp) else Modifier.align(Alignment.End))
+            // a photo / video: when only its small copy (the still) is left (report #48); the time once per run of
+            // the same minute (report #49); mine: ✓ sent, eye: read (by everyone in the chat)
+            // under a photo / video / collage: as wide as it (the countdown may wrap), so the bubble keeps its square
+            val expiring = if (photos.isNotEmpty()) photos else if (video != null) listOf(m) else emptyList()
+            if (last || m.mine || expiring.isNotEmpty()) Row(
+                (if (expiring.isNotEmpty()) Modifier.width((CHAT_MEDIA_DP + 8).dp) else Modifier.align(Alignment.End))
                     .padding(start = 12.dp, end = 10.dp, bottom = 6.dp, top = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (photos.isNotEmpty()) Text(photoExpiry(S, photos), style = T.small.copy(fontSize = 10.sp, color = Px.Muted), modifier = Modifier.weight(1f))
+                if (expiring.isNotEmpty()) Text(photoExpiry(S, expiring), style = T.small.copy(fontSize = 10.sp, color = Px.Muted), modifier = Modifier.weight(1f))
                 if (last) Text(chatClock(m.at, tz), style = T.small.copy(fontSize = 11.sp, color = Px.Muted))
                 if (m.mine) {
                     if (read) PixelIcon("ui_eye", 14.dp, tint = Px.Lime)
@@ -850,11 +913,33 @@ private fun ChatAudio(vm: AppViewModel, media: MediaItem) {
     if (url != null) AudioBubble(url, media.duration) else Spacer(Modifier.width(220.dp).height(52.dp))
 }
 
-/** A single chat photo in its own shape (report #68: it was cut to a square): 240 dp on its long side,
- *  very long / wide ones a little cut (= Chat.tsx photoSize). Width and height in dp. */
-internal fun photoSize(width: Int, height: Int): Pair<Int, Int> {
-    val ratio = if (width > 0 && height > 0) (width.toFloat() / height).coerceIn(.5f, 2f) else 1f
-    return if (ratio >= 1f) 240 to Math.round(240 / ratio) else Math.round(240 * ratio) to 240
+/** A single chat photo or video: a square, center-cropped (like WhatsApp), in dp (= chatphoto.ts CHAT_MEDIA). */
+internal const val CHAT_MEDIA_DP = 240
+
+/** A chat video's length on its bubble: "0:07", "1:00", "10:05"; empty without one (= chatphoto.ts videoLength). */
+internal fun videoLength(seconds: Double): String {
+    if (seconds <= 0) return ""
+    val s = Math.round(seconds).toInt()
+    return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
+}
+
+/** A chat video: its still in the square with a play badge and its length; archived: only the still (= Chat.tsx). */
+@Composable
+private fun ChatVideo(vm: AppViewModel, media: MediaItem, opening: Boolean) {
+    Box(Modifier.size(CHAT_MEDIA_DP.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black).testTag("chat-video")) {
+        RemoteImage(rememberMediaUrl(vm, media, thumb = true), Modifier.fillMaxSize())
+        if (!media.archived) {
+            Box(Modifier.align(Alignment.Center).size(44.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Color(0x99000000)).alpha(if (opening) .45f else 1f), contentAlignment = Alignment.Center) {
+                PixelIcon("ui_play", 20.dp)
+            }
+            videoLength(media.duration).takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = T.small.copy(fontSize = 11.sp, color = Color.White),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(8.dp))
+                        .background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
+            }
+        }
+    }
 }
 
 /** Who read one of my messages (report #44). */
@@ -897,9 +982,10 @@ private fun ReactorsSheet(vm: AppViewModel, messageId: Int, onDismiss: () -> Uni
 private val REACTIONS = listOf("❤️", "😂", "😮", "😢", "🔥", "👍")
 
 /** One line for a quoted message: its text, or what it contains. */
-private fun previewOf(S: Strings, text: String, mediaKind: String?, shareKind: String?) = text.ifBlank {
+internal fun previewOf(S: Strings, text: String, mediaKind: String?, shareKind: String?) = text.ifBlank {
     when {
         mediaKind == "audio" -> "♪ ${S.voiceMessage}"
+        mediaKind == "video" -> "▶ ${S.videoLabel}"
         mediaKind != null -> "▣ ${S.photo}"
         shareKind == "rule" -> "↗ ${S.sharedRule}"
         shareKind == "post" -> "↗ ${S.sharedPost}"
@@ -1027,10 +1113,18 @@ fun NewGroupScreen(vm: AppViewModel) {
 
 private const val MAX_PHOTOS = 10
 
-/** A photo picked for sending, with its caption. */
-private class QueuedPhoto(val uri: android.net.Uri) { var caption by mutableStateOf("") }
+/** A photo / video picked for sending, with its caption. */
+private class QueuedPhoto(val uri: android.net.Uri, val video: Boolean = false) { var caption by mutableStateOf("") }
 
-private fun ChatMessage.isPhoto() = media?.kind == "image" && share == null
+/** A picked file for the queue: a video by its type (file:// from the in-app camera: by its extension). */
+private fun queuedOf(ctx: android.content.Context, uri: android.net.Uri): QueuedPhoto {
+    val type = ctx.contentResolver.getType(uri) ?: uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
+        ?.let { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+    return QueuedPhoto(uri, type?.startsWith("video/") == true)
+}
+
+/** Photos group into collages; videos never do (each one is its own bubble). */
+internal fun ChatMessage.isPhoto() = media?.kind == "image" && share == null
 
 /** A row of the chat list: a day separator or a message (with the photos it carries). */
 private class ChatRow(val key: String, val day: java.time.LocalDate? = null, val m: ChatMessage? = null, val photos: List<ChatMessage> = emptyList(),
@@ -1052,16 +1146,16 @@ private fun withDays(groups: List<Pair<ChatMessage, List<ChatMessage>>>, tz: Str
     return out
 }
 
-/** Under chat photos: "deleted in 13 d 04:12" until only the small copy is left, then "archived". */
-private fun photoExpiry(S: Strings, photos: List<ChatMessage>): String {
+/** Under chat photos / a video: "deleted in 13 d 04:12" until only the small copy (the still) is left, then "archived". */
+internal fun photoExpiry(S: Strings, photos: List<ChatMessage>): String {
     val media = photos.mapNotNull { it.media }
-    if (media.isNotEmpty() && media.all { it.archived }) return S.photoArchived
+    if (media.isNotEmpty() && media.all { it.archived }) return if (media.all { it.isVideo }) S.videoArchived else S.photoArchived
     val left = media.mapNotNull { it.expiresAt }.minOrNull()?.let { photoCountdown(it) } ?: return ""
     return S.deletedIn(left.first, left.second)
 }
 
 /** Messages for the list; photos the same person sent one after another become one group. */
-private fun photoGroups(messages: List<ChatMessage>): List<Pair<ChatMessage, List<ChatMessage>>> {
+internal fun photoGroups(messages: List<ChatMessage>): List<Pair<ChatMessage, List<ChatMessage>>> {
     val out = mutableListOf<Pair<ChatMessage, MutableList<ChatMessage>>>()
     for (m in messages) {
         val last = out.lastOrNull()
@@ -1131,7 +1225,9 @@ private fun PhotoQueue(queue: MutableList<QueuedPhoto>, onAdd: () -> Unit, onSen
                 Text("${i + 1} / ${queue.size}", style = T.small.copy(color = Px.Text))
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                coil3.compose.AsyncImage(cur.uri, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                // a video plays muted right away (like a post's, report #65)
+                if (cur.video) androidx.compose.runtime.key(cur.uri) { VideoPlayer(cur.uri.toString(), null, playing = true, preview = true) }
+                else coil3.compose.AsyncImage(cur.uri, null, contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxSize())
             }
             Column(Modifier.fillMaxWidth().background(Px.Card)
                 .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)).padding(10.dp),
@@ -1139,10 +1235,11 @@ private fun PhotoQueue(queue: MutableList<QueuedPhoto>, onAdd: () -> Unit, onSen
                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(queue.size) { k ->
                         Box(Modifier.size(54.dp)) {
-                            coil3.compose.AsyncImage(queue[k].uri, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
-                                    .then(if (k == i) Modifier.border(2.dp, Px.Cyan, RoundedCornerShape(8.dp)) else Modifier)
-                                    .clickable { sel = k })
+                            val tile = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+                                .then(if (k == i) Modifier.border(2.dp, Px.Cyan, RoundedCornerShape(8.dp)) else Modifier)
+                                .clickable { sel = k }
+                            if (queue[k].video) QueuedVideoTile(queue[k].uri, tile)
+                            else coil3.compose.AsyncImage(queue[k].uri, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = tile)
                             Box(Modifier.align(Alignment.TopEnd).size(18.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xB3000000))
                                 .clickable { queue.removeAt(k); sel = maxOf(0, k - 1) }, contentAlignment = Alignment.Center) {
                                 Text("✕", style = T.block.copy(fontSize = 10.sp, color = Color.White))
@@ -1163,5 +1260,17 @@ private fun PhotoQueue(queue: MutableList<QueuedPhoto>, onAdd: () -> Unit, onSen
                 }
             }
         }
+    }
+}
+
+/** A queued video in the strip: its first frame with a small video badge. */
+@Composable
+private fun QueuedVideoTile(uri: android.net.Uri, modifier: Modifier) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var frame by remember(uri) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(uri) { frame = withContext(Dispatchers.IO) { com.momentum.app.data.videoFrame(ctx, uri)?.asImageBitmap() } }
+    Box(modifier.background(Px.Faint)) {
+        frame?.let { androidx.compose.foundation.Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        PixelIcon("ui_video", 14.dp, Modifier.align(Alignment.BottomStart).padding(4.dp))
     }
 }

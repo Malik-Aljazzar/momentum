@@ -231,13 +231,14 @@ function SlideTile({ d, story, onOpen, onRemove }: { d: Slide; story: boolean; o
   </div>
 }
 
-/** An upload's progress bar: sent (with %), then the server's turn (= Compose.kt UploadBar). */
-export function UploadBar({ progress }: { progress?: number }) {
+/** An upload's progress bar: a video shrunk on the phone (encrypted chats), sent (with %), then the server's turn
+ *  (= Compose.kt UploadBar). */
+export function UploadBar({ progress, compressing = false }: { progress?: number; compressing?: boolean }) {
   const s = S.value
-  const sending = progress == null || progress < 1
+  const sending = compressing || progress == null || progress < 1
   const done = Math.max(0, Math.min(1, progress ?? 0))
   return <div class="col upload-bar" data-testid="upload-bar" style={{ alignItems: "center", gap: 4, padding: "0 8px", width: "100%" }}>
-    <span class="t-small" style={{ fontSize: 11, color: "var(--text)", textAlign: "center" }}>{sending ? s.uploading : s.processing}</span>
+    <span class="t-small" style={{ fontSize: 11, color: "var(--text)", textAlign: "center" }}>{compressing ? s.compressing : sending ? s.uploading : s.processing}</span>
     {/* square pixel bar: the part sent, or a block moving back and forth while the server works */}
     <div style={{ position: "relative", width: "100%", height: 6, background: "var(--faint)", overflow: "hidden" }}>
       {sending ? <i style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: done * 100 + "%", background: "var(--cyan)" }} />

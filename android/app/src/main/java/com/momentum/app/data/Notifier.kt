@@ -350,6 +350,7 @@ private fun postUpdates(ctx: Context, prefs: Prefs, up: Updates) {
                 val body = m.text.ifBlank {
                     when {
                         m.mediaKind == "audio" -> "♪ ${S.voiceMessage}"
+                        m.mediaKind == "video" -> "▶ ${S.videoLabel}"
                         m.media -> "▣ ${S.photo}"
                         m.share == "rule" -> "↗ ${S.sharedRule}"
                         m.share == "post" -> "↗ ${S.sharedPost}"

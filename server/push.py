@@ -62,7 +62,7 @@ TEXTS = {
                reply="hat auf deinen Kommentar geantwortet.",
                clike="gefällt dein Kommentar.", mention="hat dich erwähnt.", tag="hat dich in einem Post markiert.",
                request="möchte dir folgen.", accepted="hat deine Anfrage bestätigt.", ch_cancel="hat eine Challenge abgebrochen.",
-               ch_end="Eine Challenge ist vorbei.", voice="♪ Sprachnachricht", photo="▣ Foto", share="↗ geteilt",
+               ch_end="Eine Challenge ist vorbei.", voice="♪ Sprachnachricht", photo="▣ Foto", video="▶ Video", share="↗ geteilt",
                mentioned="{sender} hat dich erwähnt", activity="Momentum", encrypted="Neue Nachricht",
                sub_rule="hat deine Regel „{rule}“ abonniert.", sub_rule_group="hat deine Regel „{rule}“ für die Gruppe {group} abonniert.",
                sub_decay="folgt jetzt deinem Decay.", sub_decay_group="hat deinen Decay in die Gruppe {group} übernommen.",
@@ -73,7 +73,7 @@ TEXTS = {
                reply="replied to your comment.",
                clike="liked your comment.", mention="mentioned you.", tag="tagged you in a post.",
                request="wants to follow you.", accepted="accepted your request.", ch_cancel="cancelled a challenge.",
-               ch_end="A challenge is over.", voice="♪ Voice message", photo="▣ Photo", share="↗ shared",
+               ch_end="A challenge is over.", voice="♪ Voice message", photo="▣ Photo", video="▶ Video", share="↗ shared",
                mentioned="{sender} mentioned you", activity="Momentum", encrypted="New message",
                sub_rule="subscribed to your rule “{rule}”.", sub_rule_group="subscribed to your rule “{rule}” for the group {group}.",
                sub_decay="now follows your decay.", sub_decay_group="added your decay to the group {group}.",
@@ -224,7 +224,8 @@ async def web_payload(s, user_id: int, item, lang: str) -> dict:
         text = (await render_one(s, obj.text)) if obj.text else ""
         if not text:
             media = await s.get(Media, obj.media_id) if obj.media_id else None
-            text = t["voice"] if media and media.kind == "audio" else t["photo"] if media else t["share"] if obj.share_kind else ""
+            text = (t["voice"] if media and media.kind == "audio" else t["video"] if media and media.kind == "video"
+                    else t["photo"] if media else t["share"] if obj.share_kind else "")
         group = conv.kind == "group"
         if user_id in mentioned_ids(obj):
             title = t["mentioned"].format(sender=sender) + (f" · {conv.name}" if group else "")
@@ -236,7 +237,7 @@ async def web_payload(s, user_id: int, item, lang: str) -> dict:
             # the body is what shows if the phone can't open it; the service worker puts in the text
             out.update(body=(f"{sender}: " if group else "") + t["encrypted"],
                        e2e=dict(envelope_for(obj, user_id, full=False), conv=conv.id, reader=user_id, sender=sender if group else "",
-                                photo=t["photo"], voice=t["voice"]))
+                                photo=t["photo"], voice=t["voice"], video=t["video"]))
         return out
     actor = (await s.get(User, obj.actor_id)).username
     body = f"{actor} {t.get(obj.kind, '')}".strip()

@@ -20,6 +20,8 @@ CALL_KINDS = ("call",)
 # Android builds from 2026-11-04 on show flagged pictures behind their cover (server/moderation.py); older ones get
 # only the cover (media_json) - raise it to the versionCode of the first APK released with the content filter
 MODERATION_APP = 897_050
+# Android builds from 2026-11-05 on play videos in chats; older ones get a chat video's still as a photo (chat.chat_media_json)
+CHAT_VIDEO_APP = 898_460
 
 
 def knows(version):

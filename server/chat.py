@@ -157,15 +157,17 @@ async def delete_reactions(s, message_ids_query):
     await s.execute(delete(MessageReaction).where(MessageReaction.message_id.in_(message_ids_query)))
 
 
-# chat photos: after two weeks the full picture is deleted, the small copy stays (report #48)
+# chat photos and videos: after two weeks the full picture / the video is deleted, the small copy (a video's
+# still) stays (report #48)
 CHAT_IMAGE_DAYS = 14
+EXPIRING = ("image", "video")
 
 
 async def archive_chat_images(s, blobs, now=None):
-    """Chat photos older than CHAT_IMAGE_DAYS keep only their 480 px thumbnail. Returns how many."""
+    """Chat photos / videos older than CHAT_IMAGE_DAYS keep only their thumbnail. Returns how many."""
     cutoff = (now or utcnow()) - timedelta(days=CHAT_IMAGE_DAYS)
     old = list(await s.scalars(select(Media).join(Message, Message.media_id == Media.id).where(
-        Media.kind == "image", Media.archived.is_(False), Message.created_at < cutoff).limit(500)))
+        Media.kind.in_(EXPIRING), Media.archived.is_(False), Message.created_at < cutoff).limit(500)))
     for md in old:
         if md.thumb_key and md.thumb_key != md.key:
             await blobs.delete(md.key)
@@ -176,12 +178,22 @@ async def archive_chat_images(s, blobs, now=None):
 
 
 def image_expiry(mm, md):
-    """When a chat photo loses its full picture (None: not a photo / already archived)."""
-    if md is None or md.kind != "image":
+    """When a chat photo / video loses its full picture / the video (None: something else / already archived)."""
+    if md is None or md.kind not in EXPIRING:
         return {}
     if md.archived:
         return dict(archived=True)
     return dict(expires_at=iso(mm.created_at + timedelta(days=CHAT_IMAGE_DAYS)), archived=False)
+
+
+def chat_media_json(md):
+    """A message's photo / video / voice message; Android apps that can't play chat videos get the video's still as
+    a photo (its small copy, encrypted with the same key)."""
+    out = media_json(md)
+    from .clients import CHAT_VIDEO_APP, knows
+    if md.kind == "video" and not knows(CHAT_VIDEO_APP):
+        out.update(kind="image", url=out["thumb"], duration=0.0)
+    return out
 
 
 async def member_line(s, conv, actor_id, kind, target_id=None):
@@ -204,7 +216,7 @@ async def _messages_json(s, me_id, msgs):
     people = await card_map(s, me_id, {mm.user_id for mm in msgs} | {mm.target_id for mm in msgs if mm.target_id})
     media_ids = [mm.media_id for mm in msgs if mm.media_id]
     rows = {md.id: md for md in await s.scalars(select(Media).where(Media.id.in_(media_ids)))} if media_ids else {}
-    media = {mm.id: media_json(rows[mm.media_id]) | image_expiry(mm, rows[mm.media_id]) for mm in msgs if mm.media_id in rows}
+    media = {mm.id: chat_media_json(rows[mm.media_id]) | image_expiry(mm, rows[mm.media_id]) for mm in msgs if mm.media_id in rows}
     # answers quote the message they reply to
     replied = {r.id: r for r in await s.scalars(select(Message).where(
         Message.id.in_({mm.reply_to_id for mm in msgs if mm.reply_to_id})))} if any(mm.reply_to_id for mm in msgs) else {}

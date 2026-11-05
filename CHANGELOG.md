@@ -17,9 +17,13 @@ change gets a line, no empty versions.
 ## 2026-11-05 b
 
 ### DE
+- Im Chat kannst du jetzt auch Videos schicken (bis 60 Sekunden) – über den Foto-Knopf oder direkt mit der Kamera. Ein Tipp spielt sie groß ab; in verschlüsselten Chats bleiben auch Videos verschlüsselt. Wie Fotos werden sie nach 14 Tagen gelöscht, das Standbild bleibt.
+- Fotos und Videos im Chat sind jetzt immer gleich große Quadrate wie bei WhatsApp – ein Tipp zeigt das ganze Bild.
 - Links im Chat bekommen eine Vorschau wie bei WhatsApp: Schreibst du einen Link, siehst du schon beim Tippen Titel, Text und Bild der Seite, und die Vorschau geht mit der Nachricht mit. Ein Tipp auf die Karte öffnet die Seite, das ✕ schickt den Link ohne Vorschau. In verschlüsselten Chats ist auch die Vorschau verschlüsselt.
 
 ### EN
+- You can now send videos in chats too (up to 60 seconds) – with the photo button or straight from the camera. A tap plays them full screen; in encrypted chats videos stay encrypted too. Like photos they're deleted after 14 days, the still image stays.
+- Photos and videos in chats are now always squares of the same size, like on WhatsApp – a tap shows the whole picture.
 - Links in chats get a preview like on WhatsApp: when you write a link, you see the page's title, text and picture while typing, and the preview goes along with the message. A tap on the card opens the page, the ✕ sends the link without a preview. In encrypted chats the preview is encrypted too.
 
 ## 2026-11-05

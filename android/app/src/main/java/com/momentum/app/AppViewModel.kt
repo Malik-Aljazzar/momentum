@@ -882,13 +882,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** An encrypted photo / voice message (or its small copy) as it is: [path] under /media. */
-    suspend fun uploadEncrypted(path: String, bytes: ByteArray): MediaItem? {
+    suspend fun uploadEncrypted(path: String, bytes: ByteArray, progress: ((Float) -> Unit)? = null): MediaItem? {
         if (!online) {
             showToast(strings.needsInternet, error = true)
             return null
         }
         return try {
-            api.json.decodeFromString<MediaResponse>(api.upload("/media$path", bytes, "application/octet-stream")).media
+            api.json.decodeFromString<MediaResponse>(api.upload("/media$path", bytes, "application/octet-stream", progress)).media
         } catch (e: ApiException) {
             if (e.status == 0) showToast(strings.uploadFailed, error = true) else onError(e)
             null

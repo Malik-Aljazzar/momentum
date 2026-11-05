@@ -23,9 +23,9 @@ read nothing otherwise), and the apps send "kh", the fingerprint of the members'
 (GET /conversations/<id>/keys gives it as "hash"). Someone joined / left / reset their key since -> 409,
 the app loads the keys again and sends again.
 
-Media (chat photos, voice messages) are encrypted on the phone with a key of their own (iv || AES-GCM)
-and stored as they come (no processing here); photos bring an encrypted small copy, which is all that
-stays after chat.CHAT_IMAGE_DAYS.
+Media (chat photos, videos, voice messages) are encrypted on the phone with a key of their own (iv || AES-GCM)
+and stored as they come (no processing here: the apps shrink videos to 720p / 60 s themselves); photos and
+videos bring an encrypted small copy (a video's still), which is all that stays after chat.CHAT_IMAGE_DAYS.
 """
 import base64
 import json
@@ -42,6 +42,7 @@ MAX_PV = 2_000
 MAX_WRAPPED = 200
 MAX_BACKUP = 2_000
 MAX_MEDIA = 40 * 1024 * 1024
+MAX_VIDEO = 100 * 1024 * 1024    # a chat video (the apps shrink it first; a phone that can't sends it as it is)
 
 
 class KeyChanged(Exception):
@@ -158,14 +159,16 @@ def register(app, authed, api_error, blobs):
     @app.post("/api/media/encrypted")
     @authed
     async def upload_encrypted():
-        """An encrypted chat photo / voice message as it is (?kind=image|audio&width=&height=&duration=)."""
+        """An encrypted chat photo / video / voice message as it is (?kind=image|video|audio&width=&height=&duration=)."""
+        from .media import VIDEO_MAX_SECONDS
         raw = await request.get_data()
         kind = request.args.get("kind", "")
-        if kind not in ("image", "audio") or not 28 <= len(raw) <= MAX_MEDIA:      # iv + tag at least
-            raise api_error("Datei ungültig", "Invalid file")
+        if kind not in ("image", "video", "audio") or not 28 <= len(raw) <= (MAX_VIDEO if kind == "video" else MAX_MEDIA):
+            raise api_error("Datei ungültig", "Invalid file")                        # iv + tag at least
+        duration = max(0.0, request.args.get("duration", 0.0, type=float))
         md = Media(user_id=g.user.id, kind=kind, key=f"media/{g.user.id}/{secrets.token_hex(10)}.bin", encrypted=True,
                    width=max(0, request.args.get("width", 0, type=int)), height=max(0, request.args.get("height", 0, type=int)),
-                   duration=max(0.0, request.args.get("duration", 0.0, type=float)))
+                   duration=min(duration, VIDEO_MAX_SECONDS) if kind == "video" else duration)
         await put_blob(md.key, raw)
         await drop_stale_uploads(g.s, blobs, g.user.id)
         g.s.add(md)
@@ -175,10 +178,10 @@ def register(app, authed, api_error, blobs):
     @app.post("/api/media/<int:media_id>/thumb")
     @authed
     async def upload_encrypted_thumb(media_id):
-        """The encrypted small copy of an encrypted photo (shown in the chat, kept after two weeks)."""
+        """The encrypted small copy of an encrypted photo / a video's still (shown in the chat, kept after two weeks)."""
         md = await g.s.get(Media, media_id)
         raw = await request.get_data()
-        if md is None or md.user_id != g.user.id or not md.encrypted or md.kind != "image" or md.attached \
+        if md is None or md.user_id != g.user.id or not md.encrypted or md.kind not in ("image", "video") or md.attached \
                 or not 28 <= len(raw) <= MAX_MEDIA:
             raise api_error("Datei ungültig", "Invalid file")
         md.thumb_key = md.key.removesuffix(".bin") + "_thumb.bin"

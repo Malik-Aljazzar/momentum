@@ -310,18 +310,20 @@ object E2EStore {
             }
         }
 
-    /** A photo / voice message for upload: a new key per item (sent inside the message). */
+    /** A photo / video / voice message for upload: a new key per item (sent inside the message). */
     fun sealMedia(full: ByteArray, thumb: ByteArray? = null): Triple<String, ByteArray, ByteArray?> {
         val key = E2E.random(32)
         return Triple(E2E.b64(key), E2E.encryptMedia(key, full), thumb?.let { E2E.encryptMedia(key, it) })
     }
 
-    /** A decrypted copy of an encrypted photo / voice message in the cache (file:// address); null: failed. */
+    /** A decrypted copy of an encrypted photo / video / voice message in the cache (file:// address); null: failed.
+     *  Videos (.mp4: ExoPlayer plays the file) share the cache's limit with the photos. */
     suspend fun mediaFile(c: Context, api: Api, media: MediaItem, thumb: Boolean): String? {
         val src = if (thumb) media.thumb else media.url
         val key = media.key ?: return null
         val name = MessageDigest.getInstance("SHA-256").digest("$src#$key".toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
-        val ext = if (thumb || media.kind == "image") "jpg" else if (media.mime?.contains("webm") == true) "webm" else "m4a"
+        val ext = if (thumb || media.kind == "image") "jpg" else if (media.kind == "video") "mp4"
+            else if (media.mime?.contains("webm") == true) "webm" else "m4a"
         val dir = File(c.cacheDir, "e2e").apply { mkdirs() }
         val file = File(dir, "$name.$ext")
         if (file.exists()) {

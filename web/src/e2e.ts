@@ -215,9 +215,10 @@ export async function sealMessage(convId: number, text: string, media?: { key: s
   return { e2e: { ...await C.encryptEnvelope(me, convId, readers, body, preview), kh: set.hash }, mentions: mentionNames(text) }
 }
 
-// ---------------------------------------------------------------- photos, voice messages
+// ---------------------------------------------------------------- photos, videos, voice messages
 
-/** Encrypt a photo / voice message for upload: a new key per item (sent inside the message). */
+/** Encrypt a photo / video / voice message for upload: a new key per item (sent inside the message); the small
+ *  copy (a video's still) with the same key. */
 export async function sealMedia(full: Blob, thumb?: Blob | null) {
   const key = C.random(32)
   return {
@@ -230,14 +231,17 @@ export async function sealMedia(full: Blob, thumb?: Blob | null) {
 const opened = new Map<string, Promise<string | null>>()
 /** Full-size photos stay decrypted in memory only this many at a time (a long chat would fill the phone's memory). */
 export const FULL_PHOTOS_KEPT = 40
+/** ... and videos (opened for the big view) only a few. */
+export const VIDEOS_KEPT = 3
 const fullPhotos: string[] = []                  // their ids, the least recently used first
+const videos: string[] = []
 
-function keepFull(id: string) {
-  const i = fullPhotos.indexOf(id)
-  if (i >= 0) fullPhotos.splice(i, 1)
-  fullPhotos.push(id)
-  while (fullPhotos.length > FULL_PHOTOS_KEPT) {
-    const old = fullPhotos.shift()!
+function keep(list: string[], limit: number, id: string) {
+  const i = list.indexOf(id)
+  if (i >= 0) list.splice(i, 1)
+  list.push(id)
+  while (list.length > limit) {
+    const old = list.shift()!
     const p = opened.get(old)
     opened.delete(old)
     void p?.then((u) => { if (u) URL.revokeObjectURL(u) })
@@ -250,16 +254,18 @@ export function mediaUrl(media: MediaItem, which: "url" | "thumb"): Promise<stri
   if (!media.encrypted) return Promise.resolve(src)
   if (!media.key) return Promise.resolve(null)
   const id = `${src}#${media.key}`
-  // an archived photo's full picture is its thumb: the same entry, kept like a thumb
-  if (which === "url" && media.kind === "image" && src !== media.thumb) keepFull(id)
+  // an archived photo's full picture / video is its thumb: the same entry, kept like a thumb
+  const still = which === "thumb" || src === media.thumb
+  if (which === "url" && !still && media.kind === "image") keep(fullPhotos, FULL_PHOTOS_KEPT, id)
+  if (which === "url" && !still && media.kind === "video") keep(videos, VIDEOS_KEPT, id)
   if (!opened.has(id)) {
     const p = (async () => {
       try {
         const res = await fetch(src)
         if (!res.ok) return null
         const plain = await C.decryptMedia(media.key!, new Uint8Array(await res.arrayBuffer()))
-        const type = which === "thumb" || media.kind === "image" ? "image/jpeg" : media.mime || "audio/mp4"
-        return URL.createObjectURL(new Blob([plain], { type: which === "url" && media.mime ? media.mime : type }))
+        const type = still ? "image/jpeg" : media.mime || (media.kind === "image" ? "image/jpeg" : media.kind === "video" ? "video/mp4" : "audio/mp4")
+        return URL.createObjectURL(new Blob([plain], { type }))
       } catch {
         return null
       }
