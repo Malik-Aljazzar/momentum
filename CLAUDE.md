@@ -100,6 +100,15 @@ docs/SPEC.md   the original (German) product spec
 - Rule times: `reset_days` / `idle_days` are 0..365 in `reset_unit` / `idle_unit` ("d" or "h").
 - Videos keep at most 60 s (`media.VIDEO_MAX_SECONDS`, x264 preset medium; report #69, was 30 s); Android's camera
   and compression stop at 60 s too. Raw uploads up to 200 MB (`MAX_CONTENT_LENGTH` = nginx `client_max_body_size`).
+- Video streams like Instagram (`server/hls.py`): the upload's H.264 MP4 (`Media.key`, max 1.5 Mbit/s, 30 fps) plays at
+  once; then a background job (real server only, niced ffmpeg, ~3.4x the video's length on the 2 cores) makes post /
+  story videos an HEVC HLS ladder (720/480/360p, one fMP4 per rung addressed by byte ranges, `Media.hls_key` /
+  `hls_files`) -> `media_json` `hls`. Clients play `hls` where possible; one failed stream switches every video to its
+  `url` until the app restarts (Android's Chrome says it plays HLS but fails on these HEVC streams) - `videoSrc` /
+  `streamFailed` in ui/video.tsx = `VideoStreams` in ui/Video.kt; every new `<video>` / VideoPlayer of a post / story
+  must pass it. Android: a player that isn't playing buffers only 3 s (`PrefetchLoadControl`), 200 MB
+  disk cache. Deleting media must go through `posts.delete_media_blobs` (it drops the stream files too); a replaced
+  `Media.key` needs `hls.forget`. Tests / e2e server: `hls.encode_all` (`POST /api/test/streams`).
 - Stories can be shared into chats (share kind `story`): every reader must be allowed to see the story
   (`stories.story_visible`: author's privacy, blocks, 24 h or a highlight). Answers / quick reactions are DMs
   with the story attached (`/api/stories/<id>/reply`, needs `connected`).

@@ -92,9 +92,90 @@ fun CoverLayer(content: @Composable () -> Unit) {
     androidx.compose.runtime.CompositionLocalProvider(LocalCover provides key) { content() }
 }
 
+/**
+ * Videos like on Instagram (server/hls.py): a post / story video has an adaptive stream ([source]: an HLS ladder in
+ * HEVC), ExoPlayer picks the rendition that fits the connection (one bandwidth meter for all players). A stream that
+ * fails (no HEVC decoder, ...) falls back to the MP4, and every video plays its MP4 until the app starts again - one
+ * failed try, not one per video (= ui/video.tsx). A video that isn't playing loads only its first seconds
+ * ([PREFETCH_MS]); what was loaded stays in a disk cache (scrolled back, feed -> big view: not loaded again).
+ */
 @OptIn(UnstableApi::class)
-private fun player(context: android.content.Context, url: String) = ExoPlayer.Builder(context).build().apply {
-    setMediaItem(MediaItem.fromUri(url))
+object VideoStreams {
+    const val PREFETCH_MS = 3_000L
+    private const val CACHE_BYTES = 200L * 1024 * 1024
+    @Volatile private var off = false
+    private var cache: androidx.media3.datasource.cache.SimpleCache? = null
+
+    /** What a player plays: the stream while streams work here, else the file. */
+    fun source(url: String, hls: String?): String = if (hls != null && !off) hls else url
+
+    /** A stream failed: the files from now on. */
+    fun failed() { off = true }
+
+    internal fun reset() { off = false }               // tests
+
+    /** A player that isn't playing has loaded enough once it holds its first seconds. */
+    fun prefetched(playWhenReady: Boolean, bufferedUs: Long) = !playWhenReady && bufferedUs >= PREFETCH_MS * 1000
+
+    @Synchronized
+    internal fun cache(context: android.content.Context) = cache ?: androidx.media3.datasource.cache.SimpleCache(
+        java.io.File(context.cacheDir, "video_cache"),
+        androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor(CACHE_BYTES),
+        androidx.media3.database.StandaloneDatabaseProvider(context.applicationContext)).also { cache = it }
+}
+
+/** DefaultLoadControl (shorter buffers: starts after 1 s), but a player that isn't playing stops after its first seconds. */
+@OptIn(UnstableApi::class)
+private class PrefetchLoadControl(
+    private val inner: androidx.media3.exoplayer.DefaultLoadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+        .setBufferDurationsMs(15_000, 30_000, 1_000, 2_000).build(),
+) : androidx.media3.exoplayer.LoadControl {
+    override fun onPrepared(playerId: androidx.media3.exoplayer.analytics.PlayerId) = inner.onPrepared(playerId)
+    override fun onTracksSelected(parameters: androidx.media3.exoplayer.LoadControl.Parameters,
+                                  trackGroups: androidx.media3.exoplayer.source.TrackGroupArray,
+                                  trackSelections: Array<out androidx.media3.exoplayer.trackselection.ExoTrackSelection?>) =
+        inner.onTracksSelected(parameters, trackGroups, trackSelections)
+    override fun onStopped(playerId: androidx.media3.exoplayer.analytics.PlayerId) = inner.onStopped(playerId)
+    override fun onReleased(playerId: androidx.media3.exoplayer.analytics.PlayerId) = inner.onReleased(playerId)
+    override fun getAllocator(): androidx.media3.exoplayer.upstream.Allocator = inner.allocator
+    override fun getBackBufferDurationUs(playerId: androidx.media3.exoplayer.analytics.PlayerId) = inner.getBackBufferDurationUs(playerId)
+    override fun retainBackBufferFromKeyframe(playerId: androidx.media3.exoplayer.analytics.PlayerId) = inner.retainBackBufferFromKeyframe(playerId)
+    override fun shouldContinueLoading(parameters: androidx.media3.exoplayer.LoadControl.Parameters) =
+        !VideoStreams.prefetched(parameters.playWhenReady, parameters.bufferedDurationUs) && inner.shouldContinueLoading(parameters)
+    override fun shouldStartPlayback(parameters: androidx.media3.exoplayer.LoadControl.Parameters) = inner.shouldStartPlayback(parameters)
+}
+
+@OptIn(UnstableApi::class)
+private fun mediaItem(src: String) = if (src.substringBefore('?').endsWith(".m3u8"))
+    MediaItem.Builder().setUri(src).setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8).build()
+else MediaItem.fromUri(src)
+
+@OptIn(UnstableApi::class)
+private fun player(context: android.content.Context, url: String, hls: String? = null): ExoPlayer {
+    val upstream = androidx.media3.datasource.DefaultDataSource.Factory(context)
+    // what comes from the server is cached; local files (a preview while posting) aren't
+    val data = if (url.startsWith("http")) androidx.media3.datasource.cache.CacheDataSource.Factory()
+        .setCache(VideoStreams.cache(context)).setUpstreamDataSourceFactory(upstream)
+        .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR) else upstream
+    return ExoPlayer.Builder(context)
+        .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(data))
+        .setLoadControl(PrefetchLoadControl())
+        .build().apply { setUp(url, hls) }
+}
+
+@OptIn(UnstableApi::class)
+private fun ExoPlayer.setUp(url: String, hls: String?) {
+    var src = VideoStreams.source(url, hls)
+    setMediaItem(mediaItem(src))
+    if (hls != null && src == hls) addListener(object : Player.Listener {
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            if (src != hls) return
+            VideoStreams.failed()                            // the stream doesn't play here: the file (playWhenReady stays)
+            src = url
+            setMediaItem(mediaItem(url))
+            prepare()
+        }
+    })
     repeatMode = Player.REPEAT_MODE_ONE
     setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
         .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), /* handleAudioFocus = */ true)
@@ -145,12 +226,13 @@ private fun mediaFocus(playing: Boolean): Focus {
  * Plays [url] (looping) while [active]; volume follows the sound switch. Stopped while [held] (covered,
  * in the background, not its turn), it goes on at that moment next time - also in another player of the
  * same url (feed -> comments / big view and back). Gone from view (scrolled away, another medium more
- * visible), it starts over, like on Instagram.
+ * visible), it starts over, like on Instagram. [hls]: the adaptive stream, played instead of [url] where it works
+ * ([url] stays the key for the position).
  */
 @Composable
-private fun rememberTrack(url: String?, active: Boolean, held: Boolean, audible: Boolean): ExoPlayer? {
+private fun rememberTrack(url: String?, active: Boolean, held: Boolean, audible: Boolean, hls: String? = null): ExoPlayer? {
     val context = LocalContext.current
-    val p = remember(url) { url?.let { player(context, it) } } ?: return null
+    val p = remember(url, hls) { url?.let { player(context, it, hls) } } ?: return null
     val was = remember(p) { booleanArrayOf(false) }                     // it was playing
     val now by androidx.compose.runtime.rememberUpdatedState(active || held)
     DisposableEffect(p) {
@@ -174,11 +256,13 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
                 /** the post's own sound: plays instead of the video's sound */
                 soundUrl: String? = null,
                 /** a preview (making a post, report #65): always muted, taps go to what's around it */
-                preview: Boolean = false) {
+                preview: Boolean = false,
+                /** the video's adaptive stream (server/hls.py), [url] is the fallback */
+                hls: String? = null) {
     var firstFrame by remember { mutableStateOf(false) }
     val focus = mediaFocus(playing)
     val active = focus.active
-    val video = rememberTrack(url, active, focus.held, audible = soundUrl == null && !preview)!!
+    val video = rememberTrack(url, active, focus.held, audible = soundUrl == null && !preview, hls = hls)!!
     rememberTrack(soundUrl, active, focus.held, audible = true)
     DisposableEffect(video) {
         val listener = object : Player.Listener {

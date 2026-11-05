@@ -37,6 +37,14 @@ class MemoryStore:
     async def sizes(self):
         return {k: len(v[0]) for k, v in self.objects.items()}
 
+    async def stat(self, key):
+        obj = self.objects.get(key)
+        return (len(obj[0]), obj[1]) if obj else None
+
+    async def read(self, key, start, length):
+        obj = self.objects.get(key)
+        return obj[0][start:start + length] if obj else None
+
 
 class MinioStore:
     """S3-compatible store via the official MinIO client (sync client run in a thread)."""
@@ -111,3 +119,34 @@ class MinioStore:
             return await self._run(listing)
         except BlobUnavailable:
             return {}
+
+    async def stat(self, key):
+        """(bytes, content type) or None."""
+        from minio.error import S3Error
+
+        try:
+            st = await self._run(self.client.stat_object, self.bucket, key)
+        except S3Error as e:
+            if e.code in ("NoSuchKey", "NoSuchObject"):
+                return None
+            raise
+        return st.size, st.content_type or "application/octet-stream"
+
+    async def read(self, key, start, length):
+        """A part of an object (a player's Range request: HLS segments are byte ranges of one file)."""
+        from minio.error import S3Error
+
+        def part():
+            res = self.client.get_object(self.bucket, key, offset=start, length=length)
+            try:
+                return res.read()
+            finally:
+                res.close()
+                res.release_conn()
+
+        try:
+            return await self._run(part)
+        except S3Error as e:
+            if e.code == "NoSuchKey":
+                return None
+            raise

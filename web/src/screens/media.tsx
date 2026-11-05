@@ -7,7 +7,7 @@ import { fmt, signed } from "../format"
 import { S } from "../strings"
 import { IconBtn, PixelIcon, RemoteImage, SlidingText } from "../ui/components"
 import { RuleDetailSheet } from "./shared"
-import { useCoverLayer } from "../ui/video"
+import { streamFailed, useCoverLayer, videoSrc } from "../ui/video"
 
 export interface ViewerItem { media: MediaItem; caption?: string | null; triggers?: Trigger[] }
 
@@ -109,7 +109,8 @@ function MediaViewer({ items, start, onClose }: { items: ViewerItem[]; start: nu
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
           {isCovered(it.media) ? <SensitiveCover media={it.media} fit="contain" />
             : it.media.kind === "video"
-            ? <video src={it.media.url} poster={it.media.thumb} controls playsInline loop autoPlay={i === page}
+            ? <video src={videoSrc(it.media.url, it.media.hls)} onError={() => streamFailed(it.media.hls)}
+              poster={it.media.thumb} controls playsInline loop autoPlay={i === page}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
             : <RemoteImage url={it.media.url} class="fill" fit="contain" fallback={<RemoteImage url={it.media.thumb} class="fill" fit="contain" />} />}
           <TriggerBadges triggers={it.triggers} top={64} />

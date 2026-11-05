@@ -1,8 +1,9 @@
 """Processing of uploaded photos, short videos (posts, chat) and voice messages (chat).
 
 Photos: EXIF-rotated, longest side <= 1080 px, WebP, plus a 480 px WebP thumbnail (lists, grids, chats).
-Videos: H.264/AAC MP4, shorter side <= 720 px, at most VIDEO_MAX_SECONDS
-(longer clips are trimmed), plus a JPEG poster frame.
+Videos: H.264/AAC MP4, shorter side <= 720 px, at most 30 fps and VIDEO_MAX_SECONDS
+(longer clips are trimmed), plus a JPEG poster frame. Post and story videos get an adaptive HEVC stream
+afterwards (server/hls.py).
 Voice messages and post sounds: mono AAC (.m4a), at most AUDIO_MAX_SECONDS (a post sound is a
 chosen part: from `start`, at most POST_SOUND_SECONDS).
 Uses the ffmpeg binary bundled with imageio-ffmpeg.
@@ -71,8 +72,9 @@ def process_video(raw: bytes) -> Processed:
         scale = (f"scale='if(gt(iw,ih),-2,min({VIDEO_SHORT_SIDE},iw))':"
                  f"'if(gt(iw,ih),min({VIDEO_SHORT_SIDE},ih),-2)'")
         run = subprocess.run(
-            [_ffmpeg(), "-y", "-i", str(src), "-t", str(VIDEO_MAX_SECONDS), "-vf", scale,
-             "-c:v", "libx264", "-preset", "medium", "-crf", "28", "-maxrate", "1800k", "-bufsize", "3600k",
+            # the quick copy that plays everywhere; posts' and stories' adaptive streams follow (server/hls.py)
+            [_ffmpeg(), "-y", "-i", str(src), "-t", str(VIDEO_MAX_SECONDS), "-vf", scale, "-fpsmax", "30",
+             "-c:v", "libx264", "-preset", "medium", "-crf", "28", "-maxrate", "1500k", "-bufsize", "3000k",
              "-pix_fmt", "yuv420p",
              "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out)],
             capture_output=True, text=True, timeout=300)

@@ -386,7 +386,7 @@ fun MediaPager(vm: AppViewModel, media: List<MediaItem>, soundUrl: String? = nul
             Box(Modifier.fillMaxSize()) {
                 val covered = Sensitive.covered(item)
                 if (covered) SensitiveCover(vm, item)
-                else if (item.isVideo) VideoPlayer(vm.abs(item.url)!!, vm.abs(item.thumb), playing = pager.currentPage == page, soundUrl = soundUrl)
+                else if (item.isVideo) VideoPlayer(vm.abs(item.url)!!, vm.abs(item.thumb), playing = pager.currentPage == page, soundUrl = soundUrl, hls = vm.abs(item.hls))
                 else RemoteImage(vm.abs(item.url), Modifier.fillMaxSize())
                 if (!covered) item.overlay?.let { OverlayText(it) }
                 // the rules tapped with this slide: subtle, in the corner

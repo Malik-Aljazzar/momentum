@@ -189,7 +189,7 @@ def parse_decay(data):
 # ---------------------------------------------------------------- app
 
 def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, google=None, github=None, mail=None,
-               moderator=None, link_preview=None):
+               moderator=None, link_preview=None, video_streams=None):
     """push_enabled: send real-time pushes (default: only the real server - tests and the e2e server
     pass their own blob store and stay quiet). e2e_default: new chats are end-to-end encrypted (default:
     the real server; the tests' chats are plain unless a test switches it on). google: the Google sign-in
@@ -197,7 +197,11 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     (server/github.py; default: from the environment, off without GITHUB_REPO + GITHUB_TOKEN). mail: e-mails with
     codes (server/mail.py; default: from the environment, off without MAIL_*). moderator: the content filter for
     photos / videos (server/moderation.py; default: the real model on the real server, off for tests). link_preview:
-    url -> preview for chat links (server/linkpreview.py; default: fetch the page)."""
+    url -> preview for chat links (server/linkpreview.py; default: fetch the page). video_streams: the background job
+    making post / story videos' adaptive streams (server/hls.py; default: the real server - tests and the e2e server
+    call hls.encode_all)."""
+    if video_streams is None:
+        video_streams = blobs is None
     real = blobs is None             # the real server (tests and the e2e server bring their own blob store)
     if push_enabled is None:
         push_enabled = real
@@ -243,6 +247,9 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
                 await s.commit()
         loop = asyncio.get_running_loop()
         app.background = [loop.create_task(archive_loop())]
+        if video_streams:
+            from . import hls
+            app.background.append(loop.create_task(hls.run(db, blobs)))
         if github.enabled:
             app.background.append(loop.create_task(github_loop()))
         else:

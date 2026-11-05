@@ -63,6 +63,15 @@ if __name__ == "__main__":
         from quart import jsonify, request
         return jsonify(code=mailer.codes.get(request.args.get("to", "").lower()))
 
+    @app.post("/api/test/streams")
+    async def test_streams():
+        """Test-only: makes the adaptive streams of every waiting post / story video now (server/hls.py; the real
+        server's background job does it on its own)."""
+        from quart import jsonify
+
+        from . import hls
+        return jsonify(done=await hls.encode_all(app.db, app.blobs))
+
     @app.post("/api/test/reports/done")
     async def test_reports_done():
         """Test-only (this server never runs in production): what the admin app does - the new reports of

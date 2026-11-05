@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-05 c
+
+### DE
+- Videos in Posts und Stories brauchen jetzt deutlich weniger Daten, ähnlich wie bei Instagram: Die App wählt die Qualität passend zu deiner Verbindung (360p bis 720p) und lädt sie in einem sparsameren Format (rund 40 % kleiner). Videos, die gerade nicht laufen, lädt sie nur noch an, und auf Android bleibt Gesehenes zwischengespeichert.
+
+### EN
+- Videos in posts and stories now use much less data, much like on Instagram: the app picks the quality that fits your connection (360p to 720p) and loads it in a leaner format (about 40 % smaller). Videos that aren't playing only load their start, and on Android what you've watched stays cached.
+
 ## 2026-11-05 b
 
 ### DE

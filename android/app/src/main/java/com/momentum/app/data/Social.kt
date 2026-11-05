@@ -113,6 +113,8 @@ data class MediaItem(
     /** flagged by the content filter (server/moderation.py): shown behind [cover] until tapped ([thumb] is the cover) */
     val sensitive: Boolean = false,
     val cover: String? = null,
+    /** a post / story video's adaptive HEVC stream (master playlist, server/hls.py); [url] is the fallback */
+    val hls: String? = null,
 ) {
     val isVideo get() = kind == "video"
 }

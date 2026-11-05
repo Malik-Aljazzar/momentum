@@ -71,6 +71,8 @@ def media_json(md):
                width=md.width, height=md.height, duration=md.duration,
                overlay=json.loads(md.overlay) if md.overlay else None,
                encrypted=bool(md.encrypted))      # ciphertext: the key is in the (encrypted) message
+    if md.hls_key:
+        out["hls"] = f"/{md.hls_key}"        # the adaptive stream (server/hls.py); `url` stays the fallback
     if moderation.covered(md):
         # flagged by the content filter: the apps show the cover until tapped (server/moderation.py);
         # older Android apps can't, they get only the cover
@@ -78,6 +80,7 @@ def media_json(md):
         from .clients import MODERATION_APP, knows
         if not knows(MODERATION_APP):
             out.update(kind="image", url=f"/{md.cover_key}", duration=0.0)
+            out.pop("hls", None)
     return out
 
 
@@ -110,7 +113,8 @@ async def bake_overlay(blobs, md, delete_old=True):
             await blobs.put(thumb_key, thumb, thumb_type)
     except (BlobUnavailable, ValueError, OSError):
         return False
-    old = [k for k in (md.key, md.thumb_key) if k]
+    from .hls import forget
+    old = [k for k in (md.key, md.thumb_key) if k] + forget(md)       # the stream is made again, with the text
     md.key, md.thumb_key, md.overlay = key, thumb_key, None
     for k in old if delete_old else []:
         try:
@@ -237,8 +241,9 @@ def comment_json(c, user_card, me_id, post_owner_id, likes=0, liked=False, names
 
 
 async def delete_media_blobs(blobs, media_rows):
+    from .hls import files_of
     for md in media_rows:
-        for key in filter(None, (md.key, md.thumb_key, md.cover_key)):
+        for key in filter(None, (md.key, md.thumb_key, md.cover_key, *files_of(md))):
             try:
                 await blobs.delete(key)
             except BlobUnavailable:
@@ -389,28 +394,38 @@ def register(app, authed, api_error, blobs, moderator):
 
     @app.get("/media/<path:key>")
     async def get_media(key):
-        """Serves photos/videos; supports Range requests so video players can stream/seek."""
+        """Serves photos/videos; supports Range requests so video players can stream/seek (an HLS segment is a
+        byte range of its rendition's file: only that part is read from the store)."""
+        headers = {"Cache-Control": "public, max-age=31536000, immutable", "Accept-Ranges": "bytes"}
+        rng = request.headers.get("Range", "")
         try:
+            if rng.startswith("bytes="):
+                st = await blobs.stat(f"media/{key}")
+                if st is None:
+                    return Response(status=404)
+                size, ctype = st
+                start_s, _, end_s = rng[6:].split(",")[0].partition("-")
+                try:
+                    if start_s:
+                        start = int(start_s)
+                        end = min(int(end_s), size - 1) if end_s else size - 1
+                    else:   # suffix range: last N bytes
+                        start, end = max(0, size - int(end_s)), size - 1
+                except ValueError:
+                    return Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+                if start >= size or start > end:
+                    return Response(status=416, headers={"Content-Range": f"bytes */{size}"})
+                data = await blobs.read(f"media/{key}", start, end - start + 1)
+                if data is None:
+                    return Response(status=404)
+                headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+                return Response(data, status=206, content_type=ctype, headers=headers)
             obj = await blobs.get(f"media/{key}")
         except BlobUnavailable:
             return Response(status=503)
         if obj is None:
             return Response(status=404)
         data, ctype = obj
-        headers = {"Cache-Control": "public, max-age=31536000, immutable", "Accept-Ranges": "bytes"}
-        rng = request.headers.get("Range", "")
-        if rng.startswith("bytes="):
-            start_s, _, end_s = rng[6:].split(",")[0].partition("-")
-            size = len(data)
-            if start_s:
-                start = int(start_s)
-                end = min(int(end_s), size - 1) if end_s else size - 1
-            else:   # suffix range: last N bytes
-                start, end = max(0, size - int(end_s)), size - 1
-            if start >= size or start > end:
-                return Response(status=416, headers={"Content-Range": f"bytes */{size}"})
-            headers["Content-Range"] = f"bytes {start}-{end}/{size}"
-            return Response(data[start:end + 1], status=206, content_type=ctype, headers=headers)
         return Response(data, content_type=ctype, headers=headers)
 
     # ---- posts

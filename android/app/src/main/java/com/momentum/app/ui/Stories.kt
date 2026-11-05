@@ -241,7 +241,7 @@ private fun StoryViewer(vm: AppViewModel, o: StoryViewing.Open, onClose: () -> U
             }
         }) {
             if (covered) SensitiveCover(vm, st.media, contentScale = ContentScale.Fit, buttonOnly = true)
-            else if (st.media.isVideo) VideoPlayer(vm.abs(st.media.url)!!, vm.abs(st.media.thumb), playing = !paused && !holding)
+            else if (st.media.isVideo) VideoPlayer(vm.abs(st.media.url)!!, vm.abs(st.media.thumb), playing = !paused && !holding, hls = vm.abs(st.media.hls))
             else RemoteImage(vm.abs(st.media.url), Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                 fallback = { RemoteImage(vm.abs(st.media.thumb), Modifier.fillMaxSize(), contentScale = ContentScale.Fit) })
         }

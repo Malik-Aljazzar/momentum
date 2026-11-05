@@ -226,6 +226,11 @@ class Media(Base):
     nsfw: Mapped[float | None] = mapped_column(Float, nullable=True)
     cover_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     review: Mapped[str] = mapped_column(String(8), default="")
+    # a post / story video's adaptive stream (server/hls.py): the master playlist, every file of it (one key per
+    # line) and how often the background job tried to make it
+    hls_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    hls_files: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hls_tries: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

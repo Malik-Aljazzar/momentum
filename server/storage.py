@@ -88,6 +88,12 @@ class MeteredStore:
     async def get(self, key):
         return await self.inner.get(key)
 
+    async def stat(self, key):
+        return await self.inner.stat(key)
+
+    async def read(self, key, start, length):
+        return await self.inner.read(key, start, length)
+
     async def delete(self, key):
         await self.inner.delete(key)
         if self._sizes is not None:
@@ -186,7 +192,8 @@ async def blob_items(s, store, refresh=False):
     sizes = dict(await store.sizes(refresh))
     items = []
     for md, cat in await _media_categories(s):
-        size = sizes.pop(md.key, 0) + sum(sizes.pop(k, 0) for k in (md.thumb_key, md.cover_key) if k)
+        from .hls import files_of
+        size = sizes.pop(md.key, 0) + sum(sizes.pop(k, 0) for k in (md.thumb_key, md.cover_key, *files_of(md)) if k)
         items.append(dict(category=cat, key=md.key, thumb=md.thumb_key or md.key, size=size, user_id=md.user_id,
                           media=md, created_at=md.created_at))
     for key, size in sizes.items():

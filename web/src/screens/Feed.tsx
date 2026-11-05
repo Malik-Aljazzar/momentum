@@ -231,7 +231,7 @@ export function MediaPager({ media, soundUrl, triggers }: { media: MediaItem[]; 
       style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none" }}>
       {media.map((m, i) => <div key={m.id} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start" }}>
         {isCovered(m) ? <SensitiveCover media={m} />
-          : m.kind === "video" ? <VideoPlayer url={m.url} thumb={m.thumb} playing={page === i} soundUrl={soundUrl} />
+          : m.kind === "video" ? <VideoPlayer url={m.url} hls={m.hls} thumb={m.thumb} playing={page === i} soundUrl={soundUrl} />
           : <RemoteImage url={m.url} class="fill" fallback={<RemoteImage url={m.thumb} class="fill" />} />}
         {m.overlay && !isCovered(m) && <OverlayText o={m.overlay} />}
         {/* the rules tapped with this slide: subtle, in the corner */}

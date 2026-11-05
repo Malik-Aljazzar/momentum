@@ -12,7 +12,7 @@ import { Avatar, IconBtn, Label, LoadMore, PixelIcon, PxButton, PxTextField, Rem
 import { storiesVersion } from "./Compose"
 import { isCovered, SensitiveCover, TriggerList } from "./media"
 import { SharePicker } from "./shared"
-import { useCoverLayer } from "../ui/video"
+import { streamFailed, useCoverLayer, videoSrc } from "../ui/video"
 
 /** Quick reactions to a story: sent at once as a message to the author. */
 const STORY_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👏"]
@@ -126,6 +126,8 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
     const a = audio.current
     if (a) { if (st.sound) { a.src = st.sound.url; a.currentTime = 0; void a.play().catch(() => {}) } else a.pause() }
   }, [row, i])
+  // the adaptive stream where it plays, else the file (ui/video.tsx)
+  const src = st?.media.kind === "video" ? videoSrc(st.media.url, st.media.hls) : undefined
   useEffect(() => {
     if (!st || paused || holding || covered) { video.current?.pause(); audio.current?.pause(); return }
     if (st.media.kind === "video") { void video.current?.play().catch(() => {}) }
@@ -141,7 +143,7 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [row, i, paused, holding, covered])
+  }, [row, i, paused, holding, covered, src])
 
   if (!st || !user) return null
   const sec = secondsSince(st.at)
@@ -179,7 +181,8 @@ function StoryViewer({ rows, row: startRow, highlight, onClose }: { rows: StoryR
     }}>
       {covered ? <SensitiveCover key={st.id} media={st.media} fit="contain" button />
         : st.media.kind === "video"
-        ? <video key={st.id} ref={video} src={st.media.url} poster={st.media.thumb} playsInline muted={!!st.sound}
+        ? <video key={st.id} ref={video} src={src} poster={st.media.thumb} playsInline muted={!!st.sound}
+          onError={() => streamFailed(st.media.hls)}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
         : <RemoteImage key={st.id} url={st.media.url} class="fill" fit="contain" fallback={<RemoteImage url={st.media.thumb} class="fill" fit="contain" />} />}
     </div>

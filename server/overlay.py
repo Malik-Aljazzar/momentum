@@ -119,7 +119,7 @@ def bake_video(data, o):
         text_layer(o, w, h).save(layer)
         run = subprocess.run(
             [_ffmpeg(), "-y", "-i", str(src), "-i", str(layer), "-filter_complex", "[0:v][1:v]overlay=0:0",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "2000k", "-bufsize", "4000k",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-maxrate", "1500k", "-bufsize", "3000k",
              "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(out)],
             capture_output=True, text=True, timeout=300)
         if run.returncode != 0 or not out.exists():

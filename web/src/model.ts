@@ -155,6 +155,8 @@ export interface TextOverlay { text: string; x: number; y: number; color: string
 
 export interface MediaItem {
   id: number; kind: string; url: string; thumb: string; width?: number; height?: number; duration?: number
+  /** a post / story video's adaptive HEVC stream (master playlist, server/hls.py); `url` is the fallback */
+  hls?: string
   overlay?: TextOverlay | null
   /** a chat photo: when only its small copy will be left / is left (report #48) */
   expires_at?: string; archived?: boolean

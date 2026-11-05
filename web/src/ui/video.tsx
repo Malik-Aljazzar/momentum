@@ -18,6 +18,27 @@ export const soundOn = signal(false)
 const candidates = signal(new Map<object, number>())
 const positions = new Map<string, number>()
 
+/* Adaptive streams like Instagram (server/hls.py): a post / story video has an HLS ladder in HEVC (`hls`), the player
+ * picks the rendition that fits the connection. Safari (iPhone) plays HLS itself; where the browser can't, the MP4
+ * (`url`) plays. A stream that fails (Android's Chrome says it plays HLS but can't play these HEVC streams) switches
+ * every video to the MP4 until the app starts again - one failed try, not one per video (= Video.kt). */
+let hlsSupport: boolean | undefined
+export function canPlayHls(): boolean {
+  return (hlsSupport ??= typeof document !== "undefined"
+    && document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "")
+}
+const streamsOff = signal(false)
+
+/** What a <video> plays: the stream where it works, else the file. */
+export function videoSrc(url: string, hls?: string | null): string {
+  return hls && canPlayHls() && !streamsOff.value ? hls : url
+}
+
+/** onError of a <video> playing videoSrc(url, hls): the files from now on. */
+export function streamFailed(hls?: string | null) {
+  if (hls) streamsOff.value = true
+}
+
 /** False for screens covered by another one (their media must not play). */
 export const OnTop = createContext(true)
 
@@ -72,7 +93,8 @@ function useMediaFocus(ref: { current: HTMLElement | null }, playing: boolean): 
  *  background, not its turn), it goes on at that moment next time - also in another player of the same url (feed ->
  *  comments / big view and back). Gone from view (scrolled away, another medium more visible), it starts over, like on
  *  Instagram. */
-function useTrack(el: HTMLMediaElement | null, url: string | null | undefined, active: boolean, held: boolean, audible: boolean) {
+function useTrack(el: HTMLMediaElement | null, url: string | null | undefined, active: boolean, held: boolean, audible: boolean,
+  src?: string) {
   const was = useRef(false)                                                          // it was playing
   useEffect(() => {
     if (!el || !url) return
@@ -88,7 +110,7 @@ function useTrack(el: HTMLMediaElement | null, url: string | null | undefined, a
       el.pause()
     }
     was.current = active
-  }, [el, url, active, audible, soundOn.value])
+  }, [el, url, active, audible, soundOn.value, src])          // a new source (stream -> file) has to start again
   // closed while playing (comments -> feed): the feed goes on at this moment
   useEffect(() => () => { if (el && url && was.current) positions.set(url, el.currentTime) }, [el, url])
 }
@@ -99,20 +121,22 @@ function SoundBadge() {
   </div>
 }
 
-/** [preview]: making a post (report #65) - always muted, taps go to what's around it. */
-export function VideoPlayer({ url, thumb, playing, soundUrl, preview }: {
-  url: string; thumb?: string | null; playing: boolean; soundUrl?: string | null; preview?: boolean
+/** [preview]: making a post (report #65) - always muted, taps go to what's around it. [hls]: the adaptive stream
+ *  (played instead of [url] where it works; [url] stays the key for the position). */
+export function VideoPlayer({ url, hls, thumb, playing, soundUrl, preview }: {
+  url: string; hls?: string | null; thumb?: string | null; playing: boolean; soundUrl?: string | null; preview?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [first, setFirst] = useState(false)
   const [active, held] = useMediaFocus(box, playing)
-  useTrack(video, url, active, held, !soundUrl && !preview)
+  const src = videoSrc(url, hls)
+  useTrack(video, url, active, held, !soundUrl && !preview, src)
   useTrack(audio, soundUrl, active, held, true)
   return <div ref={box} class="fill" style={{ overflow: "hidden" }} onClick={preview ? undefined : () => { soundOn.value = !soundOn.value }}>
-    <video ref={setVideo} src={url} poster={thumb ?? undefined} playsInline muted loop preload="metadata"
-      onLoadedData={() => setFirst(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+    <video ref={setVideo} src={src} poster={thumb ?? undefined} playsInline muted loop preload="metadata"
+      onLoadedData={() => setFirst(true)} onError={() => streamFailed(hls)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
     {soundUrl && <audio ref={setAudio} src={soundUrl} loop preload="none" />}
     {!first && thumb && <RemoteImage url={thumb} class="fill" />}
     {!preview && <SoundBadge />}
