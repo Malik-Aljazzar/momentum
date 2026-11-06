@@ -1,6 +1,7 @@
 // System notifications for the PWA via Web Push (server/push.py sends them in real time, also
 // while the app is closed). iOS: only for the installed PWA (home screen, iOS 16.4+) and only
 // after the user allowed them from a tap.
+import { signal } from "@preact/signals"
 import { api } from "./api"
 
 export type Permission = "granted" | "denied" | "default" | "unsupported"
@@ -22,6 +23,31 @@ export const installed = () =>
   matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
 
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+
+/** What the home tab's card says while notifications are off (calls ring only while the app is open; = Android
+ *  `notifyHint` in data/Notifier.kt): "ask" - a tap may still allow them, "denied" - only the phone's settings can,
+ *  "install" - on an iPhone only the home-screen app gets them. Nothing when the player switched them off in the app
+ *  (wanted false) or tapped "not now" ([hiddenUntil], NOTIFY_HINT_DAYS). */
+export type NotifyHint = "ask" | "denied" | "install" | null
+export const NOTIFY_HINT_DAYS = 7
+const HINT_KEY = "notify_hint_until"
+
+/** "Not now" on the card or the first start's question: until then the card stays away. */
+export const notifyHintUntil = signal((() => { try { return Number(localStorage.getItem(HINT_KEY) ?? 0) || 0 } catch { return 0 } })())
+
+export function postponeNotifyHint(now = Date.now()) {
+  const until = now + NOTIFY_HINT_DAYS * 86_400_000
+  try { localStorage.setItem(HINT_KEY, String(until)) } catch { /* private mode: until the next start */ }
+  notifyHintUntil.value = until
+}
+
+export function notifyHint(o: { wanted: boolean; permission: Permission; ios: boolean; installed: boolean; hiddenUntil: number; now: number }): NotifyHint {
+  if (!o.wanted || o.now < o.hiddenUntil) return null
+  if (o.ios && !o.installed) return "install"
+  if (o.permission === "default") return "ask"
+  if (o.permission === "denied") return "denied"
+  return null                                      // allowed, or a browser without notifications
+}
 
 /** Asks for permission (must run from a tap) and subscribes this device. */
 export async function requestNotifications(lang: string): Promise<Permission> {

@@ -913,6 +913,7 @@ def test_who_read_my_message(tmp_path):
         await stranger.req("get", f"/api/messages/{msg['id']}/readers", status=404)
     run(tmp_path, scenario)
 
+
 def test_activity_comment_preview(tmp_path):
     """Activities about a comment carry a short preview of it: one line, cut after PREVIEW_CHARS."""
     from ..social import PREVIEW_CHARS

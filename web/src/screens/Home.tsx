@@ -6,8 +6,9 @@ import { fmt, fmtShort, secondsSince, signed } from "../format"
 import { bannerNight, defaultBanner } from "../gfx/banners"
 import { vehicleSpeed } from "../gfx/vehicles"
 import { type AppState, type Event, vehicleProgress } from "../model"
-import { meta, undo } from "../store"
-import { S } from "../strings"
+import { installed, isIos, notifyHint, notifyHintUntil, notifyPermission, postponeNotifyHint, requestNotifications } from "../push"
+import { meta, notifications, undo } from "../store"
+import { lang, S } from "../strings"
 import {
   Avatar, BannerBg, FitText, Label, PixelIcon, PxButton, PxCard, ScoreLabel, SegBar, Sheet, VehicleSprite,
 } from "../ui/components"
@@ -31,6 +32,38 @@ export function useCountUp(target: number, ms = 700): number {
     return () => cancelAnimationFrame(raf)
   }, [target])
   return shown
+}
+
+/** Notifications off: calls ring only while the app is open, messages come only when you look in - a card that
+ *  says so and what helps (push.ts notifyHint = Android NotifyReminder in ui/Home.kt). "Not now": a week's peace. */
+function NotifyReminder() {
+  const s = S.value
+  const [permission, setPermission] = useState(notifyPermission())
+  // back from the phone's settings: maybe allowed now
+  useEffect(() => {
+    const again = () => setPermission(notifyPermission())
+    document.addEventListener("visibilitychange", again)
+    return () => document.removeEventListener("visibilitychange", again)
+  }, [])
+  const hint = notifyHint({
+    wanted: notifications.value, permission, ios: isIos(), installed: installed(), hiddenUntil: notifyHintUntil.value, now: Date.now(),
+  })
+  if (!hint) return null
+  return <div class="col notify-reminder" role="note" style={{
+    gap: 10, padding: 14, borderRadius: 16, background: "var(--card)", border: "1px solid var(--orange)",
+  }}>
+    <div class="row" style={{ gap: 10 }}>
+      <PixelIcon name="ui_bell" size={24} />
+      <span class="t-strong">{s.notifyOffTitle}</span>
+    </div>
+    <span class="t-small" style={{ color: "var(--text)" }}>{s.notifyOffText}</span>
+    {hint !== "ask" && <span class="t-small">{hint === "install" ? s.notificationsInstallHint : s.notifyOffDenied}</span>}
+    <div class="row" style={{ gap: 8 }}>
+      {hint === "ask" && <PxButton text={s.allowNotifications} class="grow"
+        onClick={async () => setPermission(await requestNotifications(lang.value))} />}
+      <PxButton text={s.notNow} kind="ghost" class="grow" onClick={() => postponeNotifyHint()} />
+    </div>
+  </div>
 }
 
 export function HomeScreen({ st }: { st: AppState }) {
@@ -58,6 +91,7 @@ export function HomeScreen({ st }: { st: AppState }) {
       </div>
 
       <ConfirmReminder />
+      <NotifyReminder />
       <ElectionCard />
       <Hero st={st} vkey={v.key} label={s.vehicle(v.key, v.label)} category={v.category} idx={idx} count={vs.length} />
 

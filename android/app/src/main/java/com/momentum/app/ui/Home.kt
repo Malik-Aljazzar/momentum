@@ -77,7 +77,7 @@ fun HomeScreen(vm: AppViewModel, st: AppState, list: LazyListState) {
             }
         }
 
-        item { ConfirmReminder(vm) }
+        item { Column { ConfirmReminder(vm); NotifyReminder(vm) } }      // one item: nothing shown = no extra gap
         item { ElectionCard(vm) }
         item { Hero(st, v.key, S.vehicle(v.key, v.label), v.category, idx, vs.size) }
 
@@ -144,6 +144,59 @@ fun HomeScreen(vm: AppViewModel, st: AppState, list: LazyListState) {
 }
 
 /** One history line. Milestones show their vehicle and no points; acc/dec can be undone by tapping. */
+/** Notifications off: calls ring only while the app is open, messages come only when you look in - a card that says
+ *  so and what helps (data/Notifier.kt notifyHint = web NotifyReminder in screens/Home.tsx). "Not now": a week's peace. */
+@Composable
+private fun NotifyReminder(vm: AppViewModel) {
+    val S = LocalStrings.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val prefs = androidx.compose.runtime.remember { com.momentum.app.data.Prefs(ctx) }
+    var check by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }    // again on return
+    var hiddenUntil by androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(prefs.notifyHintUntil) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) check++ }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    // Android's question; refused for good it doesn't come any more -> the system settings
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (!granted) com.momentum.app.data.Notifier.openSettings(ctx, callsOnly = false); check++ }
+    val hint = androidx.compose.runtime.remember(check, hiddenUntil, vm.notifications) {
+        com.momentum.app.data.notifyHint(
+            wanted = vm.notifications,
+            enabled = androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled(),
+            callsOn = com.momentum.app.data.Notifier.callsOn(ctx),
+            canAsk = android.os.Build.VERSION.SDK_INT >= 33 && !com.momentum.app.data.Notifier.allowed(ctx),
+            hiddenUntil = hiddenUntil, now = System.currentTimeMillis(),
+        )
+    } ?: return
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Px.Card)
+            .border(1.dp, Px.Orange, RoundedCornerShape(16.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PixelIcon("ui_bell", 24.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(S.notifyOffTitle, style = T.bodyStrong)
+        }
+        Text(if (hint == com.momentum.app.data.NotifyHint.Calls) S.notifyCallsOff else S.notifyOffText, style = T.small.copy(color = Px.Text))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val asks = hint == com.momentum.app.data.NotifyHint.Ask
+            PxButton(if (asks) S.allowNotifications else S.openSystemSettings, Modifier.weight(1f)) {
+                if (asks) ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                else com.momentum.app.data.Notifier.openSettings(ctx, callsOnly = hint == com.momentum.app.data.NotifyHint.Calls)
+            }
+            PxButton(S.notNow, Modifier.weight(1f), style = BtnStyle.Ghost) {
+                hiddenUntil = System.currentTimeMillis() + com.momentum.app.data.NOTIFY_HINT_DAYS * 86_400_000L
+                prefs.notifyHintUntil = hiddenUntil
+            }
+        }
+    }
+}
+
 @Composable
 private fun HistoryEntry(vm: AppViewModel, e: com.momentum.app.data.Event, onUndo: () -> Unit) {
     val S = LocalStrings.current

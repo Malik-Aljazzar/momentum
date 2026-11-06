@@ -47,7 +47,7 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   app.py         app factory, auth, rules, settings, version gate (426), state endpoints
   service.py     momentum state, triggers, undo, vehicles (VEHICLES), challenge credit
   momentum.py    pure rule math; milestone ladder (LADDER, milestone(), vehicle_index())
-  limits.py      adaptive daily limit (rate doubles > .75, halves < .25; 25..12800; start 100)
+  limits.py      adaptive daily limit (rate doubles > .75, halves < .25; 1000..12800; start 1000)
   community.py   subscriptions/copies of rules (chain_copy, remove_copies…), group rules, bulk endpoints
   challenges.py  group challenges, rewards → credit
   chat.py        DMs/groups, mentions, mute, replies, group search/ranking, encryption switch + members' keys
@@ -244,6 +244,9 @@ cd web && npm test && npm run e2e          # Vitest + Playwright (starts its own
 - e2e runs against the built `web/dist` – `npm run build` first. Two sessions at once: give the
   second one `E2E_PORT=8775` and `--output <scratchpad dir>` (else they share port 8765 and wipe
   each other's `test-results/`).
+- Playwright mutes only headless Chromium (`--mute-audio`): headless WebKit on Windows plays a video's sound into the
+  owner's headset (a 440 Hz test clip sounded like a dial tone). Test media with a sound track uses silence
+  (`anullsrc`), never a tone. (WebKit on Windows has no `AudioContext` and plays no WAV, so those stay silent anyway.)
 
 - Android SDK: `%LOCALAPPDATA%\Android\Sdk`, AVD `momentum` (headless:
   `emulator -avd momentum -no-window -no-audio -gpu swiftshader_indirect`). Verify UI changes in
@@ -346,6 +349,9 @@ without it the log says "Android keeps polling". Devices are bound to their logi
 Read notifications disappear: tags `chat:<id>` / `activity` (Android) and `chat-<id>` / `note-<id>`
 (PWA) are cleared when the chat / activity list is opened; Android also clears what
 `/api/updates` no longer lists in `unread_chats` / `unread_notifications` (read on another device).
+Notifications off (but on in the app's settings): a card on the home tab (`notifyHint` in `web/src/push.ts` =
+`data/Notifier.kt`: ask / denied / install (iPhone outside the home-screen app) / Android: the calls' channel off),
+"not now" = 7 days (`notify_hint_until`). The e2e iPhone isn't the home-screen app: the card shows there ("install").
 
 ## E-mail: confirming the address, new password, lock (`server/mail.py`)
 

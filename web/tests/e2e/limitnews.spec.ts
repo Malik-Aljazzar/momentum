@@ -7,7 +7,7 @@ const SECOND_RELEASE = [...readFileSync(new URL("../../../CHANGELOG.md", import.
 
 test("a day's first start: what's new first, then the limit's change since yesterday - once", async ({ page, request }) => {
   const { token } = await newUser(request)
-  // yesterday's limit 50, today's stays as it is (100 on the test server): higher than yesterday
+  // yesterday's limit 50, today's stays as it is (1000 on the test server, the minimum): higher than yesterday
   const r = await request.post("/api/test/limit/yesterday", { data: { cap: 50 } })
   expect(r.ok(), await r.text()).toBeTruthy()
   await page.addInitScript((seen) => {
@@ -29,9 +29,9 @@ test("a day's first start: what's new first, then the limit's change since yeste
   await expect(limit).toBeVisible()
   const numbers = limit.locator(".limit-change")
   await expect(numbers).toContainText("50")
-  await expect(numbers).toContainText("100")
+  await expect(numbers).toContainText("1.000")
   expect((await numbers.boundingBox())!.height).toBeGreaterThan(16)
-  await expect(limit.getByText("Heute kannst du bis zu 100 Momentum sammeln – gestern waren es 50.")).toBeVisible()
+  await expect(limit.getByText("Heute kannst du bis zu 1.000 Momentum sammeln – gestern waren es 50.")).toBeVisible()
   await limit.getByRole("button", { name: "Alles klar" }).click()
   await expect(limit).toBeHidden()
   const day = await page.evaluate(() => JSON.parse(localStorage.getItem("limit_seen_day")!))

@@ -27,6 +27,19 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.concurrent.TimeUnit
 
+/** What the home tab's card says while notifications are off (calls ring only while the app is open; = web/src/push.ts
+ *  notifyHint): Ask - Android's question can still come (13+), Settings - only the system settings can turn them on,
+ *  Calls - just the calls' channel is off. Nothing when switched off in the app ([wanted]) or after "not now". */
+enum class NotifyHint { Ask, Settings, Calls }
+const val NOTIFY_HINT_DAYS = 7
+
+fun notifyHint(wanted: Boolean, enabled: Boolean, callsOn: Boolean, canAsk: Boolean, hiddenUntil: Long, now: Long): NotifyHint? = when {
+    !wanted || now < hiddenUntil -> null
+    !enabled -> if (canAsk) NotifyHint.Ask else NotifyHint.Settings
+    !callsOn -> NotifyHint.Calls
+    else -> null
+}
+
 /**
  * System notifications for new messages and activity, without a push service: a background job
  * asks the server every ~15 minutes what's new (GET /api/updates, nothing is marked as read)
@@ -200,6 +213,21 @@ object Notifier {
 
     fun allowed(ctx: Context) = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /** The calls' channel isn't switched off in the system settings (else calls only ring in the open app). */
+    fun callsOn(ctx: Context): Boolean {
+        ensureChannels(ctx)
+        return ctx.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL_CALLS)?.importance !=
+            NotificationManager.IMPORTANCE_NONE
+    }
+
+    /** The card's way out (home tab): the system's notification settings - the calls' channel or the whole app. */
+    fun openSettings(ctx: Context, callsOnly: Boolean) {
+        val intent = if (callsOnly) Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, CHANNEL_CALLS)
+        else Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        runCatching { ctx.startActivity(intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)) }
+    }
 
     internal fun open(ctx: Context, request: Int, extras: Intent.() -> Unit): PendingIntent {
         val intent = Intent(ctx, MainActivity::class.java)

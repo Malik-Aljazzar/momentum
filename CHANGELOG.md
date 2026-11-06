@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-06
+
+### DE
+- Das Tageslimit im Wettbewerb liegt jetzt immer bei mindestens 1.000 – auch heute schon.
+- Sind die Benachrichtigungen aus, sagt dir eine Karte auf der Startseite, dass Anrufe dann nur bei offener App klingeln – mit „Erlauben“ oder dem Weg in die Einstellungen. „Später“ blendet sie für eine Woche aus.
+
+### EN
+- The daily limit in the competition is now always at least 1,000 – starting today.
+- With notifications off, a card on the home tab tells you that calls then only ring while the app is open – with "Allow" or the way to the settings. "Not now" hides it for a week.
+
 ## 2026-11-05 c
 
 ### DE

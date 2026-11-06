@@ -44,7 +44,8 @@ def test_no_milestone_animation_on_last_stage(tmp_path):
     run(tmp_path, scenario)
 
 
-def test_daily_limit_from_yesterdays_average(tmp_path):
+def test_daily_limit_from_yesterdays_average(tmp_path, monkeypatch):
+    monkeypatch.setattr(limits, "MIN_RATE", 25.0)            # small rates (the 1000 minimum is test_rate_adapts')
     async def scenario(app, c):
         ann, ben, cat = await user(c, "ann"), await user(c, "ben"), await user(c, "cat")
         assert (await ann.req("get", "/api/state"))["state"]["limit"]["prev_cap"] is None   # the very first day
@@ -335,19 +336,21 @@ def test_rate_adapts(tmp_path):
         today = limits.server_day()
         async with app.db.session() as s:
             assert await limits.next_rate(s, today, 50, False) == limits.START_RATE       # no history
-            s.add(DailyCap(day=today - timedelta(days=3), average=0, bias=100, cap=100, players=1))
+            s.add(DailyCap(day=today - timedelta(days=3), average=0, bias=2000, cap=2000, players=1))
             await s.flush()
-            assert await limits.next_rate(s, today, 76, False) == 200      # > 0.75 * 100: doubles
-            assert await limits.next_rate(s, today, 75, False) == 100      # in between: stays
-            assert await limits.next_rate(s, today, 25, False) == 100
-            assert await limits.next_rate(s, today, 24, False) == 50       # < 0.25 * 100: halves
+            assert await limits.next_rate(s, today, 1501, False) == 4000    # > 0.75 * 2000: doubles
+            assert await limits.next_rate(s, today, 1500, False) == 2000    # in between: stays
+            assert await limits.next_rate(s, today, 500, False) == 2000
+            assert await limits.next_rate(s, today, 499, False) == 1000     # < 0.25 * 2000: halves
             s.add(DailyCap(day=today - timedelta(days=1), average=0, bias=8000, cap=8000, players=1))
-            s.add(DailyCap(day=today - timedelta(days=2), average=0, bias=30, cap=30, players=1))
+            s.add(DailyCap(day=today - timedelta(days=2), average=0, bias=1500, cap=1500, players=1))
             await s.flush()
             assert await limits.next_rate(s, today, 7000, False) == 12800              # latest rate, max 12800
-            assert await limits.next_rate(s, today - timedelta(days=1), 0, False) == 25   # min 25
-            await limits.set_rate(s, 300)                                               # admin override, once
-            assert await limits.next_rate(s, today, 0, True) == 300
+            assert await limits.next_rate(s, today - timedelta(days=1), 0, False) == 1000   # min 1000 (not 750)
+            await limits.set_rate(s, 300)                                               # admin override: min 1000 too
+            assert await limits.next_rate(s, today, 0, False) == 1000
+            await limits.set_rate(s, 3000)                                              # admin override, once
+            assert await limits.next_rate(s, today, 0, True) == 3000
             assert await limits.next_rate(s, today, 0, True) == 4000
     run(tmp_path, scenario)
 

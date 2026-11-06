@@ -7,10 +7,10 @@ and the daily decay don't make a player count; undone taps neither - but a count
 includes their automatic taps):
 
     average > 0.75 * rate  ->  rate doubles (at most 12800)
-    average < 0.25 * rate  ->  rate halves (at least 25)
+    average < 0.25 * rate  ->  rate halves (at least 1000)
     otherwise              ->  rate stays
 
-The first rate is 100. The value is computed once per day and stored, so it doesn't change
+The first rate is 1000 (= the minimum). The value is computed once per day and stored, so it doesn't change
 during the day. (Stored in DailyCap: cap = bias = the rate, average = the average it came from.)
 
 Days are server days in MOMENTUM_TZ (default Europe/Berlin).
@@ -25,8 +25,8 @@ from sqlalchemy.dialects.sqlite import insert
 from .db import Config, DailyCap, Event, Settings, UserActivity, utcnow
 
 SERVER_TZ = ZoneInfo(os.environ.get("MOMENTUM_TZ", "Europe/Berlin"))
-START_RATE = float(os.environ.get("MOMENTUM_START_RATE", 100))
-MIN_RATE, MAX_RATE = 25.0, 12800.0
+START_RATE = float(os.environ.get("MOMENTUM_START_RATE", 1000))
+MIN_RATE, MAX_RATE = 1000.0, 12800.0   # minimum 1000 since 2026-11-06 (was 25)
 RATE_KEY = "daily_cap_bias"          # one-off override for the next computed rate (server.admin rate)
 
 

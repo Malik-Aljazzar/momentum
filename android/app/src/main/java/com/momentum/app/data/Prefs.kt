@@ -27,6 +27,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("notifications", true)
         set(value) = sp.edit().putBoolean("notifications", value).apply()
 
+    /** "Not now" on the home tab's card while notifications are off: until then (ms) it stays away. */
+    var notifyHintUntil: Long
+        get() = sp.getLong("notify_hint_until", 0L)
+        set(value) = sp.edit().putLong("notify_hint_until", value).apply()
+
     /** Newest message / notification already shown in the app or notified (no second notification). */
     var lastMessageSeen: Int
         get() = sp.getInt("last_message_seen", 0)

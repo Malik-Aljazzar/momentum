@@ -752,6 +752,11 @@ interface Strings {
     val notifyAskSub: String
     val notNow: String
     val openSystemSettings: String
+    /** the home tab's card while notifications are off (calls don't ring with the app closed) */
+    val notifyOffTitle: String
+    val notifyOffText: String
+    val notifyOffDenied: String
+    val notifyCallsOff: String
     val testNotification: String
     val testNotificationText: String
 }
@@ -1240,7 +1245,7 @@ object De : Strings {
     override val limitProvisional = "Du bist offline und es ist ein neuer Tag: Bis zur nächsten Verbindung gilt das Limit von gestern. Beim Synchronisieren rechnet der Server mit dem echten Limit von heute."
     override fun limitInfo(cap: String, average: String, bias: String, gained: String, left: String) = listOf(
         "Heute kannst du bis zu $cap Momentum sammeln.",
-        "Das Limit ist eine Wachstumsrate, die sich täglich anpasst. Gestern sind die Spieler im Wettbewerb, die selbst etwas getippt haben, im Schnitt um $average gewachsen (ihre automatischen Taps zählen mit, der tägliche Verfall nicht): Liegt der Schnitt über 75 % der Rate, verdoppelt sie sich (bis 12.800), unter 25 % halbiert sie sich (bis 25). Sie gilt für alle gleich und steht für den ganzen Tag fest.",
+        "Das Limit ist eine Wachstumsrate, die sich täglich anpasst. Gestern sind die Spieler im Wettbewerb, die selbst etwas getippt haben, im Schnitt um $average gewachsen (ihre automatischen Taps zählen mit, der tägliche Verfall nicht): Liegt der Schnitt über 75 % der Rate, verdoppelt sie sich (bis 12.800), unter 25 % halbiert sie sich (bis 1.000). Sie gilt für alle gleich und steht für den ganzen Tag fest.",
         "Beschleuniger zählen dazu, Entschleuniger ziehen wieder ab. Du stehst heute bei $gained – noch $left möglich.",
         "Entschleuniger wirken immer, auch wenn das Limit erreicht ist.",
     )
@@ -1607,6 +1612,10 @@ object De : Strings {
     override val notifyAskSub = "Damit du Nachrichten, Likes, Kommentare und Challenge-Ergebnisse sofort mitbekommst – auch wenn die App zu ist."
     override val notNow = "Später"
     override val openSystemSettings = "Systemeinstellungen"
+    override val notifyOffTitle = "Benachrichtigungen sind aus"
+    override val notifyOffText = "Anrufe klingeln nur, solange die App offen ist, und Nachrichten siehst du erst, wenn du reinschaust."
+    override val notifyOffDenied = "Erlaube sie in den Einstellungen deines Handys – auf dem iPhone: Einstellungen → Mitteilungen → Momentum."
+    override val notifyCallsOff = "Die Benachrichtigungen für Anrufe sind aus – Anrufe klingeln nur, solange die App offen ist."
     override val testNotification = "Testen"
     override val testNotificationText = "So sehen Benachrichtigungen von Momentum aus."
 }
@@ -2097,7 +2106,7 @@ object En : Strings {
     override val limitProvisional = "You're offline and it's a new day: until you're back online, yesterday's limit applies. When syncing, the server uses today's real limit."
     override fun limitInfo(cap: String, average: String, bias: String, gained: String, left: String) = listOf(
         "Today you can collect up to $cap momentum.",
-        "The limit is a growth rate that adapts every day. Yesterday the players in the competition who tapped something themselves grew by $average on average (their automatic taps count too, the daily decay doesn't): above 75 % of the rate it doubles (up to 12,800), below 25 % it halves (down to 25). It's the same for everyone and fixed for the whole day.",
+        "The limit is a growth rate that adapts every day. Yesterday the players in the competition who tapped something themselves grew by $average on average (their automatic taps count too, the daily decay doesn't): above 75 % of the rate it doubles (up to 12,800), below 25 % it halves (down to 1,000). It's the same for everyone and fixed for the whole day.",
         "Accelerators count towards it, decelerators take it back down. You're at $gained today – $left left.",
         "Decelerators always apply, even when the limit is reached.",
     )
@@ -2464,6 +2473,10 @@ object En : Strings {
     override val notifyAskSub = "So you see messages, likes, comments and challenge results right away – even when the app is closed."
     override val notNow = "Not now"
     override val openSystemSettings = "System settings"
+    override val notifyOffTitle = "Notifications are off"
+    override val notifyOffText = "Calls ring only while the app is open, and you only see messages when you look in."
+    override val notifyOffDenied = "Allow them in your phone's settings – on the iPhone: Settings → Notifications → Momentum."
+    override val notifyCallsOff = "Notifications for calls are off – calls ring only while the app is open."
     override val testNotification = "Test"
     override val testNotificationText = "This is what notifications from Momentum look like."
 }

@@ -44,8 +44,8 @@ test("a post's picture taps rules: picked with a multiplier, shown in the corner
   await page.screenshot({ path: test.info().outputPath("compose.png") })
   await expect(page.getByRole("button", { name: "Posten" })).toBeEnabled({ timeout: 15_000 })
   await page.getByRole("button", { name: "Posten" }).click()
-  // x2 - but the daily limit here is 100: the second tap stops there
-  await expect.poll(async () => (await api(request, ann.token, "GET", "/state")).state.momentum).toBe(100)
+  // x2: the rule (100) tapped twice - the daily limit (at least 1000) doesn't stop it
+  await expect.poll(async () => (await api(request, ann.token, "GET", "/state")).state.momentum).toBe(200)
   const post = (await api(request, ben.token, "GET", "/feed")).posts[0]
   expect(post.triggers).toMatchObject([{ slide: 0, rule_id: rule.id, times: 2 }])
   // ben: the pill in the corner, a tap shows the rule like on ann's profile

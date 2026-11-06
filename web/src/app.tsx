@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks"
 import { keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
 import { foreground, hyperLore, hyperspace, limitNews, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
 import { startE2E } from "./e2e"
-import { installed, isIos, notifyPermission, requestNotifications } from "./push"
+import { installed, isIos, notifyPermission, postponeNotifyHint, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
 import { Avatar, PixelIcon, PxButton, Sheet, ToastHost } from "./ui/components"
 import { ConfirmEmailScreen, LoginScreen, OfflineScreen, UsernameScreen } from "./screens/Login"
@@ -61,7 +61,7 @@ function NotifyAsk() {
     <div class="row" style={{ gap: 12 }}><PixelIcon name="ui_bell" size={32} /><div class="t-title" style={{ fontSize: 20 }}>{s.notifyAskTitle}</div></div>
     <span class="t-small">{s.notifyAskSub}</span>
     <PxButton text={s.allowNotifications} onClick={async () => { done(); await requestNotifications(currentLang.value) }} />
-    <PxButton text={s.notNow} kind="ghost" onClick={done} />
+    <PxButton text={s.notNow} kind="ghost" onClick={() => { done(); postponeNotifyHint() }} />
   </Sheet>
 }
 

@@ -592,6 +592,12 @@ def _migrate_data(conn):
     if not conn.exec_driver_sql("SELECT 1 FROM config WHERE key = 'milestone_50k'").first():
         conn.exec_driver_sql("UPDATE settings SET milestone_step = 50000 WHERE milestone_step = 10000")
         conn.exec_driver_sql("INSERT INTO config (key, value) VALUES ('milestone_50k', '1')")
+    # the daily limit is at least 1000 (was 25): today's stored limit is raised at once
+    if not conn.exec_driver_sql("SELECT 1 FROM config WHERE key = 'min_rate_1000'").first():
+        from .limits import MIN_RATE, server_day
+        conn.exec_driver_sql("UPDATE daily_caps SET cap = ?, bias = ? WHERE day >= ? AND cap < ?",
+                             (MIN_RATE, MIN_RATE, server_day().isoformat(), MIN_RATE))
+        conn.exec_driver_sql("INSERT INTO config (key, value) VALUES ('min_rate_1000', '1')")
     # milestones double from 1,000 on (were every 50,000)
     if not conn.exec_driver_sql("SELECT 1 FROM config WHERE key = 'milestone_ladder'").first():
         conn.exec_driver_sql("UPDATE settings SET milestone_step = 1000 WHERE milestone_step = 50000")
