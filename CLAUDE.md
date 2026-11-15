@@ -275,6 +275,10 @@ https://momentum.mal-zeta.de, builds the PWA, uploads to `sz-dev-environments:/o
 
 - Host details: system nginx with TLS (certbot webroot), app on 127.0.0.1:8095, SQLite in
   volume `momentum_app-data` (/data/momentum.db), MinIO internal. Ports registry: /opt/USED_PORTS.md.
+- The host's disk (38 GB, shared with other projects) ran full on 2026-11-15 from old untagged images (antami CI
+  pulls + our `--build`s): `/etc/cron.d/docker-prune` now prunes untagged images + week-old build cache at 04:30
+  (journal tag `docker-prune`). `/etc/docker/daemon.json` sets log limits (50m × 3) but dockerd hasn't been
+  restarted since (May 2026), so container logs are still unlimited (antami / kortex backends: GBs).
 - Data migrations: add a config-flag step to `db._migrate_data`; test it on a copy of the
   production DB when it rewrites data.
 - SQLite runs in WAL mode (`db._sqlite_wal`): a copy of the DB needs `momentum.db-wal` too (or
