@@ -101,7 +101,7 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
     LoadMoreEffect(list, if (mine) history.all(st!!).size else 0, mine && section == ProfileSection.History && history.hasMore(st!!)) {
         vm.state?.let { history.loadMore(vm, it) }
     }
-    history.undoing?.let { e -> UndoSheet(vm, e) { history.undoing = null } }
+    history.undoing?.let { e -> UndoSheet(vm, e, onUndone = { history.undone(vm, e) }) { history.undoing = null } }
 
     Column(Modifier.fillMaxSize()) {
         TopBar(username, onBack = if (isTab) null else nav.pop) {

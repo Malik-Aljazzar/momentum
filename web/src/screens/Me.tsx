@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "preact/hooks"
 import { ConfirmReminder } from "./Login"
 import { ElectionCard } from "./Nine"
 import { fmt, secondsSince, signed } from "../format"
+import { dropUndone } from "../logic"
 import type { AppState, Event } from "../model"
 import { installed, isIos, notifyHint, notifyHintUntil, notifyPermission, postponeNotifyHint, requestNotifications } from "../push"
-import { meta, notifications, req, undo } from "../store"
+import { meta, notifications, req, state, undo } from "../store"
 import { lang, S } from "../strings"
 import { EmptyHint, LoadMore, PixelIcon, PxButton, Sheet, VehicleSprite } from "../ui/components"
 
@@ -96,6 +97,11 @@ export function MyHistory({ st }: { st: AppState }) {
     setOlder((o) => [...o, ...r.events.filter((e) => !o.some((x) => x.id === e.id))])
     setMore(r.events.length >= 30)
   }
+  // the state brings the latest entries without the undone one; the older pages loaded here are cleaned up by hand
+  const undone = (e: Event) => {
+    const now = state.value
+    if (now) setOlder((o) => dropUndone(o, e, meta.value?.vehicles.map((v) => v.key) ?? [], now.vehicle.index))
+  }
   return <>
     {all.length === 0 ? <EmptyHint title={s.noHistory} icon="ui_clock" />
       : <div class="col my-history">{all.map((e, i) => <div key={e.id}>
@@ -103,7 +109,7 @@ export function MyHistory({ st }: { st: AppState }) {
         <HistoryEntry e={e} onUndo={() => setUndoing(e)} />
       </div>)}</div>}
     <LoadMore hasMore={more && all.length > 0} load={loadMore} />
-    {undoing && <UndoSheet e={undoing} onClose={() => setUndoing(null)} />}
+    {undoing && <UndoSheet e={undoing} onClose={() => setUndoing(null)} onUndone={undone} />}
   </>
 }
 
@@ -129,7 +135,7 @@ function HistoryEntry({ e, onUndo }: { e: Event; onUndo: () => void }) {
   </div>
 }
 
-function UndoSheet({ e, onClose }: { e: Event; onClose: () => void }) {
+function UndoSheet({ e, onClose, onUndone }: { e: Event; onClose: () => void; onUndone: (e: Event) => void }) {
   const s = S.value
   const sec = secondsSince(e.at)
   return <Sheet onClose={onClose} label={s.undoTitle}>
@@ -144,7 +150,7 @@ function UndoSheet({ e, onClose }: { e: Event; onClose: () => void }) {
     </div>
     <div class="row" style={{ gap: 10 }}>
       <PxButton text={s.cancel} kind="ghost" onClick={onClose} class="grow" />
-      <PxButton text={s.undo} kind="danger" onClick={() => { void undo(e); onClose() }} class="grow" />
+      <PxButton text={s.undo} kind="danger" onClick={() => { onClose(); void undo(e).then((ok) => { if (ok) onUndone(e) }) }} class="grow" />
     </div>
   </Sheet>
 }

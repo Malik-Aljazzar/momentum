@@ -375,28 +375,30 @@ export async function trigger(rule: Rule) {
   if (online.value) await sync()            // the rule was only known locally: sync creates it first
 }
 
-export async function undo(event: Event) {
+/** Takes a tap back (offline: locally, sent later). False when the server refused it. */
+export async function undo(event: Event): Promise<boolean> {
   const keys = meta.value?.vehicles.map((v) => v.key) ?? []
   if (event.id < 0) {                       // still in the queue: just drop it
     const left = ops.filter((o) => o.eventId !== event.id)
     ops.splice(0, ops.length, ...left)
     saveOps()
     if (state.value) putState(revertLocal(state.value, event, keys))
-    return
+    return true
   }
   if (online.value) {
     try {
       putState((await api.call<StateResponse>("POST", `/events/${event.id}/undo`)).state)
-      return
+      return true
     } catch (e) {
       if (!(e instanceof ApiError)) throw e
-      if (e.status !== 0) { handle(e); return }
+      if (e.status !== 0) { handle(e); return false }
       online.value = false
     }
   }
   if (state.value) putState(revertLocal(state.value, event, keys))
   ops.push({ id: uuid(), method: "POST", path: `/events/${event.id}/undo` })
   saveOps()
+  return true
 }
 
 let orderTimer: ReturnType<typeof setTimeout> | undefined

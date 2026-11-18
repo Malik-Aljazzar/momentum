@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18 c
+
+### DE
+- „Rückgängig“ im Verlauf deines Profils klappt jetzt auch bei älteren Einträgen, die erst beim Scrollen nachgeladen werden: Der Eintrag verschwindet sofort aus der Liste.
+
+### EN
+- "Undo" in your profile's history now also works for older entries that load as you scroll: the entry leaves the list right away.
+
 ## 2026-11-18 b
 
 ### DE

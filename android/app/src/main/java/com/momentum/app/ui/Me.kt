@@ -71,6 +71,12 @@ class MyHistory {
 
     fun hasMore(st: AppState) = more && st.events.size >= 30
 
+    /** The state brings the latest entries without the undone one; the older pages loaded here are cleaned up by hand. */
+    fun undone(vm: AppViewModel, e: Event) {
+        val st = vm.state ?: return
+        older = dropUndone(older, e, vm.meta?.vehicles?.map { it.key }.orEmpty(), st.vehicle.index)
+    }
+
     suspend fun loadMore(vm: AppViewModel, st: AppState) {
         if (loading) return
         val last = all(st).lastOrNull { it.id > 0 } ?: run { more = false; return }
@@ -81,6 +87,14 @@ class MyHistory {
         older = (older + page).distinctBy { it.id }
         more = page.size >= 30
     }
+}
+
+/** After an undo: the history's older pages (loaded with /events?before=) lose the undone tap and the milestones it
+ *  took back - the server marks those undone too (service.undo). [vehicleIndex] = the state's after the undo.
+ *  Same as dropUndone in web/src/logic.ts. */
+fun dropUndone(events: List<Event>, e: Event, vehicleKeys: List<String>, vehicleIndex: Int): List<Event> {
+    val reached = vehicleKeys.take(vehicleIndex + 1).toSet()
+    return events.filter { it.id != e.id && (it.kind != "milestone" || it.label in reached) }
 }
 
 /** The history's rows in a profile's list. */
@@ -195,7 +209,7 @@ private fun HistoryEntry(vm: AppViewModel, e: Event, onUndo: () -> Unit) {
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun UndoSheet(vm: AppViewModel, e: Event, onDismiss: () -> Unit) {
+fun UndoSheet(vm: AppViewModel, e: Event, onUndone: () -> Unit = {}, onDismiss: () -> Unit) {
     val S = LocalStrings.current
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Px.Sheet) {
         Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -212,7 +226,7 @@ fun UndoSheet(vm: AppViewModel, e: Event, onDismiss: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PxButton(S.cancel, Modifier.weight(1f), style = BtnStyle.Ghost, onClick = onDismiss)
                 PxButton(S.undo, Modifier.weight(1f), style = BtnStyle.Danger) {
-                    vm.undo(e)
+                    vm.undo(e, onUndone)
                     onDismiss()
                 }
             }

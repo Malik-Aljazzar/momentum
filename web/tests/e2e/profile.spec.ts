@@ -47,7 +47,7 @@ test("swiping the competition card shows the other vehicles, the ones not reache
   expect(prof.banners).toEqual({ land: null, air: null, space: null })
 })
 
-test("my whole history: older pages load, a tap can be undone from there", async ({ page, request }) => {
+test("my whole history: older pages load, taps can be undone from there - also the older ones", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
   const rules = (await api(request, ann.token, "GET", "/state")).state.rules
   const acc = rules.find((r: any) => r.kind === "acc")
@@ -65,10 +65,16 @@ test("my whole history: older pages load, a tap can be undone from there", async
   await entries.first().click()
   await page.getByRole("button", { name: "Rückgängig" }).click()
   await expect(entries).toHaveCount(35)
+  // and the oldest one, from the page loaded later: it leaves the list too
+  const momentum = (await api(request, ann.token, "GET", "/state")).state.momentum
+  await entries.last().click()
+  await page.getByRole("button", { name: "Rückgängig" }).click()
+  await expect(entries).toHaveCount(34)
+  expect((await api(request, ann.token, "GET", "/state")).state.momentum).toBeLessThan(momentum)
   const page2 = (await api(request, ann.token, "GET", "/events?limit=30")).events
   expect(page2).toHaveLength(30)
   const older = (await api(request, ann.token, "GET", `/events?before=${page2[29].id}&limit=30`)).events
-  expect(older).toHaveLength(5)
+  expect(older).toHaveLength(4)
 })
 
 test("the decay card carries the thunder cloud with the missed days", async ({ page, request }) => {

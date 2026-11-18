@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { applied, catalyst, fmt, fmtShort, nextValue } from "../../src/format"
-import { applyLocal, applyTap, limitCounted, moveRule, revertLocal, vehicleFor } from "../../src/logic"
+import { applyLocal, applyTap, dropUndone, limitCounted, moveRule, revertLocal, vehicleFor } from "../../src/logic"
 import type { AppState, Rule } from "../../src/model"
 
 const LADDER = [0, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 512000, 1_000_000, 2_000_000]
@@ -106,6 +106,17 @@ describe("taps (applied locally like the server)", () => {
     expect(back.momentum).toBe(900)
     expect(back.events).toHaveLength(0)            // the milestone is gone too
     expect(back.limit.gained).toBe(0)
+  })
+  it("undo from the history's older pages: the tap goes, and the milestones it took back (= ui/Me.kt)", () => {
+    const ev = (id: number, kind: string, label = "Sport") => ({ id, kind, label, icon: "", delta: kind === "acc" ? 100 : 0, at: "" })
+    const older = [ev(9, "acc"), ev(8, "milestone", "motorroller"), ev(7, "acc"), ev(6, "milestone", "fahrrad"), ev(5, "acc")]
+    const keys = ["fahrrad", "motorroller", "kleinwagen"]
+    // back on the first vehicle: the scooter's milestone went with the tap
+    expect(dropUndone(older, older[0], keys, 0).map((e) => e.id)).toEqual([7, 6, 5])
+    // still on the scooter: only the tap goes
+    expect(dropUndone(older, older[2], keys, 1).map((e) => e.id)).toEqual([9, 8, 6, 5])
+    // a tap that isn't in these pages: nothing changes
+    expect(dropUndone(older, ev(20, "acc"), keys, 1)).toHaveLength(5)
   })
   it("a rule that can't be tapped changes nothing", () => {
     expect(applyTap(state(), rule({ tappable: false }), "x", tempId, () => "")).toBeNull()

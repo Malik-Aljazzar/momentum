@@ -183,6 +183,14 @@ export function revertLocal(st: AppState, e: Event, vehicleKeys: string[]): AppS
   }
 }
 
+/** After an undo: the history's older pages (loaded with /events?before=) lose the undone tap and the milestones
+ *  it took back - the server marks those undone too (service.undo). `vehicleIndex` = the state's after the undo.
+ *  Same as dropUndone in ui/Me.kt. */
+export function dropUndone(events: Event[], e: Event, vehicleKeys: string[], vehicleIndex: number): Event[] {
+  const reached = new Set(vehicleKeys.slice(0, vehicleIndex + 1))
+  return events.filter((x) => x.id !== e.id && (x.kind !== "milestone" || reached.has(x.label)))
+}
+
 /** One step up (-1) or down (+1) among the rules of the same kind; null when it can't move. */
 export function moveRule(rules: Rule[], id: number, step: number): Rule[] | null {
   const r = rules.find((x) => x.id === id)

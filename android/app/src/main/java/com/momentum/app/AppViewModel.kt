@@ -664,16 +664,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Undo an accelerator/decelerator from the history. */
-    fun undo(event: Event) = viewModelScope.launch {
+    /** Takes a tap back (offline: locally, sent later); [onUndone] once it's gone (not when the server refused it). */
+    fun undo(event: Event, onUndone: () -> Unit = {}) = viewModelScope.launch {
         if (event.id < 0) {          // still in the queue: just drop it
             ops.removeAll { it.eventId == event.id }
             saveOps()
             revertLocal(event)
+            onUndone()
             return@launch
         }
         if (online) {
             try {
                 putState(api.call<StateResponse>("POST", "/events/${event.id}/undo").state)
+                onUndone()
                 return@launch
             } catch (e: ApiException) {
                 if (e.status != 0) {
@@ -686,6 +689,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         revertLocal(event)
         ops.add(PendingOp(UUID.randomUUID().toString(), "POST", "/events/${event.id}/undo"))
         saveOps()
+        onUndone()
     }
 
     private fun revertLocal(e: Event) {
