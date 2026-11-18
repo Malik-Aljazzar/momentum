@@ -289,6 +289,8 @@ cd web && npm test && npm run e2e          # Vitest + Playwright (starts its own
 https://momentum.mal-zeta.de, builds the PWA, uploads to `sz-dev-environments:/opt/momentum`,
 `docker compose up -d --build`. Run all tests first. Old APKs get HTTP 426 (background GETs exempt).
 
+- `deploy.sh` unpacks over the host's tree: files deleted in the repo STAY on the host (`/opt/momentum/server/...`) -
+  remove them there by hand and `docker compose up -d --build app` (happened with the retired journal extension).
 - Host details: system nginx with TLS (certbot webroot), app on 127.0.0.1:8095, SQLite in
   volume `momentum_app-data` (/data/momentum.db), MinIO internal. Ports registry: /opt/USED_PORTS.md.
 - The host's disk (38 GB, shared with other projects) ran full on 2026-11-15 from old untagged images (antami CI
