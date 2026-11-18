@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+<head>
+<title>Journal</title>
+<style>
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+  .moods { display: flex; gap: 8px; margin: 10px 0 12px; }
+  .mood { flex: 1; border: 0; border-radius: 14px; padding: 8px 0; background: var(--faint); font-size: 24px; line-height: 30px; cursor: pointer; }
+  .mood.on { box-shadow: inset 0 0 0 2px var(--yellow); background: rgba(255, 205, 117, 0.12); }
+  textarea.m-field { min-height: 132px; resize: none; display: block; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .grow { flex: 1; }
+  .entries { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .entry { background: var(--card); border-radius: 20px; padding: 14px 16px; cursor: pointer; }
+  .entry.on { box-shadow: inset 0 0 0 1px var(--yellow); }
+  .entry .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .entry .text { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .empty { text-align: center; padding: 30px 10px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1 class="m-title" id="title">Tagebuch</h1>
+    <span class="m-small" id="day"></span>
+  </div>
+  <div class="m-card">
+    <div class="m-label" id="question"></div>
+    <div class="moods" id="moods"></div>
+    <textarea class="m-field" id="text" maxlength="2000"></textarea>
+    <div class="row">
+      <span class="m-small grow" id="status"></span>
+      <button class="m-button ghost" id="todayBtn" hidden></button>
+      <button class="m-button" id="save"></button>
+    </div>
+  </div>
+  <div class="m-label" style="margin-top: 22px" id="earlier"></div>
+  <div class="entries" id="entries"></div>
+  <div class="row" style="justify-content: center"><button class="m-button ghost" id="more" hidden></button></div>
+<script>
+(function () {
+  var T = {
+    de: { title: "Tagebuch", question: "Wie war dein Tag?", save: "Speichern", saved: "Gespeichert", earlier: "Frühere Einträge",
+      more: "Mehr laden", none: "Noch keine Einträge – schreib heute den ersten.", placeholder: "Was ist heute passiert?",
+      today: "Heute", chars: function (n) { return n + "/2000" }, failed: "Nicht gespeichert – bist du online?" },
+    en: { title: "Journal", question: "How was your day?", save: "Save", saved: "Saved", earlier: "Earlier entries",
+      more: "Load more", none: "No entries yet – write the first one today.", placeholder: "What happened today?",
+      today: "Today", chars: function (n) { return n + "/2000" }, failed: "Not saved – are you online?" },
+  }
+  var MOODS = ["😫", "😕", "😐", "🙂", "😄"]
+  var $ = function (id) { return document.getElementById(id) }
+  var t = T.de, lang = "de"
+  var day = isoDay(new Date()), mood = 0, saved = { text: "", mood: 0 }
+  var docs = [], total = 0
+
+  function isoDay(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0")
+  }
+  function nice(key) {
+    var p = key.split("-")
+    var d = new Date(+p[0], +p[1] - 1, +p[2])
+    return d.toLocaleDateString(lang === "de" ? "de-DE" : "en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+  }
+  function dirty() { return $("text").value !== saved.text || mood !== saved.mood }
+  function paintEditor() {
+    $("day").textContent = day === isoDay(new Date()) ? t.today + " · " + nice(day) : nice(day)
+    $("todayBtn").hidden = day === isoDay(new Date())
+    Array.prototype.forEach.call($("moods").children, function (b, i) { b.classList.toggle("on", mood === i + 1) })
+    $("save").disabled = !dirty() || $("text").value.trim() === ""
+    $("status").textContent = dirty() ? t.chars($("text").value.length) : (saved.text ? t.saved : "")
+  }
+  function paintList() {
+    var box = $("entries")
+    box.innerHTML = ""
+    if (!docs.length) {
+      var e = document.createElement("div")
+      e.className = "m-small empty"
+      e.textContent = t.none
+      box.appendChild(e)
+    }
+    docs.forEach(function (d) {
+      var el = document.createElement("div")
+      el.className = "entry" + (d.key === day ? " on" : "")
+      el.dataset.key = d.key
+      var top = document.createElement("div")
+      top.className = "top"
+      var when = document.createElement("span")
+      when.className = "m-small"
+      when.textContent = nice(d.key)
+      var m = document.createElement("span")
+      m.textContent = d.value.mood ? MOODS[d.value.mood - 1] : ""
+      top.appendChild(when); top.appendChild(m)
+      var text = document.createElement("div")
+      text.className = "text"
+      text.textContent = d.value.text
+      el.appendChild(top); el.appendChild(text)
+      el.onclick = function () { open(d.key, d.value) }
+      box.appendChild(el)
+    })
+    $("more").hidden = docs.length >= total
+  }
+  function open(key, value) {
+    day = key
+    saved = { text: value ? value.text : "", mood: value && value.mood ? value.mood : 0 }
+    $("text").value = saved.text
+    mood = saved.mood
+    paintEditor(); paintList()
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+  function load(more) {
+    return momentum.data.list("entries", { order: "-key", offset: more ? docs.length : 0, limit: 20 }).then(function (r) {
+      docs = more ? docs.concat(r.docs) : r.docs
+      total = r.total
+      paintList()
+    })
+  }
+  function loadDay() {
+    return momentum.data.get("entries", day).then(function (v) {
+      if (!dirty()) open(day, v)
+    })
+  }
+
+  MOODS.forEach(function (e, i) {
+    var b = document.createElement("button")
+    b.className = "mood"
+    b.textContent = e
+    b.setAttribute("aria-label", "mood " + (i + 1))
+    b.onclick = function () { mood = mood === i + 1 ? 0 : i + 1; paintEditor() }
+    $("moods").appendChild(b)
+  })
+  $("text").oninput = paintEditor
+  $("save").onclick = function () {
+    var value = { text: $("text").value.trim() }
+    if (mood) value.mood = mood
+    $("save").disabled = true
+    momentum.data.put("entries", day, value).then(function () {
+      saved = { text: value.text, mood: mood }
+      $("text").value = value.text
+      paintEditor()
+      momentum.toast(t.saved)
+      return load(false)
+    }, function () { $("status").textContent = t.failed; $("save").disabled = false })
+  }
+  $("more").onclick = function () { load(true) }
+  $("todayBtn").onclick = function () { day = isoDay(new Date()); saved = { text: "", mood: 0 }; $("text").value = ""; mood = 0; loadDay(); paintList() }
+
+  momentum.ready.then(function (ctx) {
+    lang = ctx.lang === "en" ? "en" : "de"
+    t = T[lang]
+    document.documentElement.lang = lang
+    $("title").textContent = t.title
+    $("question").textContent = t.question
+    $("save").textContent = t.save
+    $("earlier").textContent = t.earlier
+    $("more").textContent = t.more
+    $("todayBtn").textContent = t.today
+    $("text").placeholder = t.placeholder
+    paintEditor()
+    return Promise.all([loadDay(), load(false)])
+  })
+  // back on the tab (maybe written on another phone meanwhile)
+  momentum.on("show", function () { if (!dirty()) { loadDay(); load(false) } })
+})()
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "id": "journal",
+  "version": "1.0.0",
+  "api": 1,
+  "name": { "de": "Tagebuch", "en": "Journal" },
+  "description": {
+    "de": "Ein eigener Tab für ein paar Zeilen am Tag und wie es dir ging. Nur du siehst es.",
+    "en": "A tab of its own for a few lines a day and how you felt. Only you can see it."
+  },
+  "author": "Momentum",
+  "icon": "openbook",
+  "tab": { "title": { "de": "Tagebuch", "en": "Journal" }, "icon": "openbook" },
+  "entry": "index.html",
+  "collections": {
+    "entries": {
+      "key_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "max_docs": 4000,
+      "schema": {
+        "type": "object",
+        "required": ["text"],
+        "additionalProperties": false,
+        "properties": {
+          "text": { "type": "string", "maxLength": 2000 },
+          "mood": { "type": "integer", "minimum": 1, "maximum": 5 }
+        }
+      }
+    }
+  }
+}

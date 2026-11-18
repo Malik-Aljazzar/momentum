@@ -46,7 +46,8 @@ sealed interface Route {
     data object NewStory : Route
     data object NewChat : Route
     data object NewGroup : Route
-    data object Settings : Route
+    /** the settings: the menu (page null) or one of its pages (profile, game, app, security, extensions, legal, account) */
+    data class Settings(val page: String? = null) : Route
     data class GroupInfo(val id: Int) : Route
     data class ChallengeDetail(val id: Int) : Route
     data class NewChallenge(val conversationId: Int) : Route

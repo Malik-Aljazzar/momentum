@@ -42,7 +42,13 @@ data class AppState(
     val rules: List<Rule>,
     val events: List<Event>,
     val limit: DailyLimit = DailyLimit(),
+    /** downloaded extensions (server/extensions.py): an enabled one with a tab adds that tab */
+    val extensions: List<InstalledExtension> = emptyList(),
 )
+
+/** A page of the own history (GET /api/events?before=): older entries, like the state's events. */
+@Serializable
+data class EventsResponse(val events: List<Event> = emptyList())
 
 /** Daily momentum limit: yesterday's average of all active players + bias. */
 @Serializable
@@ -97,7 +103,7 @@ data class UserInfo(
     @SerialName("needs_username") val needsUsername: Boolean = false,
     /** the address still to confirm: when it's due, and whether the app waits for it now (server/mail.py) */
     @SerialName("email_confirm") val emailConfirm: EmailConfirm? = null,
-    /** the Larper election is running (server/nine.py): the home tab points to it */
+    /** the Larper election is running (server/nine.py): the profile points to it, it gets its own tab */
     val election: Boolean = false,
     val private: Boolean = false,
     /** banner behind the current vehicle */

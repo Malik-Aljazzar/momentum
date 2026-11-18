@@ -28,7 +28,7 @@ test("after an update the app shows what's new once; the settings show the whole
   // the settings open the whole list any time
   await tab(page, "profile").click()
   await page.locator("button[aria-label=settings]").click()
-  await page.getByRole("button", { name: "Alle Änderungen" }).click()
+  await page.locator("[data-page=news]").click()
   await expect(sheet).toBeVisible()
   await expect(sheet.locator("[data-release]").first()).toHaveAttribute("data-release", NEWEST_RELEASE)
   await sheet.getByRole("button", { name: "Alles klar" }).click()

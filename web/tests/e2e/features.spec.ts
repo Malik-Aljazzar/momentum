@@ -199,7 +199,7 @@ test("chat: time on each message, day separator, countdown under a photo (report
   await page.screenshot({ path: test.info().outputPath("chat-times.png") })
 })
 
-test("home card: number, badge and vehicle lie above the banner (report #47)", async ({ page, request }) => {
+test("competition card: number, badge and vehicle lie above the banner (report #47)", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
   await openApp(page, ann.token)
   const badge = page.getByText("Wettbewerb", { exact: true }).first()

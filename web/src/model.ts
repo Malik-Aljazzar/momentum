@@ -106,6 +106,17 @@ export interface AppState {
   rules: Rule[]
   events: Event[]
   limit: DailyLimit
+  /** downloaded extensions (server/extensions.py): an enabled one with a tab adds that tab */
+  extensions?: InstalledExtension[]
+}
+
+// ---------------------------------------------------------------- extensions (server/extensions.py)
+
+export type Texts = { de: string; en: string }
+export interface ExtensionTab { title: Texts; icon: string }
+export interface InstalledExtension { id: string; version: string; name: Texts; icon: string; tab: ExtensionTab | null; enabled: boolean }
+export interface CatalogExtension extends InstalledExtension {
+  description: Texts; author: string; collections: string[]; official: boolean; size: number; installed: boolean
 }
 
 export interface StateResponse {
@@ -128,6 +139,8 @@ export interface Profile extends UserCard {
   titles?: string[]
   next_at?: number | null; milestone_step?: number; reached_at?: number
   rules: PublicRule[]; history: HistoryItem[]; locked?: boolean; requested?: boolean; banner?: string | null
+  /** the backgrounds for each vehicle type (a swiped-to vehicle shows its own) and the momentum each vehicle needs */
+  banners?: OwnBanners; milestones?: number[]
   /** I blocked this account */
   blocked?: boolean
   competing?: boolean; ranked_momentum?: number; free_score?: number

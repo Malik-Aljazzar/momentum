@@ -83,6 +83,7 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
     var morePosts by remember { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
     var confirmBlock by remember { mutableStateOf(false) }
+    val history = remember(username) { MyHistory() }      // my own whole history (pages loaded so far)
     LaunchedEffect(username, reload, vm.state?.user) {
         profile = vm.req<ProfileResponse>("GET", "/users/$username")?.profile
         val first = vm.req<PostsResponse>("GET", "/users/$username/posts?limit=30")?.posts.orEmpty()
@@ -94,11 +95,18 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
         val older = vm.req<PostsResponse>("GET", "/users/$username/posts?limit=30&before=${posts.lastOrNull()?.id ?: 0}")?.posts
         if (older != null) { posts = (posts + older).distinctBy { it.id }; morePosts = older.size >= 30 }
     }
+    // my older history as it's scrolled
+    val st = vm.state
+    val mine = profile?.isMe == true && st != null
+    LoadMoreEffect(list, if (mine) history.all(st!!).size else 0, mine && section == ProfileSection.History && history.hasMore(st!!)) {
+        vm.state?.let { history.loadMore(vm, it) }
+    }
+    history.undoing?.let { e -> UndoSheet(vm, e) { history.undoing = null } }
 
     Column(Modifier.fillMaxSize()) {
         TopBar(username, onBack = if (isTab) null else nav.pop) {
             if (profile != null) IconBtn("ui_share", alpha = .8f) { sharing = true }
-            if (profile?.isMe == true) IconBtn("ui_gear") { nav.push(Route.Settings) }
+            if (profile?.isMe == true) IconBtn("ui_gear") { nav.push(Route.Settings()) }
             profile?.takeIf { !it.isMe }?.let { p ->
                 Box {
                     IconBtn("ui_dots", alpha = .8f) { menu = true }
@@ -166,10 +174,8 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
                     }
                     Spacer(Modifier.height(12.dp))
                     if (!p.locked) HighlightsRow(vm, p.username, p.isMe)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (p.isMe) {
-                            PxButton(S.settingsTitle, Modifier.weight(1f), style = BtnStyle.Ghost) { nav.push(Route.Settings) }
-                        } else if (p.blocked) {
+                    if (!p.isMe) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (p.blocked) {
                             PxButton(S.unblockUser, Modifier.weight(1f), style = BtnStyle.Ghost) {
                                 scope.launch { vm.req<ProfileResponse>("DELETE", "/users/${p.username}/block")?.let { profile = it.profile; reload++ } }
                             }
@@ -194,9 +200,11 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
                     Spacer(Modifier.height(14.dp))
                 }
             }
+            // my own profile is the main page: what wants my attention comes first
+            if (p.isMe) item(key = "notes") { Column { MyNotes(vm); Spacer(Modifier.height(14.dp)) } }
             if (p.locked) {
                 // private: the momentum stays visible, the rest only for followers
-                if (!p.blocked) item { ProfileHero(vm, p) }
+                if (!p.blocked) item { ProfileHero(vm, heroOf(vm, p, null)) }
                 item {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Px.Line))
                     if (p.blocked) EmptyHint(S.blockedTitle, S.blockedSub, "ui_lock") else EmptyHint(S.lockedTitle, S.lockedSub, "ui_lock")
@@ -206,7 +214,7 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
             // posts / rules / history as tabs, like posts and reels on Instagram
             stickyHeader { ProfileTabBar(section) { section = it } }
             when (section) {
-                ProfileSection.Momentum -> item { Spacer(Modifier.height(12.dp)); ProfileHero(vm, p) }
+                ProfileSection.Momentum -> item { Spacer(Modifier.height(12.dp)); ProfileHero(vm, heroOf(vm, p, if (p.isMe) vm.state else null)) }
                 ProfileSection.Posts -> {
                     if (posts.isEmpty()) item { EmptyHint(S.noPosts, icon = "ui_image") }
                     items(posts.chunked(3)) { row ->
@@ -222,7 +230,8 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
                     if (p.rules.isEmpty() && p.decay == null) item { EmptyHint(S.noPublicRules, if (p.isMe) S.noPublicRulesMine else null, "ui_rules") }
                     items(p.rules, key = { "r${it.id}" }) { r -> PublicRuleRow(r) { openRule = r.id } }
                 }
-                ProfileSection.History -> {
+                // mine: everything that happened (undoable taps); others: what they made public
+                ProfileSection.History -> if (p.isMe && st != null) myHistoryItems(vm, st, history) else {
                     if (p.history.isEmpty()) item { EmptyHint(S.noHistory, if (p.isMe && p.rules.isEmpty()) S.noPublicRulesMine else null, "ui_clock") }
                     items(p.history) { HistoryRow(it) }
                 }
@@ -236,34 +245,110 @@ fun ProfileScreen(vm: AppViewModel, username: String, isTab: Boolean, list: Lazy
     }
 }
 
-/** Momentum is the centre of a profile: big number over the current vehicle's scene. */
+/** What the competition card shows: a profile's values, for my own the live state's (and today's numbers). */
+private class Hero(
+    val momentum: Double, val competing: Boolean, val ranked: Double, val idx: Int, val milestones: List<Double>,
+    val nextAt: Double?, val reachedAt: Double,
+    /** the background behind a vehicle of this kind (land / air / space) */
+    val banner: (String) -> String,
+    val stats: List<Pair<String, String>>?,
+)
+
+private fun kindOf(category: String?) = if (category == "air" || category == "space") category else "land"
+
 @Composable
-private fun ProfileHero(vm: AppViewModel, p: Profile) {
+private fun heroOf(vm: AppViewModel, p: Profile, st: com.momentum.app.data.AppState?): Hero {
+    val vs = vm.meta?.vehicles
+    if (st != null) {
+        val current = kindOf(vs?.getOrNull(st.vehicle.index)?.category)
+        val stats = todayStats(st)
+        return Hero(st.momentum, st.settings.dailyLimit, st.rankedMomentum, st.vehicle.index, st.vehicle.milestones,
+            st.vehicle.nextAt, st.vehicle.reachedAt,
+            banner = { k -> (if (k == current) st.user.banner else st.user.banners.of(k)) ?: defaultBanner(sceneFor(k)) }, stats = stats)
+    }
+    val current = kindOf(vs?.getOrNull(p.vehicle)?.category)
+    return Hero(p.momentum, p.competing, p.rankedMomentum, p.vehicle, p.milestones, p.nextAt, p.reachedAt,
+        banner = { k -> (if (k == current) p.banner else p.banners?.of(k)) ?: defaultBanner(sceneFor(k)) }, stats = null)
+}
+
+/**
+ * Momentum is the centre of a profile: the big number over the current vehicle's scene. Swiping sideways shows the
+ * other vehicles - those not reached yet only as a silhouette with the momentum they need (= ProfileHero in
+ * web/src/screens/Profile.tsx). Mine also has today's numbers at the bottom.
+ */
+@Composable
+private fun ProfileHero(vm: AppViewModel, hero: Hero) {
     val S = LocalStrings.current
     val vs = vm.meta?.vehicles ?: return
-    val idx = p.vehicle.coerceIn(0, vs.lastIndex)
-    val v = vs[idx]
-    val next = vs.getOrNull(idx + 1)
-    val scene = sceneFor(v.category)
+    val idx = hero.idx.coerceIn(0, vs.lastIndex)
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = idx) { vs.size }
+    // at the reached vehicle (also after a milestone)
+    LaunchedEffect(idx) { if (pager.currentPage != idx) pager.scrollToPage(idx) }
+    val shown = pager.currentPage.coerceIn(0, vs.lastIndex)
+    val v = vs[shown]
+    val kind = kindOf(v.category)
+    val scene = sceneFor(kind)
     val land = scene == Scene.Land
+    val bkey = hero.banner(kind)
+    val stats = hero.stats
+    // road vehicles stand on the road, planes fly just above the landscape, spaceships stay low
+    val lift = (when (scene) { Scene.Land -> 64.dp; Scene.Air -> 44.dp; else -> 20.dp }) + (if (stats != null) 58.dp else 0.dp)
+    val locked = shown > idx
+    val next = vs.getOrNull(idx + 1)
+    val number by androidx.compose.animation.core.animateFloatAsState(hero.momentum.toFloat(),
+        androidx.compose.animation.core.tween(700), label = "momentum")
     Column(Modifier.padding(horizontal = 16.dp)) {
-        Box(Modifier.fillMaxWidth().height(300.dp).competitionGlow(p.competing).clip(CardShape)) {
-            BannerBackground(p.banner ?: defaultBanner(scene), Modifier.matchParentSize(), groundDp = 70f, road = land, speed = vehicleSpeed(v.key))
-            Column(Modifier.padding(20.dp)) {
-                ScoreLabel(p.competing)
-                FitText(fmt(p.momentum), T.block, 64.sp, Modifier.fillMaxWidth())
-                Text("${S.vehicle(v.key, v.label)} · ${S.stage(idx + 1, vs.size)}", style = T.small.copy(color = Px.Text))
-                if (!p.competing) Text(S.rankedPaused(fmt(p.rankedMomentum)), style = T.small.copy(fontSize = 12.sp))
+        Box(Modifier.fillMaxWidth().height(if (stats != null) 360.dp else 300.dp).competitionGlow(hero.competing).clip(CardShape)) {
+            BannerBackground(bkey, Modifier.matchParentSize(), groundDp = if (land) (if (stats != null) 120f else 70f) else 0f, road = land,
+                speed = if (locked) 0f else vehicleSpeed(v.key))
+            // the vehicles side by side: swipe through them
+            androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.matchParentSize()
+                .semantics { contentDescription = "vehicles" }, key = { vs[it].key }) { i ->
+                Box(Modifier.fillMaxSize()) {
+                    val g = vs[i]
+                    val at = Modifier.align(Alignment.BottomCenter).padding(bottom = lift)
+                    if (i > idx) VehicleSprite(g.key, 2.5f, at, animate = false, tint = Color.Black, alpha = .55f)
+                    else VehicleSprite(g.key, 2.5f, at, night = bannerNight(hero.banner(kindOf(g.category))))
+                }
             }
-            // road vehicles stand on the road, planes fly just above the landscape, spaceships stay low
-            // (the text block above needs the room)
-            val lift = when (scene) { Scene.Land -> 64.dp; Scene.Air -> 44.dp; else -> 20.dp }
-            VehicleSprite(v.key, 2.5f, Modifier.align(Alignment.BottomCenter).padding(bottom = lift), night = bannerNight(p.banner ?: defaultBanner(scene)))
+            Column(Modifier.padding(20.dp)) {
+                ScoreLabel(hero.competing)
+                FitText(fmt(number.toDouble()), T.block, 64.sp, Modifier.fillMaxWidth(), fitFor = fmt(hero.momentum).padStart(4, '0'))
+                Text(if (locked) "${S.stage(shown + 1, vs.size)} · ${S.vehicleFrom(com.momentum.app.fmtShort(hero.milestones.getOrElse(shown) { 0.0 }))}"
+                    else "${S.vehicle(v.key, v.label)} · ${S.stage(shown + 1, vs.size)}", style = T.small.copy(color = Px.Text))
+                if (!hero.competing) Text(S.rankedPaused(fmt(hero.ranked)), style = T.small.copy(fontSize = 12.sp))
+            }
+            if (stats != null) Row(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .then(if (land) Modifier else Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color.Transparent, Color(0x59000000)))))
+                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp, top = if (land) 0.dp else 40.dp),
+            ) {
+                stats.forEach { (k, value) ->
+                    Column(Modifier.weight(1f)) {
+                        Label(k, color = Px.Muted)
+                        Text(value, style = T.block.copy(fontSize = 16.sp))
+                    }
+                }
+            }
         }
-        if (next != null && p.nextAt != null) {
+        // where in the line of vehicles the shown one is: reached ones brighter
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally)) {
+            vs.indices.forEach { i ->
+                Box(Modifier.width(if (i == shown) 10.dp else 5.dp).height(5.dp).clip(RoundedCornerShape(1.dp)).background(when {
+                    i == shown -> Px.Text
+                    i == idx -> Px.Yellow
+                    i < idx -> Px.Muted
+                    else -> Px.Faint
+                }))
+            }
+        }
+        if (next != null && hero.nextAt != null) {
             Spacer(Modifier.height(10.dp))
-            SegBar(if (p.nextAt > p.reachedAt) (p.momentum - p.reachedAt) / (p.nextAt - p.reachedAt) else 1.0, 24)
-            Text(S.toGo(fmt(p.nextAt - p.momentum)) + " · " + S.vehicle(next.key, next.label), style = T.small,
+            SegBar(if (hero.nextAt > hero.reachedAt) (hero.momentum - hero.reachedAt) / (hero.nextAt - hero.reachedAt) else 1.0, 24)
+            Text(S.toGo(fmt(hero.nextAt - hero.momentum)) + " · " + S.vehicle(next.key, next.label), style = T.small,
                 modifier = Modifier.padding(top = 6.dp))
         }
         Spacer(Modifier.height(6.dp))

@@ -1,11 +1,22 @@
 // Tabs and the stack of screens opened on top of them (android/.../ui/Nav.kt, App.kt MainScreen).
 import { signal } from "@preact/signals"
+import { extensionTabs, tabKey } from "./extensions"
 import { state } from "./store"
 
-export type Tab = "home" | "rules" | "chats" | "feed" | "election" | "profile"
-export const TABS: Tab[] = ["home", "rules", "chats", "feed", "profile"]
-/** The tabs right now: while the Larper election runs it gets its own tab before the profile (server/nine.py). */
-export const tabsNow = (): Tab[] => state.value?.user.election ? ["home", "rules", "chats", "feed", "election", "profile"] : TABS
+/** The own profile is the main page (the first tab shown); an extension's tab is "ext:<id>". */
+export type Tab = "rules" | "chats" | "feed" | "election" | "profile" | `ext:${string}`
+export const TABS: Tab[] = ["rules", "chats", "feed", "profile"]
+/** The tabs right now: extensions that are switched on add theirs (server/extensions.py), while the Larper
+ *  election runs it gets its own tab (server/nine.py) - both before the profile. */
+export const tabsNow = (): Tab[] => {
+  const st = state.value
+  return ["rules", "chats", "feed", ...extensionTabs(st?.extensions).map((e) => tabKey(e.id)),
+    ...(st?.user.election ? ["election" as const] : []), "profile"]
+}
+export const isExtensionTab = (t: Tab): t is `ext:${string}` => t.startsWith("ext:")
+
+/** The settings' pages (one level below the menu). */
+export type SettingsPageKey = "profile" | "game" | "app" | "security" | "extensions" | "legal" | "account"
 
 export type Route =
   | { r: "user"; username: string }
@@ -20,7 +31,7 @@ export type Route =
   | { r: "newStory" }
   | { r: "newChat" }
   | { r: "newGroup" }
-  | { r: "settings" }
+  | { r: "settings"; page?: SettingsPageKey }
   | { r: "group"; id: number }
   | { r: "challenge"; id: number }
   | { r: "newChallenge"; conversationId: number }
@@ -32,10 +43,10 @@ export type Route =
   | { r: "e2eUnlock" }
   | { r: "confirmEmail" }
 
-export const tab = signal<Tab>("home")
+export const tab = signal<Tab>("profile")
 export const stack = signal<Route[]>([])
 /** bumped when the current tab is tapped again: the tab scrolls to the top */
-export const scrollTop = signal<{ tab: Tab; n: number }>({ tab: "home", n: 0 })
+export const scrollTop = signal<{ tab: Tab; n: number }>({ tab: "profile", n: 0 })
 
 /** My own profile opened from anywhere: the profile tab, like tapping it. */
 function ownProfile(r: Route): boolean {

@@ -12,7 +12,7 @@ import {
 import { DecayEditor, RuleEditor } from "./Editors"
 import { GroupPicker, RuleDetailSheet, SelectionAction, SelectionBar, SharePicker } from "./shared"
 import { DecayDetailSheet, type DecayRef } from "./Decays"
-import { useCountUp } from "./Home"
+import { useCountUp } from "./Me"
 
 type Editing = { rule: Rule | null } | "decay" | null
 
@@ -207,7 +207,10 @@ function DecayCard({ st, onClick }: { st: AppState; onClick: () => void }) {
         <span class="t-block" style={{ fontSize: 28, lineHeight: "32px", color: "var(--orange)" }}>−{fmt(d.tonight)}</span>
         <span class="t-small">{s.decayInfo(fmt(d.base), d.streak)}</span>
       </div>
-      {!f && <PixelIcon name="ui_edit" size={16} alpha={.45} style={{ alignSelf: "flex-start" }} />}
+      <div class="col" style={{ alignSelf: "stretch", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
+        {!f ? <PixelIcon name="ui_edit" size={16} alpha={.45} /> : <span />}
+        <StreakChip streak={d.streak} />
+      </div>
     </div>
     {d.catalyst_mode !== "none" && <>
       <div style={{ height: 14 }} />
@@ -216,6 +219,17 @@ function DecayCard({ st, onClick }: { st: AppState; onClick: () => void }) {
       <SegBar fraction={frac} color={frac >= 1 ? "var(--lime)" : "var(--yellow)"} />
     </>}
   </PxCard>
+}
+
+/** The thunder cloud: days in a row the goal was missed (they make the night's loss grow; was on the home tab). */
+export function StreakChip({ streak }: { streak: number }) {
+  const s = S.value
+  return <div class="row streak-chip" title={s.streakTitle} aria-label={s.streakTitle + ": " + streak} style={{
+    borderRadius: 999, background: streak > 0 ? "rgba(239,125,87,0.2)" : "var(--faint)", padding: "6px 12px 6px 8px", gap: 6, flex: "none",
+  }}>
+    <PixelIcon name="storm" size={16} />
+    <Label text={s.days(streak)} color={streak > 0 ? "var(--yellow)" : "var(--text)"} />
+  </div>
 }
 
 function RuleCard({ r, selected, onLongPress, onMove, canUp, canDown, onTap, onEdit }: {

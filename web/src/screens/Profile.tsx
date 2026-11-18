@@ -1,11 +1,11 @@
 // Profiles, people lists, search, activity (android/.../ui/ProfileScreens.kt).
-import { useEffect, useState } from "preact/hooks"
-import { fmt, fmtVal, secondsSince, signed } from "../format"
+import { useEffect, useRef, useState } from "preact/hooks"
+import { fmt, fmtShort, fmtVal, secondsSince, signed } from "../format"
 import { activityText } from "../lines"
 import { bannerNight, defaultBanner } from "../gfx/banners"
 import { NineIcon } from "./Nine"
 import { vehicleSpeed } from "../gfx/vehicles"
-import type { GroupHit, HistoryItem, NotificationItem, Post, Profile, PublicRule, Story, UserCard } from "../model"
+import type { AppState, GroupHit, HistoryItem, NotificationItem, Post, Profile, PublicRule, Story, UserCard } from "../model"
 import { nav } from "../nav"
 import { clearNotifications } from "../push"
 import { meta, nineLore, online, refresh, req, state } from "../store"
@@ -17,6 +17,7 @@ import {
 import { MilestoneTile, RuleDetailSheet, SharePicker, stamp } from "./shared"
 import { DecayDetailSheet, DecayRow } from "./Decays"
 import { HighlightsRow, StoryAvatar, storyViewer } from "./Stories"
+import { MyHistory, MyNotes, todayStats, useCountUp } from "./Me"
 
 /** Toggle following; returns the updated card. */
 export async function toggleFollow(u: UserCard): Promise<UserCard | null> {
@@ -115,9 +116,8 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
         {p.bio.trim() && <div style={{ padding: "2px 4px 0 2px" }}><MentionText text={p.bio} /></div>}
         <div style={{ height: 12 }} />
         {!p.locked && <HighlightsRow username={p.username} mine={!!p.is_me} />}
-        <div class="row" style={{ gap: 8 }}>
-          {p.is_me ? <PxButton text={s.settingsTitle} kind="ghost" class="grow" onClick={() => nav.push({ r: "settings" })} />
-            : p.blocked ? <PxButton text={s.unblockUser} kind="ghost" class="grow" onClick={() => setBlock(false)} /> : <>
+        {!p.is_me && <div class="row" style={{ gap: 8 }}>
+          {p.blocked ? <PxButton text={s.unblockUser} kind="ghost" class="grow" onClick={() => setBlock(false)} /> : <>
             <div class="grow" style={{ display: "flex" }}>
               <FollowButton user={cardOf(p)} small={false} requested={p.requested} onToggle={async () => {
                 // follow, or for private accounts: request / withdraw the request
@@ -130,12 +130,14 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
               if (r) nav.push({ r: "chat", id: r.conversation.id })
             }} />}
           </>}
-        </div>
+        </div>}
         <div style={{ height: 14 }} />
       </div>
+      {/* my own profile is the main page: what wants my attention comes first */}
+      {p.is_me && <><MyNotes /><div style={{ height: 14 }} /></>}
       {p.locked ? <>
         {/* private: the momentum stays visible, the rest only for followers */}
-        {!p.blocked && <ProfileHero p={p} />}
+        {!p.blocked && <ProfileHero hero={heroOf(p, null)} />}
         <div style={{ height: 1, background: "var(--line)" }} />
         {p.blocked ? <EmptyHint title={s.blockedTitle} sub={s.blockedSub} icon="ui_lock" />
           : <EmptyHint title={s.lockedTitle} sub={s.lockedSub} icon="ui_lock" />}
@@ -149,7 +151,7 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
           </button>)}</div>
           <div style={{ height: 1, background: "var(--line)" }} />
         </div>
-        {section === "momentum" && <><div style={{ height: 12 }} /><ProfileHero p={p} /></>}
+        {section === "momentum" && <><div style={{ height: 12 }} /><ProfileHero hero={heroOf(p, p.is_me ? state.value : null)} /></>}
         {section === "posts" && (posts.length === 0 ? <EmptyHint title={s.noPosts} icon="ui_image" /> : <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2, padding: "0 1px" }}>
             {posts.map((post) => <PostTile key={post.id} post={post} onClick={() => nav.push({ r: "post", id: post.id })} />)}
@@ -159,7 +161,9 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
         {section === "rules" && p.decay && <DecayRow d={p.decay} onClick={() => setOpenDecay(p.username)} />}
         {section === "rules" && (p.rules.length === 0 ? (!p.decay && <EmptyHint title={s.noPublicRules} sub={p.is_me ? s.noPublicRulesMine : undefined} icon="ui_rules" />)
           : p.rules.map((r) => <PublicRuleRow key={r.id} r={r} onClick={() => setOpenRule(r.id)} />))}
-        {section === "history" && (p.history.length === 0
+        {/* mine: everything that happened (undoable taps); others: what they made public */}
+        {section === "history" && p.is_me && state.value && <MyHistory st={state.value} />}
+        {section === "history" && !p.is_me && (p.history.length === 0
           ? <EmptyHint title={s.noHistory} sub={p.is_me && p.rules.length === 0 ? s.noPublicRulesMine : undefined} icon="ui_clock" />
           : p.history.map((h, i) => <HistoryRow key={i} e={h} />))}
       </>}
@@ -170,33 +174,110 @@ export function ProfileScreen({ username, isTab }: { username: string; isTab: bo
   </div>
 }
 
-/** Momentum is the centre of a profile: big number over the current vehicle's scene. */
-function ProfileHero({ p }: { p: Profile }) {
+/** What the competition card shows: a profile's values, for my own the live state's (and today's numbers). */
+interface Hero {
+  momentum: number; competing: boolean; ranked: number; idx: number; milestones?: number[]
+  nextAt?: number | null; reachedAt: number
+  /** the background behind a vehicle of this kind (land / air / space) */
+  banner: (kind: string) => string
+  stats?: [string, string][]
+}
+
+type Kind = "land" | "air" | "space"
+const kindOf = (category?: string): Kind => (category === "air" || category === "space" ? category : "land")
+
+function heroOf(p: Profile, st: AppState | null): Hero {
+  if (st) {
+    const own = st.user.banners
+    const current = kindOf(meta.value?.vehicles[st.vehicle.index]?.category)
+    return {
+      momentum: st.momentum, competing: st.settings.daily_limit !== false, ranked: st.ranked_momentum ?? 0, idx: st.vehicle.index,
+      milestones: st.vehicle.milestones, nextAt: st.vehicle.next_at, reachedAt: st.vehicle.reached_at ?? 0,
+      banner: (k) => (k === current ? st.user.banner : own?.[k as Kind]) ?? defaultBanner(k),
+      stats: todayStats(st),
+    }
+  }
+  const current = kindOf(meta.value?.vehicles[p.vehicle ?? 0]?.category)
+  return {
+    momentum: p.momentum, competing: p.competing !== false, ranked: p.ranked_momentum ?? 0, idx: p.vehicle ?? 0,
+    milestones: p.milestones, nextAt: p.next_at, reachedAt: p.reached_at ?? 0,
+    banner: (k) => (k === current ? p.banner : p.banners?.[k as Kind]) ?? defaultBanner(k),
+  }
+}
+
+/** Momentum is the centre of a profile: the big number over the current vehicle's scene. Swiping sideways shows the
+ *  other vehicles - those not reached yet only as a silhouette with the momentum they need (= ProfileHero in
+ *  ProfileScreens.kt). Mine also has today's numbers at the bottom. */
+function ProfileHero({ hero }: { hero: Hero }) {
   const s = S.value
   const vs = meta.value?.vehicles
+  const strip = useRef<HTMLDivElement>(null)
+  const idx = Math.max(0, Math.min((vs?.length ?? 1) - 1, hero.idx))
+  const [shown, setShown] = useState(idx)
+  const number = useCountUp(hero.momentum)
+  // at the reached vehicle (also after a milestone)
+  useEffect(() => {
+    const el = strip.current
+    if (el) el.scrollTo({ left: idx * el.clientWidth, behavior: "instant" })
+    setShown(idx)
+  }, [idx])
   if (!vs) return null
-  const idx = Math.max(0, Math.min(vs.length - 1, p.vehicle ?? 0))
-  const v = vs[idx], next = vs[idx + 1]
-  const land = v.category !== "air" && v.category !== "space"
+  const v = vs[shown] ?? vs[idx]
+  const kind = kindOf(v.category)
+  const land = kind === "land"
+  const bkey = hero.banner(kind)
+  const stats = hero.stats
   // road vehicles stand on the road, planes fly just above the landscape, spaceships stay low
-  const lift = land ? 64 : v.category === "air" ? 44 : 20
-  const competing = p.competing !== false
-  const reached = p.reached_at ?? 0
+  const lift = (land ? 64 : kind === "air" ? 44 : 20) + (stats ? 58 : 0)
+  const next = vs[idx + 1]
+  const locked = shown > idx
   return <div class="col" style={{ padding: "0 16px" }}>
-    <div class={competing ? "banner-card glow" : "banner-card"} style={{ position: "relative", height: 300, borderRadius: "var(--card-radius)", overflow: "hidden" }}>
-      <BannerBg bkey={p.banner ?? defaultBanner(v.category)} groundDp={land ? 70 : 0} speed={vehicleSpeed(v.key)} />
-      <div class="col" style={{ position: "relative", padding: 20 }}>
-        <ScoreLabel competing={competing} />
-        <FitText text={fmt(p.momentum)} max={64} class="t-block" />
-        <span class="t-small" style={{ color: "var(--text)" }}>{s.vehicle(v.key, v.label)} · {s.stage(idx + 1, vs.length)}</span>
-        {!competing && <span class="t-small" style={{ fontSize: 12 }}>{s.rankedPaused(fmt(p.ranked_momentum ?? 0))}</span>}
+    <div class={hero.competing ? "banner-card glow competition-card" : "banner-card competition-card"}
+      style={{ position: "relative", height: stats ? 360 : 300, borderRadius: "var(--card-radius)", overflow: "hidden" }}>
+      <BannerBg bkey={bkey} groundDp={land ? (stats ? 120 : 70) : 0} speed={locked ? 0 : vehicleSpeed(v.key)} />
+      {/* the vehicles side by side: swipe through them */}
+      <div ref={strip} class="vehicle-strip" aria-label="vehicles" onScroll={() => {
+        const el = strip.current
+        if (el) setShown(Math.max(0, Math.min(vs.length - 1, Math.round(el.scrollLeft / el.clientWidth))))
+      }} style={{
+        position: "absolute", inset: 0, display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory",
+        scrollbarWidth: "none", overscrollBehaviorX: "contain", zIndex: 1,
+      }}>
+        {vs.map((g, i) => <div key={g.key} class="vehicle-page" data-vehicle={g.key}
+          style={{ flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", position: "relative" }}>
+          {Math.abs(i - shown) <= 1 && <div style={{ position: "absolute", left: 0, right: 0, bottom: lift, display: "flex", justifyContent: "center" }}>
+            {i > idx ? <VehicleSprite vkey={g.key} dpPerPixel={2.5} animate={false} tint="black" alpha={.55} />
+              : <VehicleSprite vkey={g.key} dpPerPixel={2.5} night={bannerNight(hero.banner(kindOf(g.category)))} />}
+          </div>}
+        </div>)}
       </div>
-      <div style={{ position: "absolute", left: 0, right: 0, bottom: lift, display: "flex", justifyContent: "center" }}><VehicleSprite vkey={v.key} dpPerPixel={2.5} night={bannerNight(p.banner ?? defaultBanner(v.category))} /></div>
+      <div class="col" style={{ position: "relative", padding: 20, zIndex: 2, pointerEvents: "none" }}>
+        <ScoreLabel competing={hero.competing} />
+        <FitText text={fmt(number)} fitFor={fmt(hero.momentum).padStart(4, "0")} max={64} class="t-block" />
+        <span class="t-small vehicle-label" style={{ color: "var(--text)" }}>
+          {locked ? `${s.stage(shown + 1, vs.length)} · ${s.vehicleFrom(fmtShort(hero.milestones?.[shown] ?? 0))}`
+            : `${s.vehicle(v.key, v.label)} · ${s.stage(shown + 1, vs.length)}`}
+        </span>
+        {!hero.competing && <span class="t-small" style={{ fontSize: 12 }}>{s.rankedPaused(fmt(hero.ranked))}</span>}
+      </div>
+      {stats && <div class="row today-stats" style={{
+        position: "absolute", left: 0, right: 0, bottom: 0, padding: `${land ? 0 : 40}px 20px 16px`, zIndex: 2, pointerEvents: "none",
+        background: land ? undefined : "linear-gradient(180deg, transparent, rgba(0,0,0,0.35))", alignItems: "flex-start",
+      }}>
+        {stats.map(([k, value]) => <div key={k} class="col grow"><Label text={k} /><span class="t-block" style={{ fontSize: 16 }}>{value}</span></div>)}
+      </div>}
     </div>
-    {next && p.next_at != null && <>
+    {/* where in the line of vehicles the shown one is: reached ones brighter */}
+    <div class="row vehicle-dots" style={{ justifyContent: "center", gap: 5, paddingTop: 10 }}>
+      {vs.map((g, i) => <i key={g.key} style={{
+        width: i === shown ? 10 : 5, height: 5, borderRadius: 1,
+        background: i === shown ? "var(--text)" : i === idx ? "var(--yellow)" : i < idx ? "var(--muted)" : "var(--faint)",
+      }} />)}
+    </div>
+    {next && hero.nextAt != null && <>
       <div style={{ height: 10 }} />
-      <SegBar fraction={p.next_at > reached ? (p.momentum - reached) / (p.next_at - reached) : 1} segments={24} />
-      <span class="t-small" style={{ paddingTop: 6 }}>{s.toGo(fmt(p.next_at - p.momentum))} · {s.vehicle(next.key, next.label)}</span>
+      <SegBar fraction={hero.nextAt > hero.reachedAt ? (hero.momentum - hero.reachedAt) / (hero.nextAt - hero.reachedAt) : 1} segments={24} />
+      <span class="t-small" style={{ paddingTop: 6 }}>{s.toGo(fmt(hero.nextAt - hero.momentum))} · {s.vehicle(next.key, next.label)}</span>
     </>}
     <div style={{ height: 6 }} />
   </div>

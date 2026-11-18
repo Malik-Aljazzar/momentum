@@ -40,7 +40,7 @@ export function RouteScreen({ route }: { route: Route }) {
     case "newStory": return <NewStoryScreen />
     case "newChat": return <NewChatScreen />
     case "newGroup": return <NewGroupScreen />
-    case "settings": return st ? <SettingsPage st={st} /> : null
+    case "settings": return st ? <SettingsPage st={st} page={route.page} /> : null
     case "group": return <GroupInfoScreen convId={route.id} />
     case "challenge": return <ChallengeDetailScreen id={route.id} />
     case "newChallenge": return <NewChallengeScreen convId={route.conversationId} />

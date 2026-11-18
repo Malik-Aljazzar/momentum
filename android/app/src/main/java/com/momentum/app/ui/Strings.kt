@@ -106,7 +106,6 @@ interface Strings {
     val timezone: String
     val milestoneStep: String
     val haptics: String
-    val showHistory: String
     val changePassword: String
     val oldPassword: String
     val newPassword: String
@@ -760,6 +759,36 @@ interface Strings {
     val notifyCallsOff: String
     val testNotification: String
     val testNotificationText: String
+    /** the settings' menu (one level of pages) */
+    val settingsProfileHint: String
+    val settingsGame: String
+    val settingsGameHint: String
+    val settingsApp: String
+    val settingsAppHint: String
+    val settingsSecurity: String
+    val settingsSecurityHint: String
+    val settingsReportHint: String
+    val settingsNewsHint: String
+    val settingsLegalHint: String
+    val settingsAccount: String
+    val settingsAccountHint: String
+    /** extensions (server/extensions.py) */
+    val extensionsTitle: String
+    val extensionsHint: String
+    val extensionsIntro: String
+    val extensionsCommunity: String
+    val extensionDownload: String
+    val extensionActive: String
+    val extensionRemove: String
+    val extensionRemoveConfirm: String
+    val extensionOfficial: String
+    fun extensionBy(author: String): String
+    val extensionOwnTab: String
+    val extensionsNone: String
+    val extensionLoadFailed: String
+    /** the competition card: a vehicle not reached yet */
+    fun vehicleFrom(amount: String): String
+    val streakTitle: String
 }
 
 object De : Strings {
@@ -897,7 +926,6 @@ object De : Strings {
     override val timezone = "Zeitzone (Tageswechsel für den Verfall)"
     override val milestoneStep = "Momentum pro Meilenstein"
     override val haptics = "Vibration beim Tippen"
-    override val showHistory = "Verlauf auf dem Startscreen"
     override val changePassword = "Passwort ändern"
     override val oldPassword = "Altes Passwort"
     override val newPassword = "Neues Passwort"
@@ -1620,6 +1648,33 @@ object De : Strings {
     override val notifyCallsOff = "Die Benachrichtigungen für Anrufe sind aus – Anrufe klingeln nur, solange die App offen ist."
     override val testNotification = "Testen"
     override val testNotificationText = "So sehen Benachrichtigungen von Momentum aus."
+    override val settingsProfileHint = "Bild, Name, Bio, Banner, Privatsphäre"
+    override val settingsGame = "Spiel"
+    override val settingsGameHint = "Wettbewerb, Zeitzone, Vibration"
+    override val settingsApp = "App"
+    override val settingsAppHint = "Sprache, Benachrichtigungen, Schrift"
+    override val settingsSecurity = "Sicherheit"
+    override val settingsSecurityHint = "Passwort, verschlüsselte Chats"
+    override val settingsReportHint = "Fehler melden oder etwas wünschen"
+    override val settingsNewsHint = "Alle Änderungen der App"
+    override val settingsLegalHint = "Datenschutz, Nutzungsbedingungen"
+    override val settingsAccount = "Konto"
+    override val settingsAccountHint = "Abmelden, Momentum herabsetzen, löschen"
+    override val extensionsTitle = "Extensions"
+    override val extensionsHint = "Zusätzliche Tabs herunterladen"
+    override val extensionsIntro = "Extensions sind optionale Teile der App. Lade eine herunter und schalte sie ein – sie bekommt einen eigenen Tab. Was sie speichert, liegt auf dem Server, nur für dich."
+    override val extensionsCommunity = "Bald kann die Community eigene Extensions bauen."
+    override val extensionDownload = "Herunterladen"
+    override val extensionActive = "Aktiv"
+    override val extensionRemove = "Entfernen"
+    override val extensionRemoveConfirm = "Sicher? Ihre Daten gehen mit"
+    override val extensionOfficial = "Von Momentum"
+    override fun extensionBy(author: String) = "von $author"
+    override val extensionOwnTab = "Eigener Tab"
+    override val extensionsNone = "Noch keine Extensions"
+    override val extensionLoadFailed = "Diese Extension lässt sich gerade nicht laden – bist du online?"
+    override fun vehicleFrom(amount: String) = "ab $amount Momentum"
+    override val streakTitle = "Verpasste Tage in Folge"
 }
 
 object En : Strings {
@@ -1763,7 +1818,6 @@ object En : Strings {
     override val timezone = "Timezone (day change for the decay)"
     override val milestoneStep = "Momentum per milestone"
     override val haptics = "Vibrate on tap"
-    override val showHistory = "History on the home screen"
     override val changePassword = "Change password"
     override val oldPassword = "Old password"
     override val newPassword = "New password"
@@ -2482,6 +2536,33 @@ object En : Strings {
     override val notifyCallsOff = "Notifications for calls are off – calls ring only while the app is open."
     override val testNotification = "Test"
     override val testNotificationText = "This is what notifications from Momentum look like."
+    override val settingsProfileHint = "Picture, name, bio, banners, privacy"
+    override val settingsGame = "Game"
+    override val settingsGameHint = "Competition, time zone, vibration"
+    override val settingsApp = "App"
+    override val settingsAppHint = "Language, notifications, font"
+    override val settingsSecurity = "Security"
+    override val settingsSecurityHint = "Password, encrypted chats"
+    override val settingsReportHint = "Report a bug or wish for something"
+    override val settingsNewsHint = "Every change of the app"
+    override val settingsLegalHint = "Privacy, terms of use"
+    override val settingsAccount = "Account"
+    override val settingsAccountHint = "Log out, lower momentum, delete"
+    override val extensionsTitle = "Extensions"
+    override val extensionsHint = "Download extra tabs"
+    override val extensionsIntro = "Extensions are optional parts of the app. Download one and switch it on – it gets a tab of its own. What it stores lives on the server, for you only."
+    override val extensionsCommunity = "Soon the community can build its own extensions."
+    override val extensionDownload = "Download"
+    override val extensionActive = "Active"
+    override val extensionRemove = "Remove"
+    override val extensionRemoveConfirm = "Sure? Its data goes too"
+    override val extensionOfficial = "By Momentum"
+    override fun extensionBy(author: String) = "by $author"
+    override val extensionOwnTab = "Own tab"
+    override val extensionsNone = "No extensions yet"
+    override val extensionLoadFailed = "This extension can't be loaded right now – are you online?"
+    override fun vehicleFrom(amount: String) = "from $amount momentum"
+    override val streakTitle = "Missed days in a row"
 }
 
 fun stringsFor(lang: Lang): Strings = if (lang == Lang.DE) De else En

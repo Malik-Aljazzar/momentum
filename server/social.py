@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, or_, select, update
 from . import momentum as m
 from .db import Block, ConversationMember, Follow, FollowRequest, Notification, Post, User
 from .mentions import render_one
-from .service import VEHICLES, avatar_url, follow_counts, public_rules, ranked, score, shown_banner
+from .service import VEHICLES, avatar_url, follow_counts, public_rules, ranked, score, shown_banner, shown_banners
 
 MENTION = re.compile(r"@([a-z0-9_.\-]{3,40})", re.IGNORECASE)
 
@@ -350,6 +350,8 @@ def register(app, authed, api_error):
             reached_at=m.milestone(idx, step),
             followers_count=counts["followers"], following_count=counts["following"],
             rules=rules, history=history, locked=locked, requested=requested, banner=shown_banner(user),
+            # the competition card swipes through the vehicles: each one's background and the momentum it needs
+            banners=shown_banners(user), milestones=m.milestones(step, len(VEHICLES)),
             free_score=user.free_score or 0.0, ranked_momentum=user.momentum, competing=ranked(user),
             decay=await public_decay(user, locked),
             blocked=await g.s.get(Block, (g.user.id, user.id)) is not None,     # I blocked them

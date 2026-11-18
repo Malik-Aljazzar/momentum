@@ -47,7 +47,7 @@ test("titles in the profile, the Nine tab and the Larper election", async ({ pag
   await expect(screen).toBeHidden()
 
   // the rankings' tab: all nine, the Yapper is ann
-  await tab(page, "home").click()
+  await tab(page, "feed").click()
   await page.locator("button[aria-label=leaderboard]").click()
   await page.getByRole("button", { name: "The Nine", exact: true }).click()
   const yapper = page.getByRole("button", { name: "Yapper" }).filter({ hasText: "Kommentare" })
@@ -74,8 +74,8 @@ test("titles in the profile, the Nine tab and the Larper election", async ({ pag
   const e = (await api(request, ann.token, "GET", "/nine/election")).election
   expect(e.my_vote.username).toBe(ben.name)
   expect(e.top.find((c: { user: { username: string } }) => c.user.username === ben.name).votes).toBe(1)
-  // the home card leads to the same tab
-  await tab(page, "home").click()
+  // the card on my profile leads to the same tab
+  await tab(page, "profile").click()
   await page.getByRole("button", { name: /Larper-Wahl läuft/ }).click()
   await expect(page.getByText(`Deine Stimme: @${ben.name}`)).toBeVisible()
 })

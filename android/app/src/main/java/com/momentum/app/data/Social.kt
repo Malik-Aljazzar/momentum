@@ -57,6 +57,9 @@ data class Profile(
     @SerialName("free_score") val freeScore: Double = 0.0,
     /** public decay others may follow */
     val decay: DecayDetail? = null,
+    /** the backgrounds per vehicle type (a swiped-to vehicle shows its own) and the momentum each vehicle needs */
+    val banners: OwnBanners? = null,
+    val milestones: List<Double> = emptyList(),
 ) {
     fun card() = UserCard(username, displayName, avatar, vehicle, isMe, following, followsMe, friend, private)
 }

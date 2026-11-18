@@ -101,6 +101,16 @@ def own_banners(user):
     return {kind: getattr(user, field) for kind, field in BANNER_FIELDS.items()}
 
 
+def shown_banners(user):
+    """The backgrounds a profile shows per vehicle type (a vehicle swiped to on the competition card shows its own);
+    hyperspace / ultra only while unlocked."""
+    out = {}
+    for kind, field in BANNER_FIELDS.items():
+        key = getattr(user, field)
+        out[kind] = None if key == HYPERSPACE and not hyperspace_unlocked(user) or key == ULTRA and not ultra_unlocked(user) else key
+    return out
+
+
 def shown_banner(user):
     """The banner behind the current vehicle (hyperspace only while it is unlocked)."""
     key = getattr(user, BANNER_FIELDS[vehicle_kind(user)])
@@ -581,10 +591,11 @@ async def state(s, user):
             tappable=r.tappable is not False,
             **{"locked_by": None, **origins.get(r.id, dict(origin="own", origin_label="", root_id=None, challenge_id=None))},
         ))
-    events = await s.execute(
+    events = list(await s.scalars(
         select(Event).where(Event.user_id == user.id, Event.undone.is_(False))
-        .order_by(Event.created_at.desc(), Event.id.desc()).limit(30))
+        .order_by(Event.created_at.desc(), Event.id.desc()).limit(30)))
     from .chat import unread_messages          # avoid import cycle
+    from .extensions import installed as installed_extensions
     from .social import unread_notifications
     from .updates import latest_ids
     from .nine import election_open
@@ -612,10 +623,24 @@ async def state(s, user):
         decay=await decay_state(s, user, dd, today_gain, would_streak),
         rules=rules,
         limit=await limits.status(s, user.id),
-        events=[dict(id=e.id, kind=e.kind, label=e.label, icon=e.icon,
-                     delta=e.delta if ranked(user) or e.free_delta is None else e.free_delta,
-                     undoable=e.kind in ("acc", "dec"),
-                     auto_from=names.get(e.auto_from_rule_id) if e.auto_from_rule_id else None,
-                     at=e.created_at.replace(tzinfo=timezone.utc).isoformat())
-                for e in events.scalars()],
+        events=events_rows(user, events, names),
+        # downloaded extensions (server/extensions.py): the apps add the tabs of the switched-on ones
+        extensions=await installed_extensions(s, user.id),
     )
+
+
+def events_rows(user, events, names):
+    """History entries as the apps show them (the state's latest, GET /api/events for older ones)."""
+    return [dict(id=e.id, kind=e.kind, label=e.label, icon=e.icon,
+                 delta=e.delta if ranked(user) or e.free_delta is None else e.free_delta,
+                 undoable=e.kind in ("acc", "dec"),
+                 auto_from=names.get(e.auto_from_rule_id) if e.auto_from_rule_id else None,
+                 at=e.created_at.replace(tzinfo=timezone.utc).isoformat())
+            for e in events]
+
+
+async def events_json(s, user, events):
+    """events_rows with the names of the rules that tapped automatically."""
+    ids = {e.auto_from_rule_id for e in events if e.auto_from_rule_id}
+    names = {r.id: r.name for r in await s.scalars(select(Rule).where(Rule.id.in_(ids)))} if ids else {}
+    return events_rows(user, events, names)

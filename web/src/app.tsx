@@ -1,15 +1,15 @@
 // The app root (android/.../ui/App.kt): login / main screen, tabs, opened screens, overlays.
 import { useEffect, useRef, useState } from "preact/hooks"
-import { keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
+import { isExtensionTab, keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
 import { foreground, hyperLore, hyperspace, limitNews, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
 import { startE2E } from "./e2e"
 import { installed, isIos, notifyPermission, postponeNotifyHint, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
 import { Avatar, PixelIcon, PxButton, Sheet, ToastHost } from "./ui/components"
 import { ConfirmEmailScreen, LoginScreen, OfflineScreen, UsernameScreen } from "./screens/Login"
-import { HomeScreen } from "./screens/Home"
 import { RulesScreen } from "./screens/Rules"
 import { RouteScreen, TabScreen } from "./screens/registry"
+import { ExtensionTab } from "./screens/Extensions"
 import { HyperLoreOverlay, HyperspaceOverlay, LimitChangeOverlay, MilestoneOverlay, UpdateScreen, WhatsNewOverlay } from "./screens/Overlays"
 import { NineIcon, NineOverlay } from "./screens/Nine"
 import { OverlayHost } from "./ui/overlay"
@@ -65,7 +65,7 @@ function NotifyAsk() {
   </Sheet>
 }
 
-const ICONS: Record<Tab, string> = { home: "ui_home", rules: "ui_updown", chats: "ui_chat", feed: "ui_feed", election: "", profile: "" }
+const ICONS: Partial<Record<Tab, string>> = { rules: "ui_updown", chats: "ui_chat", feed: "ui_feed" }
 
 function MainScreen() {
   const st = state.value
@@ -73,8 +73,8 @@ function MainScreen() {
   const current = tab.value
   const routes = stack.value
   const tabs = tabsNow()
-  // the election ended: its tab goes away (and whoever was on it lands at home)
-  useEffect(() => { if (!tabs.includes(tab.value)) tab.value = "home" }, [tabs.length])
+  // the election ended / an extension switched off: its tab goes away (and whoever was on it lands on the profile)
+  useEffect(() => { if (!tabs.includes(tab.value)) tab.value = "profile" }, [tabs.join()])
   // opened from a notification (?open=chat:12, post:3, challenge:5, notifications)
   useEffect(() => {
     const open = new URLSearchParams(location.search).get("open")
@@ -108,15 +108,18 @@ function MainScreen() {
   // the tabs sit side by side: swipe sideways or tap the bar
   // a tap on the bar scrolls there smoothly: the tabs passed on the way don't count
   const target = useRef<number | null>(null)
+  const placed = useRef(false)
   useEffect(() => {
     const el = pager.current
     if (!el) return
     const i = tabs.indexOf(current)
     if (i >= 0 && Math.round(el.scrollLeft / el.clientWidth) !== i) {
       target.current = i
-      el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" })
+      // the start (the profile is the main page): there at once; later taps glide there
+      el.scrollTo({ left: i * el.clientWidth, behavior: placed.current ? "smooth" : "instant" })
     }
-  }, [current, tabs.length])
+    placed.current = true
+  }, [current, tabs.join()])
   const onScroll = () => {
     const el = pager.current
     if (!el) return
@@ -137,7 +140,9 @@ function MainScreen() {
       {tabs.map((t) => <section key={t} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
         {/* a tab covered by an opened screen (or not the current one) doesn't play videos */}
         <OnTop.Provider value={routes.length === 0 && current === t}>
-          {t === "home" ? <HomeScreen st={st} /> : t === "rules" ? <RulesScreen st={st} /> : <TabScreen tab={t} />}
+          {t === "rules" ? <RulesScreen st={st} />
+            : isExtensionTab(t) ? <ExtensionTab id={t.slice(4)} visible={routes.length === 0 && current === t} />
+              : <TabScreen tab={t} />}
         </OnTop.Provider>
       </section>)}
     </div>
@@ -152,6 +157,7 @@ function MainScreen() {
       {tabs.map((t) => {
         const sel = t === current && !routes.some((r) => !keepsTabs(r))
         const badge = t === "chats" ? st.unread.messages : t === "feed" ? st.unread.notifications : 0
+        const ext = isExtensionTab(t) ? st.extensions?.find((e) => `ext:${e.id}` === t) : undefined
         return <button key={t} aria-label={t} onClick={() => nav.selectTab(t)}>
           {t === "profile"
             ? <div style={{ opacity: t === current ? 1 : .55 }}><Avatar name={st.user.display_name} url={st.user.avatar} size={24} /></div>
@@ -159,7 +165,7 @@ function MainScreen() {
               // the election's tab: the Larper himself, animated, while the vote is on
               ? <NineIcon nkey="larper" size={28} style={{ margin: "-2px" }} />
               : <div style={{ position: "relative" }}>
-              <PixelIcon name={ICONS[t]} size={24} alpha={t === current ? 1 : .4} />
+              <PixelIcon name={ext?.tab?.icon ?? ICONS[t] ?? "ui_dots"} size={24} alpha={t === current ? 1 : .4} />
               {badge > 0 && <i style={{ position: "absolute", top: -2, right: -4, width: 8, height: 8, background: "var(--orange)" }} />}
             </div>}
           <i class="dot" style={{ background: sel ? "var(--text)" : "transparent" }} />

@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import momentum as m
-from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, limits, linkpreview, mentions, moderation, nine, posts, push, service, social, stories, storage, updates
+from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, extensions, limits, linkpreview, mentions, moderation, nine, posts, push, service, social, stories, storage, updates
 from . import google as google_mod
 from . import github as github_mod
 from . import mail as mail_mod
@@ -237,6 +237,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         async with db.session() as s:          # one-off: plain @names -> account references
             await mentions.migrate(s)
             await quota.load(s)
+            await extensions.sync_shipped(s)   # the extensions shipped in server/shipped_extensions/
             await s.commit()
         await blobs.setup()
         async with db.session() as s:          # one-off: older report screenshots leave the public path
@@ -510,6 +511,9 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         response = await send_from_directory(WEB_DIR, path)
         if path in ("index.html", "sw.js", "manifest.webmanifest"):
             response.headers["Cache-Control"] = "no-cache"
+        if path.startswith("fonts/"):
+            # extension pages (an opaque origin, server/extensions.py) load the app's fonts too
+            response.headers["Access-Control-Allow-Origin"] = "*"
         elif path.startswith("assets/"):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         if path == "sw.js":
@@ -541,7 +545,9 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
 
     @app.get("/sprites/<path:path>")
     async def sprites(path):
-        return await send_from_directory(SPRITE_DIR, path)
+        response = await send_from_directory(SPRITE_DIR, path)
+        response.headers["Access-Control-Allow-Origin"] = "*"       # extension pages may show the pixel icons
+        return response
 
     @app.get("/api/meta")
     async def meta():
@@ -1012,6 +1018,24 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             last.op_id = op_id
         return await state_response(**result)
 
+    @app.get("/api/events")
+    @authed
+    async def history():
+        """My whole history, newest first, page by page (?before=<event id>&limit=): the own profile's history tab;
+        the state has only the latest 30."""
+        from .posts import page_args
+        _, limit = page_args()
+        q = select(Event).where(Event.user_id == g.user.id, Event.undone.is_(False))
+        before = request.args.get("before", type=int)
+        if before:
+            cursor = await g.s.get(Event, before)
+            if cursor is None or cursor.user_id != g.user.id:
+                raise ApiError("Nicht gefunden", "Not found", 404)
+            q = q.where((Event.created_at < cursor.created_at)
+                        | ((Event.created_at == cursor.created_at) & (Event.id < cursor.id)))
+        rows = list(await g.s.scalars(q.order_by(Event.created_at.desc(), Event.id.desc()).limit(limit)))
+        return jsonify(events=await service.events_json(g.s, g.user, rows))
+
     @app.post("/api/events/<int:event_id>/undo")
     @authed
     async def undo_event(event_id):
@@ -1163,6 +1187,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         await g.s.execute(delete(AuthToken).where(AuthToken.user_id == g.user.id))
         await mail_mod.delete_user_codes(g.s, g.user.id)
         await nine.delete_user(g.s, g.user.id)
+        await extensions.delete_user_data(g.s, g.user.id)
         await g.s.execute(delete(UserActivity).where(UserActivity.user_id == g.user.id))   # no longer a player
         # challenge templates stay: the challenge goes on for the others
         await g.s.execute(delete(Rule).where(Rule.user_id == g.user.id,
@@ -1184,6 +1209,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     decays.register(app, authed, ApiError, parse_decay, state_response)
     challenges.register(app, authed, ApiError, parse_rule, icons, state_response)
     nine.register(app, authed, ApiError)
+    extensions.register(app, authed, ApiError)
     app.previews = linkpreview.Previews(link_preview)
     linkpreview.register(app, authed, app.previews)
     return app

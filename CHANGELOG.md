@@ -6,6 +6,22 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18 b
+
+### DE
+- Dein Profil ist jetzt die Startseite: Den Home-Tab gibt es nicht mehr. Auf deiner Momentum-Karte stehen jetzt auch „Heute“, „Ziel heute“ und „Heute Nacht“, und unter „Verlauf“ siehst du deine ganze Geschichte – jeder Tipp, auch die privaten, und Tipps lassen sich dort rückgängig machen.
+- Wisch auf der Momentum-Karte nach links und rechts durch alle Fahrzeuge. Die, die du noch nicht freigeschaltet hast, siehst du nur als Silhouette – mit dem Momentum, ab dem sie kommen. Das geht auch bei anderen.
+- Die Blitzwolke mit den verpassten Tagen in Folge sitzt jetzt auf der Karte „Täglicher Verfall“ im Regeln-Tab.
+- Die Einstellungen sind jetzt aufgeräumt: ein Menü mit Seiten für Profil, Spiel, App, Sicherheit, Extensions und mehr. Der Einstellungen-Knopf unter den Highlights ist weg – das Zahnrad oben bleibt.
+- Neu: Extensions. Unter Einstellungen → Extensions lädst du optionale Erweiterungen herunter und schaltest sie ein; sie bekommen einen eigenen Tab. Die erste ist das Tagebuch: ein paar Zeilen am Tag und wie es dir ging, nur für dich. Bald kann die Community eigene Extensions bauen.
+
+### EN
+- Your profile is now the start page: the home tab is gone. Your momentum card now also shows "Today", "Today's goal" and "Tonight", and under "History" you see your whole story – every tap, private ones too, and taps can be undone there.
+- Swipe left and right on the momentum card through all vehicles. The ones you haven't unlocked yet show only as a silhouette – with the momentum they need. This works on other profiles too.
+- The thunder cloud with the missed days in a row now sits on the "Daily decay" card in the rules tab.
+- The settings are tidier now: a menu with pages for profile, game, app, security, extensions and more. The settings button under the highlights is gone – the gear at the top stays.
+- New: extensions. Under Settings → Extensions you download optional add-ons and switch them on; they get a tab of their own. The first one is the journal: a few lines a day and how you felt, for you only. Soon the community can build its own extensions.
+
 ## 2026-11-18
 
 ### DE

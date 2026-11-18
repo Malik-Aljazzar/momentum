@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { api, longPress, mailedCode, newUser, openApp, tab } from "./helpers"
 
-test("sign up, confirm the e-mail address with the mailed code, choose a username, see the start screen", async ({ page, request }) => {
+test("sign up, confirm the e-mail address with the mailed code, choose a username, see the own profile", async ({ page, request }) => {
   await page.addInitScript(() => localStorage.setItem("language", "de"))
   await page.goto("/app/")
   await page.getByText("Neu hier? Konto erstellen").click()
@@ -23,7 +23,11 @@ test("sign up, confirm the e-mail address with the mailed code, choose a usernam
   await page.getByRole("button", { name: "Weiter" }).click()
   await expect(page.locator("nav.tabbar")).toBeVisible()
   await expect(page.getByText(name).first()).toBeVisible()
-  await expect(page.getByText("Nächster Meilenstein")).toBeVisible()
+  // the own profile is the main page: the competition card with the way to the next vehicle
+  await expect(page.locator(".competition-card")).toBeVisible()
+  await expect(page.getByText("noch 1.000 Momentum · Motorroller")).toBeVisible()
+  await expect(page.locator('nav.tabbar button[aria-label="home"]')).toHaveCount(0)        // no home tab any more
+  await expect(page.locator("nav.tabbar button").last()).toHaveAttribute("aria-label", "profile")
 })
 
 test("tapping an accelerator raises the momentum", async ({ page, request }) => {
@@ -33,8 +37,8 @@ test("tapping an accelerator raises the momentum", async ({ page, request }) => 
   const card = page.locator('[data-rule="Aufgabe erledigt"] > div').first()
   await card.click()
   await expect.poll(async () => (await api(request, token, "GET", "/state")).state.momentum).toBe(100)
-  await tab(page, "home").click()
-  await expect(page.getByText("+100").first()).toBeVisible()
+  await tab(page, "profile").click()
+  await expect(page.locator(".today-stats")).toContainText("+100")
 })
 
 test("create a rule with the cloze editor", async ({ page, request }) => {

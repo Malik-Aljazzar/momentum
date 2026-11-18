@@ -1,5 +1,7 @@
 package com.momentum.app.ui
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import android.view.HapticFeedbackConstants
@@ -423,7 +425,11 @@ private fun DecayCard(st: AppState, onClick: () -> Unit) {
                 Text("−" + fmt(d.tonight), style = T.block.copy(fontSize = 28.sp, color = Px.Orange))
                 Text(S.decayInfo(fmt(d.base), d.streak), style = T.small)
             }
-            if (d.follow == null) PixelIcon("ui_edit", 16.dp, Modifier.align(Alignment.Top), alpha = .45f)
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (d.follow == null) PixelIcon("ui_edit", 16.dp, alpha = .45f)
+                StreakChip(d.streak)
+            }
         }
         if (d.catalystMode != "none") {
             val frac = if (d.threshold > 0) d.todayGain / d.threshold else 1.0
@@ -432,6 +438,25 @@ private fun DecayCard(st: AppState, onClick: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             SegBar(frac, 20, if (frac >= 1) Px.Lime else Px.Yellow)
         }
+    }
+}
+
+/** The thunder cloud: days in a row the goal was missed (they make the night's loss grow; was on the home tab).
+ *  = StreakChip in web/src/screens/Rules.tsx */
+@Composable
+fun StreakChip(streak: Int) {
+    val S = LocalStrings.current
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (streak > 0) Px.Orange.copy(alpha = .2f) else Px.Faint)
+            .semantics { contentDescription = S.streakTitle + ": " + streak }
+            .padding(start = 8.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PixelIcon("storm", 16.dp)
+        Spacer(Modifier.width(6.dp))
+        Label(S.days(streak), color = if (streak > 0) Px.Yellow else Px.Text)
     }
 }
 

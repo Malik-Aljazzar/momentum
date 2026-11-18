@@ -60,6 +60,7 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   deezer.py      song search + 30 s previews for post sounds (proxied: no CORS, links expire)
   places.py      place search for a post's location (OpenStreetMap via Photon)
   linkpreview.py chat link previews: fetches a page's title / description / picture safely (SSRF-guarded)
+  extensions.py  extensions: catalog, download / on-off, their tab, their data in their own format (shipped_extensions/)
   stories.py     stories (24 h, seen marks), highlights, archive
   moderation.py  content filter for post / story / profile pictures (local ONNX model from nsfw_model.py)
   triggers.py    profile rules tapped with a post's slide / a story (≤5 per slide, ×1..10)
@@ -98,6 +99,13 @@ docs/SPEC.md   the original (German) product spec
 - Blocks (`db.Block`): either direction hides everything - go through `social.is_blocked` / `block_ids`
   (used by `community.can_view`, `connected`, search, comments, DMs) when adding new social features.
 - Rule times: `reset_days` / `idle_days` are 0..365 in `reset_unit` / `idle_unit` ("d" or "h").
+- No home tab (since 2026-11-18): the own profile is the main page and the start tab (tabs: rules, chats, feed,
+  extension tabs, election, profile). It carries what the home tab had: the notes (`MyNotes`: confirm address,
+  notifications off, election), today's numbers on the competition card, the WHOLE history in its history section
+  (undoable; state's latest 30 + `GET /api/events?before=<id>`) - `web/src/screens/Me.tsx` = `ui/Me.kt`. The
+  competition card swipes through all vehicles (not reached = black silhouette + "ab X Momentum"; profile `milestones`
+  / `banners`), the decay card in the rules tab has the thunder cloud (missed days). Settings are a menu of pages one
+  level deep (`{r: "settings", page}` = `Route.Settings(page)`), each page with fields has its own save button.
 - Videos keep at most 60 s (`media.VIDEO_MAX_SECONDS`, x264 preset medium; report #69, was 30 s); Android's camera
   and compression stop at 60 s too. Raw uploads up to 200 MB (`MAX_CONTENT_LENGTH` = nginx `client_max_body_size`).
 - Video streams like Instagram (`server/hls.py`): the upload's H.264 MP4 (`Media.key`, max 1.5 Mbit/s, 30 fps) plays at
@@ -176,7 +184,7 @@ docs/SPEC.md   the original (German) product spec
   counts posts + stories forever (the Clown), `posts_today` caps them at 100 a day. Profiles carry `titles`, the
   state's user `election`. Clients: `web/src/screens/Nine.tsx` = `ui/Nine.kt` (hand-drawn 8-bit critters, 20x20, 8 frames
   of 120 ms, `nine_<key>/sheet.png` from `pixelart/nine.py`: flat colours, shade on the right edge, no outlines;
-  title screens on hidden banners `nine_<key>`, the rankings' "The Nine" tab, the home card; the election is an
+  title screens on hidden banners `nine_<key>`, the rankings' "The Nine" tab, the card on the own profile; the election is an
   extra bottom tab with the animated Larper only while it runs: `nav.tabsNow()` = `Tab.Election`); texts `nineName/nineLore/nineHow/nineUnit` in Strings.kt. A new title = KEYS + a creature + texts +
   a theme + `NINE_COLORS` on both sides. Hermes (most implemented reports) replaced the old King of Reporters badge.
   The title screen closes with a pinned X or a tap on the free space (taps in its cards don't).
@@ -353,7 +361,7 @@ without it the log says "Android keeps polling". Devices are bound to their logi
 Read notifications disappear: tags `chat:<id>` / `activity` (Android) and `chat-<id>` / `note-<id>`
 (PWA) are cleared when the chat / activity list is opened; Android also clears what
 `/api/updates` no longer lists in `unread_chats` / `unread_notifications` (read on another device).
-Notifications off (but on in the app's settings): a card on the home tab (`notifyHint` in `web/src/push.ts` =
+Notifications off (but on in the app's settings): a card on the own profile (`notifyHint` in `web/src/push.ts` =
 `data/Notifier.kt`: ask / denied / install (iPhone outside the home-screen app) / Android: the calls' channel off),
 "not now" = 7 days (`notify_hint_until`). The e2e iPhone isn't the home-screen app: the card shows there ("install").
 
@@ -368,7 +376,7 @@ with a management scope - no Mail.Send permission in Entra). Config `MAIL_TENANT
 
 - Confirming is required: new accounts at once (the confirm screen comes before the username), accounts from before
   mails were on get 14 days once (`start_deadlines`, config flag `email_confirm_since`), the apps remind them on the
-  home tab. Locked meanwhile: only `app.CONFIRM_FREE`; Android apps older than `clients.CONFIRM_APP` aren't locked
+  own profile. Locked meanwhile: only `app.CONFIRM_FREE`; Android apps older than `clients.CONFIRM_APP` aren't locked
   (they can't show the screen). Google-only accounts are exempt. State: `user.email_confirm` ({due, required} or null).
 - New password only to a confirmed address; reset ends every session. 5 wrong passwords in a row (`LOCK_AFTER`) lock a
   confirmed account: logins answer 423 + mail the reset code, the apps open "new password". Unconfirmed / mails off:
@@ -428,6 +436,21 @@ Every connection has an audio and a video line from the start (camera on/off = r
   `calls-chromium`: fake camera / microphone, two pages really talk). Android: emulator + the PWA in Playwright against
   the test server works (10.0.2.2); FCM can be faked with `adb root` + `am broadcast -a com.google.android.c2dm.intent.RECEIVE
   -n com.momentum.app/com.google.firebase.iid.FirebaseInstanceIdReceiver --es type call --es call <id> ...`.
+
+## Extensions (`server/extensions.py`, clients `web/src/extensions.ts` + `screens/Extensions.tsx` = `data/Extensions.kt` + `ui/Extensions.kt`)
+
+Optional parts players download in Settings -> Extensions and switch on. API 1: a tab of its own (at most `MAX_TABS`
+on) and data in its own format (collections of JSON documents per player, checked against the manifest's JSON-schema
+subset; 16 KB / doc, 2 MB / extension, `max_docs`). An extension = `server/shipped_extensions/<id>/manifest.json` +
+one self-contained `index.html` (synced into the `extensions` table at start; author docs: that folder's README.md;
+the first one is `journal`). Both apps show the page sandboxed: PWA iframe `sandbox="allow-scripts"` (opaque origin:
+no token / storage), Android WebView without navigation; `compose()` puts base.css, the bridge `sdk.js`, a CSP without
+any network and `<base href="__ORIGIN__/">` in front - the app replaces `__ORIGIN__` with its server (fonts need CORS:
+`/app/fonts/`, `/sprites/` send `Access-Control-Allow-Origin: *`). Bridge messages are JSON text
+`{momentum: 1, id, method, params}` (context, toast, data.get/put/delete/list) answered by the app with its own token;
+events `show` / `hide`. The state's `extensions` lists the downloaded ones (tabs = enabled with a `tab`). The table
+already has `author_id` / `status` for community extensions (upload + review not built yet). A change to the bridge =
+sdk.js + both hosts + both bridge tests (`web/tests/unit/extensions.test.ts`, Android's).
 
 ## Groups
 

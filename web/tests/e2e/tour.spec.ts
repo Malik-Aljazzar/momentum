@@ -21,7 +21,7 @@ test("tour through all screens", async ({ page, request }) => {
 
   await openApp(page, ann.token)
   const shot = async (name: string) => { await page.waitForTimeout(900); await page.screenshot({ path: `test-results/tour/${name}.png` }) }
-  await shot("01-home")
+  await expect(page.locator(".competition-card")).toBeVisible(); await shot("01-profile")
   await tab(page, "rules").click(); await shot("02-rules")
   await page.locator("text=ENTSCHL.").first().click().catch(() => {}); await shot("03-rules-dec")
   await tab(page, "chats").click(); await expect(page.getByText(ben.name).first()).toBeVisible(); await shot("04-chats")
@@ -35,5 +35,8 @@ test("tour through all screens", async ({ page, request }) => {
   await page.locator(".topbar button[aria-label=back]").click()
   await tab(page, "profile").click(); await shot("09-profile")
   await page.locator("button[aria-label=settings]").click(); await shot("10-settings")
+  await page.locator("[data-page=profile]").click(); await shot("11-settings-profile")
+  await page.locator(".topbar button[aria-label=back]").click()
+  await page.locator("[data-page=extensions]").click(); await expect(page.locator(".extension-card").first()).toBeVisible(); await shot("12-extensions")
   expect(errors).toEqual([])
 })
