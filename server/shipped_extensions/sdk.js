@@ -50,7 +50,8 @@
 
   var api = {
     api: 1,
-    /** {api, lang: "de" | "en", user: {username, display_name}, extension: {id, version}} */
+    /** {api, lang: "de" | "en", user: {username, display_name}, extension: {id, version}, tab: the manifest's key of
+     *  the tab this page is shown as (null in apps from before tab layouts)} */
     ready: call("context"),
     data: Object.freeze({
       /** the stored value, or null */

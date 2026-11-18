@@ -60,7 +60,8 @@ server/        Quart API (async SQLAlchemy, SQLite), MinIO blobs, ffmpeg via ima
   deezer.py      song search + 30 s previews for post sounds (proxied: no CORS, links expire)
   places.py      place search for a post's location (OpenStreetMap via Photon)
   linkpreview.py chat link previews: fetches a page's title / description / picture safely (SSRF-guarded)
-  extensions.py  extensions: catalog, download / on-off, their tab, their data in their own format (shipped_extensions/)
+  extensions.py  extensions: catalog, download / on-off, their tabs, their data in their own format (shipped_extensions/)
+  tablayout.py   the player's tabs (Settings.tabs): bar places, groups, hidden tabs; the tab icon library (tab_*)
   stories.py     stories (24 h, seen marks), highlights, archive
   moderation.py  content filter for post / story / profile pictures (local ONNX model from nsfw_model.py)
   triggers.py    profile rules tapped with a post's slide / a story (≤5 per slide, ×1..10)
@@ -99,8 +100,15 @@ docs/SPEC.md   the original (German) product spec
 - Blocks (`db.Block`): either direction hides everything - go through `social.is_blocked` / `block_ids`
   (used by `community.can_view`, `connected`, search, comments, DMs) when adding new social features.
 - Rule times: `reset_days` / `idle_days` are 0..365 in `reset_unit` / `idle_unit` ("d" or "h").
-- No home tab (since 2026-11-18): the own profile is the main page and the start tab (tabs: rules, chats, feed,
-  extension tabs, election, profile). It carries what the home tab had: the notes (`MyNotes`: confirm address,
+- Tabs are the player's own (since 2026-11-18 d; `server/tablayout.py`, `web/src/tablayout.ts` = `data/TabLayout.kt`,
+  Settings -> Tabs = `TabsEditor.tsx` / `ui/TabsEditor.kt`): up to 5 places in the bar, each a tab or a group (page
+  `group:<id>`, a tab menu at the top like the profile's: names / icons / both, never cut off - it slides; `TabGroup.tsx`
+  = `ui/Tabs.kt`), unplaced tabs are hidden, the profile always stays (the settings live there). Pages: one per place,
+  the election's right before the profile's (`pagesWith`). Go to a tab with `nav.showTab` / `showTab` (it finds its group;
+  false = hidden: just push the screen). Extension tabs are `ext:<extension>:<tab>` from the manifest's `tabs` (icons
+  only from the white `tab_*` library, `pixelart/tab_icons.py`, `meta.tab_icons`); switching one on does NOT place its
+  tabs (they wait in "hidden"; the catalog card points there). Android apps <= 916548 still read API 1's `tab`.
+- No home tab (since 2026-11-18): the own profile is the main page and the start tab. It carries what the home tab had: the notes (`MyNotes`: confirm address,
   notifications off, election), today's numbers on the competition card, the WHOLE history in its history section
   (undoable; state's latest 30 + `GET /api/events?before=<id>`) - `web/src/screens/Me.tsx` = `ui/Me.kt`. The
   competition card swipes through all vehicles (not reached = black silhouette + "ab X Momentum"; profile `milestones`
@@ -439,8 +447,9 @@ Every connection has an audio and a video line from the start (camera on/off = r
 
 ## Extensions (`server/extensions.py`, clients `web/src/extensions.ts` + `screens/Extensions.tsx` = `data/Extensions.kt` + `ui/Extensions.kt`)
 
-Optional parts players download in Settings -> Extensions and switch on. API 1: a tab of its own (at most `MAX_TABS`
-on) and data in its own format (collections of JSON documents per player, checked against the manifest's JSON-schema
+Optional parts players download in Settings -> Extensions and switch on. API 1: tabs of their own (up to
+`MAX_EXT_TABS`, placed by the player like any tab; the page learns which one it is from the context's `tab`) and data
+in its own format (collections of JSON documents per player, checked against the manifest's JSON-schema
 subset; 16 KB / doc, 2 MB / extension, `max_docs`). An extension = `server/shipped_extensions/<id>/manifest.json` +
 one self-contained `index.html` (synced into the `extensions` table at start; author docs: that folder's README.md;
 the first one is `journal`). Both apps show the page sandboxed: PWA iframe `sandbox="allow-scripts"` (opaque origin:

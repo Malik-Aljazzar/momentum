@@ -1,15 +1,18 @@
 {
   "id": "journal",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "api": 1,
   "name": { "de": "Tagebuch", "en": "Journal" },
   "description": {
-    "de": "Ein eigener Tab für ein paar Zeilen am Tag und wie es dir ging. Nur du siehst es.",
-    "en": "A tab of its own for a few lines a day and how you felt. Only you can see it."
+    "de": "Ein paar Zeilen am Tag und wie es dir ging – zwei Tabs: „Heute“ zum Schreiben, „Einträge“ zum Zurückblättern. Nur du siehst es.",
+    "en": "A few lines a day and how you felt – two tabs: \"Today\" to write, \"Entries\" to look back. Only you can see it."
   },
   "author": "Momentum",
   "icon": "openbook",
-  "tab": { "title": { "de": "Tagebuch", "en": "Journal" }, "icon": "openbook" },
+  "tabs": [
+    { "key": "today", "name": { "de": "Heute", "en": "Today" }, "icon": "tab_pen" },
+    { "key": "entries", "name": { "de": "Einträge", "en": "Entries" }, "icon": "tab_book" }
+  ],
   "entry": "index.html",
   "collections": {
     "entries": {

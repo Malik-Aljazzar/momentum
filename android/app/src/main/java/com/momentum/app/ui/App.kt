@@ -72,23 +72,8 @@ import androidx.compose.ui.draw.clip
 import kotlinx.serialization.json.put
 import kotlin.random.Random
 
-// accelerators and decelerators share one tab; messages sit in the middle; the own profile is the main page (the
-// tab the app starts on). Switched-on extensions add their tabs, the Larper election gets one while it runs
-// (server/extensions.py, server/nine.py) - both before the profile (= web nav.ts tabsNow).
-enum class Tab(val icon: String) { Rules("ui_updown"), Chats("ui_chat"), Feed("ui_feed"), Extension(""), Election(""), Profile("") }
-
-/** One page of the tab pager: a fixed tab, or an extension's ([ext] = its id). */
-data class TabPage(val tab: Tab, val ext: String? = null) {
-    val key get() = if (ext != null) "ext:$ext" else tab.name
-}
-
-private val PROFILE = TabPage(Tab.Profile)
-
-/** The tabs right now. */
-fun tabsOf(st: com.momentum.app.data.AppState?): List<TabPage> =
-    listOf(TabPage(Tab.Rules), TabPage(Tab.Chats), TabPage(Tab.Feed)) +
-        com.momentum.app.data.ExtensionBridge.extensionTabs(st?.extensions.orEmpty()).map { TabPage(Tab.Extension, it.id) } +
-        (if (st?.user?.election == true) listOf(TabPage(Tab.Election)) else emptyList()) + PROFILE
+// The main screen's pages come from the player's tab layout (ui/Tabs.kt, data/TabLayout.kt): the bar's places - tabs
+// and groups - and the Larper election's page while it runs. The app starts where the own profile is (the main page).
 
 @Composable
 fun MomentumApp(vm: AppViewModel) {
@@ -150,21 +135,41 @@ fun tabContentPadding(): PaddingValues {
 
 @Composable
 private fun MainScreen(vm: AppViewModel) {
-    // tabs live in a pager: tap the bar or swipe sideways; the app starts on the own profile
-    val tabs = tabsOf(vm.state)
-    val currentTabs = androidx.compose.runtime.rememberUpdatedState(tabs)
-    val pager = rememberPagerState(initialPage = tabs.indexOf(PROFILE)) { tabs.size }
-    val tab = tabs.getOrElse(pager.currentPage) { PROFILE }
+    // the pages live in a pager: tap the bar or swipe sideways; the app starts on the own profile (in a group: that
+    // group, showing the profile)
+    val layout = layoutOf(vm.state)
+    val pages = pagesOf(vm.state, layout)
+    val currentLayout = androidx.compose.runtime.rememberUpdatedState(layout)
+    val currentPages = androidx.compose.runtime.rememberUpdatedState(pages)
+    // the tab each group shows (its first one until another is picked)
+    val chosen = remember {
+        androidx.compose.runtime.mutableStateMapOf<String, String>().also { m ->
+            com.momentum.app.data.TabLayout.locate(layout, "profile")?.group?.let { m[it] = "profile" }
+        }
+    }
+    val pager = rememberPagerState(initialPage = pages.indexOf(pageOfTab(layout, "profile")).coerceAtLeast(0)) { pages.size }
+    val page = pages.getOrElse(pager.currentPage) { "profile" }
+    val leaf = com.momentum.app.data.TabLayout.leafOf(layout, page, chosen)
     // one scroll state per tab, kept while switching (like Instagram)
-    val lists: Map<Tab, LazyListState> = Tab.entries.associateWith { rememberLazyListState() }
+    val lists: Map<String, LazyListState> = com.momentum.app.data.TabLayout.STANDARD.associateWith { rememberLazyListState() }
     val stack = remember { mutableStateListOf<Route>() }
     val scope = rememberCoroutineScope()
+    /** Goes to where a tab lives (its page in the bar, or its group showing it); false when it's hidden. */
+    fun showTab(key: String, instant: Boolean = false): Boolean {
+        val l = currentLayout.value
+        val p = pageOfTab(l, key) ?: return false
+        com.momentum.app.data.TabLayout.locate(l, key)?.group?.let { chosen[it] = key }
+        val i = currentPages.value.indexOf(p)
+        if (i < 0) return false
+        scope.launch { if (instant) pager.scrollToPage(i) else pager.animateScrollToPage(i) }
+        return true
+    }
     val nav = remember {
         // my own profile opened from anywhere: the profile tab, like tapping it
         fun open(r: Route): Boolean {
             if (r is Route.UserProfile && r.username == vm.state?.user?.username) {
                 stack.clear()
-                scope.launch { pager.animateScrollToPage(currentTabs.value.indexOf(PROFILE)) }
+                showTab("profile")
                 return true
             }
             return false
@@ -173,12 +178,12 @@ private fun MainScreen(vm: AppViewModel) {
             replace = { stack.removeLastOrNull(); if (!open(it)) stack.add(it) })
     }
 
-    // opened from a notification
+    // opened from a notification: its tab if it's placed somewhere, the screen on top either way
     LaunchedEffect(vm.openRequest) {
         val r = vm.openRequest ?: return@LaunchedEffect
         vm.openRequest = null
         stack.clear()
-        pager.scrollToPage(tabs.indexOf(TabPage(if (r > 0) Tab.Chats else Tab.Feed)))
+        showTab(if (r > 0) "chats" else "feed", instant = true)
         stack.add(if (r > 0) Route.ChatRoom(r) else Route.Notifications)
     }
     LaunchedEffect(Unit) {   // keep unread badges fresh
@@ -187,44 +192,48 @@ private fun MainScreen(vm: AppViewModel) {
             if (vm.foreground) vm.refresh()       // in the background the notification check takes over
         }
     }
-    BackHandler(enabled = stack.isNotEmpty() || tab != PROFILE) {
-        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else scope.launch { pager.animateScrollToPage(currentTabs.value.indexOf(PROFILE)) }
+    val onProfile = page == pageOfTab(layout, "profile") && leaf == "profile"
+    BackHandler(enabled = stack.isNotEmpty() || !onProfile) {
+        if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else showTab("profile")
     }
 
-    // a tab came or went (an extension switched on / off, the election): stay on the shown tab - or, if that one
-    // went away, land on the profile
-    val shownTabs = remember { arrayOf(tabs) }
-    LaunchedEffect(tabs.map { it.key }) {
-        val before = shownTabs[0]
-        shownTabs[0] = tabs
-        if (before == tabs) return@LaunchedEffect
+    // a page came or went (the layout changed, an extension switched on / off, the election): stay on the shown page -
+    // or, if that one went away, land on the profile
+    val shownPages = remember { arrayOf(pages) }
+    LaunchedEffect(pages) {
+        val before = shownPages[0]
+        shownPages[0] = pages
+        if (before == pages) return@LaunchedEffect
         val was = before.getOrNull(pager.currentPage) ?: return@LaunchedEffect
-        val i = tabs.indexOf(was).takeIf { it >= 0 } ?: tabs.indexOf(PROFILE)
-        if (i != pager.currentPage) pager.scrollToPage(i)
+        val i = pages.indexOf(was).takeIf { it >= 0 } ?: pages.indexOf(pageOfTab(layout, "profile"))
+        if (i >= 0 && i != pager.currentPage) pager.scrollToPage(i)
     }
     androidx.compose.runtime.SideEffect {
         NineLore.navigate = { nav.push(it) }
         NineLore.openElection = {
             stack.clear()
-            val i = currentTabs.value.indexOf(TabPage(Tab.Election))
-            if (i >= 0) scope.launch { pager.animateScrollToPage(i) }
+            showTab(ELECTION)
         }
     }
     CompositionLocalProvider(LocalNav provides nav) {
         Box(Modifier.fillMaxSize()) {
             val state = vm.state ?: return@Box
-            HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs.getOrNull(it)?.key ?: "$it" }) { page ->
-                // a tab covered by an opened screen (or not the current one) doesn't play videos
-                CompositionLocalProvider(LocalOnTop provides (stack.isEmpty() && pager.currentPage == page)) {
-                val p = tabs.getOrElse(page) { PROFILE }
-                when (p.tab) {
-                    Tab.Extension -> ExtensionTab(vm, p.ext.orEmpty(), visible = stack.isEmpty() && pager.currentPage == page)
-                    Tab.Election -> ElectionScreen(vm)
-                    Tab.Rules -> RulesScreen(vm, state, lists.getValue(Tab.Rules))
-                    Tab.Chats -> ChatsScreen(vm, isTab = true, listState = lists.getValue(Tab.Chats))
-                    Tab.Feed -> FeedScreen(vm, lists.getValue(Tab.Feed))
-                    Tab.Profile -> ProfileScreen(vm, state.user.username, isTab = true, list = lists.getValue(Tab.Profile))
-                }
+            HorizontalPager(pager, Modifier.fillMaxSize(), key = { pages.getOrNull(it) ?: "$it" }) { i ->
+                val p = pages.getOrElse(i) { "profile" }
+                // a page covered by an opened screen (or not the current one) doesn't play videos
+                val shown = stack.isEmpty() && pager.currentPage == i
+                CompositionLocalProvider(LocalOnTop provides shown) {
+                    val groupId = com.momentum.app.data.TabLayout.pageGroupId(p)
+                    when {
+                        p == ELECTION -> ElectionScreen(vm)
+                        groupId != null -> layout.firstOrNull { it.isGroup && it.id == groupId }?.let { g ->
+                            val l = com.momentum.app.data.TabLayout.leafOf(layout, p, chosen)
+                            GroupPage(vm, state, g, l, shown, lists) { k ->
+                                if (k == l) scope.launch { lists[k]?.animateScrollToItem(0) } else chosen[g.id] = k
+                            }
+                        }
+                        else -> TabContent(vm, state, p, lists, shown)
+                    }
                 }
             }
             if (!vm.online || vm.pending > 0) {
@@ -244,11 +253,12 @@ private fun MainScreen(vm: AppViewModel) {
                     Text(if (vm.pending > 0) S.offlinePending(vm.pending) else S.offlineNow, style = T.small.copy(color = Px.Text))
                 }
             }
-            TabBar(tab, tabs, state, Modifier.align(Alignment.BottomCenter)) { selected ->
+            TabBar(page, pages, layout, state, Modifier.align(Alignment.BottomCenter)) { selected ->
                 stack.clear()
                 scope.launch {
-                    if (selected == tab) lists.getValue(tab.tab).animateScrollToItem(0)
-                    else pager.animateScrollToPage(tabs.indexOf(selected))
+                    // the current page again: its (shown) tab scrolls to the top
+                    if (selected == page) leaf?.let { lists[it] }?.animateScrollToItem(0)
+                    else pager.animateScrollToPage(pages.indexOf(selected))
                 }
             }
             stack.lastOrNull()?.let { route ->
@@ -300,8 +310,10 @@ private fun RouteScreen(vm: AppViewModel, state: com.momentum.app.data.AppState,
     }
 }
 
+/** The bottom bar: one icon per page (a group shows its own icon; the profile the avatar, the election the Larper). */
 @Composable
-private fun TabBar(current: TabPage, tabs: List<TabPage>, state: com.momentum.app.data.AppState, modifier: Modifier, onSelect: (TabPage) -> Unit) {
+private fun TabBar(current: String, pages: List<String>, layout: List<com.momentum.app.data.TabItem>,
+                   state: com.momentum.app.data.AppState, modifier: Modifier, onSelect: (String) -> Unit) {
     Column(modifier.fillMaxWidth().background(Px.Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Px.Line))
         Row(
@@ -312,34 +324,30 @@ private fun TabBar(current: TabPage, tabs: List<TabPage>, state: com.momentum.ap
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            tabs.forEach { t ->
-                val selected = t == current
+            pages.forEach { p ->
+                val selected = p == current
                 Column(
                     Modifier
                         .weight(1f)
-                        .clickable(remember { MutableInteractionSource() }, indication = null) { onSelect(t) }
+                        .clickable(remember { MutableInteractionSource() }, indication = null) { onSelect(p) }
                         .padding(vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (t.tab == Tab.Profile) {
+                    if (p == "profile") {
                         // profile tab shows your own avatar, like Instagram
-                        Box(Modifier.alpha(if (selected) 1f else .55f)) { Avatar(state.user, 24.dp) }
-                    } else if (t.tab == Tab.Election) {
+                        Box(Modifier.alpha(if (selected) 1f else .55f).semantics { contentDescription = p }) { Avatar(state.user, 24.dp) }
+                    } else if (p == ELECTION) {
                         // the election's tab: the Larper himself, animated, while the vote is on
                         // a bit bigger than the other icons, laid out at their 24 dp so the selection dot stays in line
                         Box(Modifier.size(24.dp).wrapContentSize(unbounded = true), contentAlignment = Alignment.Center) {
                             NineIcon("larper", 28.dp, Modifier.semantics { contentDescription = "election" })
                         }
                     } else {
-                        Box(Modifier.semantics { contentDescription = t.key }) {
-                            // an extension's tab: the icon its manifest names
-                            val icon = if (t.tab == Tab.Extension) state.extensions.firstOrNull { it.id == t.ext }?.tab?.icon ?: "ui_dots" else t.tab.icon
-                            PixelIcon(icon, 24.dp, alpha = if (selected) 1f else .4f)
-                            val badge = when (t.tab) {
-                                Tab.Chats -> state.unread.messages
-                                Tab.Feed -> state.unread.notifications
-                                else -> 0
-                            }
+                        // a group: its own icon, and a badge when one of its tabs has one
+                        val group = com.momentum.app.data.TabLayout.pageGroupId(p)?.let { id -> layout.firstOrNull { it.isGroup && it.id == id } }
+                        Box(Modifier.semantics { contentDescription = p }) {
+                            PixelIcon(group?.icon ?: tabIcon(state, p), 24.dp, alpha = if (selected) 1f else .4f)
+                            val badge = group?.tabs?.sumOf { tabBadge(state, it) } ?: tabBadge(state, p)
                             if (badge > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-2).dp).size(8.dp).background(Px.Orange))
                         }
                     }

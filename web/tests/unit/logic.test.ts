@@ -127,6 +127,12 @@ describe("taps (applied locally like the server)", () => {
 })
 
 describe("offline changes", () => {
+  it("keeps my tab layout offline (settings -> tabs)", () => {
+    const tabs = [{ tab: "profile" }, { tab: "rules" }]
+    expect(applyLocal(state(), "PUT", "/settings", { tabs }, tempId).settings.tabs).toEqual(tabs)
+    expect(applyLocal(state(), "PUT", "/settings", { tabs: null }, tempId).settings.tabs).toBeNull()
+    expect(applyLocal(state(), "PUT", "/settings", { haptics: false }, tempId).settings.tabs).toBeUndefined()
+  })
   it("creates, edits and deletes rules locally", () => {
     let st = applyLocal(state(), "POST", "/rules", { kind: "acc", name: "Lesen", base: 33.2, client_id: "c1" }, tempId)
     const created = st.rules.at(-1)!

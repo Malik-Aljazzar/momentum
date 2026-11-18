@@ -107,6 +107,8 @@ export function applyLocal(st: AppState, method: string, path: string, b: Body, 
       ...st, settings: {
         ...st.settings, timezone: str(b, "timezone") ?? st.settings.timezone,
         haptics: bool(b, "haptics") ?? st.settings.haptics, show_history: bool(b, "show_history") ?? st.settings.show_history,
+        // my tabs (settings -> tabs): null = the default
+        tabs: "tabs" in b ? (b.tabs as AppState["settings"]["tabs"]) : st.settings.tabs,
       },
     }
   }

@@ -6,6 +6,18 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18 d
+
+### DE
+- Ordne deine Tabs selbst: Unter Einstellungen → Tabs bestimmst du, was unten in der Leiste steht (bis zu 5 Plätze), in welcher Reihenfolge – und was du ausblendest. Nur dein Profil bleibt immer.
+- Neu: Tab-Gruppen. Eine Gruppe braucht nur einen Platz in der Leiste und fasst beliebig viele Tabs zusammen. Oben in der Gruppe wechselst du zwischen ihnen – mit Namen, Icons oder beidem; passt nicht alles, schiebst du die Leiste zur Seite. Jede Gruppe bekommt ihr eigenes Icon aus über 60 neuen Pixel-Icons.
+- Extensions können jetzt mehrere Tabs mitbringen. Das Tagebuch hat zwei: „Heute“ zum Schreiben und „Einträge“ zum Zurückblättern. Neue Extension-Tabs ordnest du unter Einstellungen → Tabs ein; hattest du das Tagebuch schon, steht es als Gruppe in deiner Leiste.
+
+### EN
+- Arrange your tabs yourself: under Settings → Tabs you decide what's in the bar at the bottom (up to 5 places), in which order – and what you hide. Only your profile always stays.
+- New: tab groups. A group takes just one place in the bar and holds as many tabs as you like. At the top of the group you switch between them – with names, icons or both; if they don't all fit, slide the bar sideways. Every group gets its own icon from more than 60 new pixel icons.
+- Extensions can now bring several tabs. The journal has two: "Today" to write and "Entries" to look back. You place new extension tabs under Settings → Tabs; if you already had the journal, it's a group in your bar now.
+
 ## 2026-11-18 c
 
 ### DE

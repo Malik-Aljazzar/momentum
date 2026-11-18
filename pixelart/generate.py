@@ -1531,6 +1531,22 @@ UI_ICONS = [home, gauge, up, down, gear, plus, edit, back, feed, heart, comment,
             notap, backspace, handset, hangup, cam, camoff, micoff, flip, speaker]
 
 
+# Tab icons (tab_icons.py): the library extension tabs and tab groups pick their icon from - white like the UI glyphs
+
+def tab_icon(fn):
+    def wrapper():
+        cv = Canvas(IW, IW)
+        fn(cv)
+        return cv
+    wrapper.__name__ = "tab_" + fn.__name__
+    return wrapper
+
+
+from tab_icons import DRAW as _TAB_ICONS  # noqa: E402
+
+TAB_ICONS = [tab_icon(fn) for fn in _TAB_ICONS]
+
+
 # Scene pieces for the app's card backgrounds. Strips/tiles wrap horizontally.
 
 def _cloud(cv, x, y, s=1.0):
@@ -1791,8 +1807,8 @@ if __name__ == "__main__":
     # icons
     d = os.path.join(out, "icons")
     os.makedirs(d)
-    icon_cvs = [fn() for fn in ICONS + UI_ICONS]
-    for fn, cv in zip(ICONS + UI_ICONS, icon_cvs):
+    icon_cvs = [fn() for fn in ICONS + UI_ICONS + TAB_ICONS]
+    for fn, cv in zip(ICONS + UI_ICONS + TAB_ICONS, icon_cvs):
         write_png(os.path.join(d, f"{fn.__name__}.png"), cv.px)
     for fn in SCENES:
         write_png(os.path.join(d, f"{fn.__name__}.png"), fn().px)

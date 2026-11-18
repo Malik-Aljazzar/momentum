@@ -30,10 +30,15 @@ data class Texts(val de: String = "", val en: String = "") {
     fun of(lang: String) = (if (lang == "de") de else en).ifEmpty { en.ifEmpty { de } }
 }
 
+/** API 1's single tab (kept by the server for apps from before tab layouts). */
 @Serializable
 data class ExtensionTabInfo(val title: Texts = Texts(), val icon: String = "ui_dots")
 
-/** A downloaded extension (the state's `extensions`): an enabled one with a tab adds that tab. */
+/** One of an extension's tabs (its manifest): placed by the player in settings -> tabs (data/TabLayout.kt). */
+@Serializable
+data class ExtensionTabDef(val key: String, val name: Texts = Texts(), val icon: String = "ui_dots")
+
+/** A downloaded extension (the state's `extensions`): while it's switched on its tabs are in the choice of tabs. */
 @Serializable
 data class InstalledExtension(
     val id: String,
@@ -42,6 +47,7 @@ data class InstalledExtension(
     val icon: String = "sparkles",
     val tab: ExtensionTabInfo? = null,
     val enabled: Boolean = false,
+    val tabs: List<ExtensionTabDef> = emptyList(),
 )
 
 /** An extension in the catalog (settings -> extensions). */
@@ -54,6 +60,7 @@ data class CatalogExtension(
     val author: String = "",
     val icon: String = "sparkles",
     val tab: ExtensionTabInfo? = null,
+    val tabs: List<ExtensionTabDef> = emptyList(),
     val collections: List<String> = emptyList(),
     val official: Boolean = false,
     val size: Int = 0,
@@ -159,8 +166,15 @@ object ExtensionBridge {
         }
     }
 
-    /** The tabs extensions add, in the order they were downloaded (enabled ones with a tab only). */
-    fun extensionTabs(list: List<InstalledExtension>): List<InstalledExtension> = list.filter { it.enabled && it.tab != null }
+    /** What `momentum.ready` resolves to: the API, language, player, extension and which of its tabs the page is
+     *  ([tab] = the manifest's key; = appDeps' context in web/src/extensions.ts). */
+    fun context(lang: String, username: String, displayName: String, ext: InstalledExtension, tab: String?) = buildJsonObject {
+        put("api", 1)
+        put("lang", lang)
+        put("user", buildJsonObject { put("username", username); put("display_name", displayName) })
+        put("extension", buildJsonObject { put("id", ext.id); put("version", ext.version) })
+        put("tab", tab)
+    }
 
     /** The page with the server's address filled in (its <base> and CSP, server/extensions.py compose). */
     fun withOrigin(page: String, origin: String) = page.replace("__ORIGIN__", origin.trimEnd('/'))

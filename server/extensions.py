@@ -7,7 +7,9 @@ The page talks to the app only through the bridge `momentum.*` (shipped_extensio
 android .../data/Extensions.kt): its own data here, the player's language and name, a toast. It never sees the token.
 
 API 1 - what an extension can do today:
-- `tab`: a tab of its own in the bottom bar (title, icon), while it's switched on (at most MAX_TABS of them)
+- `tabs`: tabs of its own (up to MAX_EXT_TABS; each a key, a name and an icon from the tab library tab_*). While it's
+  switched on they're in the player's choice of tabs (settings -> tabs, server/tablayout.py): the bar, a group, or hidden.
+  The page is the same for every tab; it learns which one it is from the context (`tab`).
 - `collections`: data in its own format, stored per player: documents (JSON) under a key, checked against the JSON
   schema (a subset, see check_schema) the manifest gives each collection; limits DOC_BYTES, `max_docs`, TOTAL_BYTES
 
@@ -25,11 +27,13 @@ from quart import g, jsonify, request
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, delete, func, select
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .db import Base, utcnow
+from . import tablayout
+from .db import Base, Config, Settings, utcnow
 
 ROOT = Path(__file__).parent / "shipped_extensions"
 API = 1
-MAX_TABS = 3                       # extension tabs switched on at once (the bottom bar has room for so many)
+MAX_EXT_TABS = 6                   # tabs one extension may bring
+TAB_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,19}$")
 PAGE_BYTES = 512 * 1024            # an extension's page
 DOC_BYTES = 16 * 1024              # one stored document (its JSON)
 TOTAL_BYTES = 2 * 1024 * 1024      # all documents of one extension and player
@@ -228,12 +232,23 @@ def check_manifest(m, page):
         raise Invalid(f"api: {API} erwartet", f"api: {API} expected")
     out = dict(id=m["id"], version=m["version"], api=API, name=_texts(m.get("name"), "name", 40),
                description=_texts(m.get("description"), "description", 300), icon=_icon(m.get("icon"), "icon"),
-               author=str(m.get("author", "")).strip()[:40], tab=None, collections={})
-    if m.get("tab") is not None:
-        t = m["tab"]
+               author=str(m.get("author", "")).strip()[:40], tabs=[], collections={})
+    if "tab" in m:
+        raise Invalid("tab: heißt jetzt tabs (eine Liste)", "tab: is now tabs (a list)")
+    tabs = m.get("tabs", [])
+    if not isinstance(tabs, list) or len(tabs) > MAX_EXT_TABS:
+        raise Invalid(f"tabs: Liste mit bis zu {MAX_EXT_TABS} Tabs", f"tabs: a list of up to {MAX_EXT_TABS} tabs")
+    for i, t in enumerate(tabs):
         if not isinstance(t, dict):
-            raise Invalid("tab: Objekt erwartet", "tab: object expected")
-        out["tab"] = dict(title=_texts(t.get("title"), "tab.title", 20), icon=_icon(t.get("icon", m.get("icon")), "tab.icon"))
+            raise Invalid(f"tabs[{i}]: Objekt erwartet", f"tabs[{i}]: object expected")
+        key = t.get("key")
+        if not isinstance(key, str) or not TAB_KEY_RE.match(key) or any(x["key"] == key for x in out["tabs"]):
+            raise Invalid(f"tabs[{i}].key: a-z, 0-9, _ (bis 20 Zeichen), jeder nur einmal",
+                          f"tabs[{i}].key: a-z, 0-9, _ (up to 20 characters), each once")
+        if t.get("icon") not in tablayout.tab_icons():
+            raise Invalid(f"tabs[{i}].icon: ein Icon aus der Tab-Bibliothek (tab_…)",
+                          f"tabs[{i}].icon: an icon from the tab library (tab_…)")
+        out["tabs"].append(dict(key=key, name=_texts(t.get("name"), f"tabs[{i}].name", 20), icon=t["icon"]))
     cols = m.get("collections", {})
     if not isinstance(cols, dict) or len(cols) > 20:
         raise Invalid("collections: Objekt mit bis zu 20 Einträgen", "collections: object with up to 20 entries")
@@ -283,21 +298,62 @@ def manifest_of(e):
     return json.loads(e.manifest)
 
 
+def legacy_tab(m):
+    """API 1's single tab for Android apps from before tab layouts (versionCode <= 916548 show `tab` of every switched-on
+    extension): the first tab's name with the extension's own icon (those apps don't have the tab_* library)."""
+    return dict(title=m["tabs"][0]["name"], icon=m["icon"]) if m["tabs"] else None
+
+
 def extension_json(e, mine=None):
     """A catalog entry; `mine` = the player's UserExtension (installed) or None."""
     m = manifest_of(e)
     return dict(id=e.id, version=e.version, name=m["name"], description=m["description"], author=m["author"],
-                icon=m["icon"], tab=m["tab"], collections=sorted(m["collections"]), official=e.author_id is None,
-                size=len(e.page.encode()), installed=mine is not None, enabled=bool(mine and mine.enabled))
+                icon=m["icon"], tabs=m["tabs"], tab=legacy_tab(m), collections=sorted(m["collections"]),
+                official=e.author_id is None, size=len(e.page.encode()), installed=mine is not None,
+                enabled=bool(mine and mine.enabled))
 
 
 async def installed(s, user_id):
-    """The player's downloaded extensions (for the state: the apps build their tabs from it), oldest first."""
+    """The player's downloaded extensions (for the state: their tabs are in the choice of tabs while switched on),
+    oldest first."""
     rows = (await s.execute(select(UserExtension, Extension).join(Extension, Extension.id == UserExtension.extension_id)
                             .where(UserExtension.user_id == user_id, Extension.status == "published")
                             .order_by(UserExtension.installed_at, UserExtension.extension_id))).all()
-    return [dict(id=e.id, version=e.version, name=manifest_of(e)["name"], icon=manifest_of(e)["icon"],
-                 tab=manifest_of(e)["tab"], enabled=bool(ue.enabled)) for ue, e in rows]
+    out = []
+    for ue, e in rows:
+        m = manifest_of(e)
+        out.append(dict(id=e.id, version=e.version, name=m["name"], icon=m["icon"], tabs=m["tabs"], tab=legacy_tab(m),
+                        enabled=bool(ue.enabled)))
+    return out
+
+
+async def available_tabs(s, user_id):
+    """The tab keys a player may place: the standard ones and those of every extension they downloaded (switched off
+    ones too - their place is kept while they're off)."""
+    return set(tablayout.STANDARD) | {tablayout.ext_key(x["id"], t["key"]) for x in await installed(s, user_id)
+                                      for t in x["tabs"]}
+
+
+async def migrate_layouts(s):
+    """Once (config flag): players who had extension tabs before tab layouts keep them where they were - in the bar,
+    or together in a group when they don't fit."""
+    if await s.get(Config, "tab_layout_init"):
+        return
+    rows = (await s.execute(select(UserExtension, Extension).join(Extension, Extension.id == UserExtension.extension_id)
+                            .where(UserExtension.enabled.is_(True), Extension.status == "published")
+                            .order_by(UserExtension.installed_at, UserExtension.extension_id))).all()
+    per_user = {}
+    for ue, e in rows:
+        if manifest_of(e)["tabs"]:
+            per_user.setdefault(ue.user_id, []).append(manifest_of(e))
+    for user_id, ms in per_user.items():
+        st = await s.get(Settings, user_id)
+        if st is None or st.tabs:
+            continue
+        keys = [tablayout.ext_key(m["id"], t["key"]) for m in ms for t in m["tabs"]]
+        name, icon = (ms[0]["name"]["de"], ms[0]["tabs"][0]["icon"]) if len(ms) == 1 else ("Extensions", "tab_puzzle")
+        st.tabs = json.dumps(tablayout.with_tabs(keys, name, icon))
+    s.add(Config(key="tab_layout_init", value="1"))
 
 
 def compose(e):
@@ -349,17 +405,6 @@ def register(app, authed, ApiError):
             raise ApiError("Extension nicht installiert", "Extension not installed", 409)
         return e, ue
 
-    async def tabs_on(except_id):
-        rows = await g.s.execute(select(Extension).join(UserExtension, UserExtension.extension_id == Extension.id)
-                                 .where(UserExtension.user_id == g.user.id, UserExtension.enabled.is_(True),
-                                        Extension.id != except_id, Extension.status == "published"))
-        return sum(1 for e in rows.scalars() if manifest_of(e)["tab"])
-
-    async def check_tab_room(e):
-        if manifest_of(e)["tab"] and await tabs_on(e.id) >= MAX_TABS:
-            raise ApiError(f"Höchstens {MAX_TABS} Extension-Tabs gleichzeitig – schalte erst eine andere aus",
-                           f"At most {MAX_TABS} extension tabs at once - switch another one off first", 409)
-
     @app.get("/api/extensions")
     @authed
     async def catalog():
@@ -368,7 +413,8 @@ def register(app, authed, ApiError):
         rows = list(await g.s.scalars(select(Extension).where(Extension.status == "published")
                                       .order_by(Extension.author_id.is_not(None), Extension.id).offset(offset).limit(limit)))
         mine_ = {u.extension_id: u for u in await g.s.scalars(select(UserExtension).where(UserExtension.user_id == g.user.id))}
-        return jsonify(extensions=[extension_json(e, mine_.get(e.id)) for e in rows], max_tabs=MAX_TABS)
+        # max_tabs: Android apps from before tab layouts (<= 916548) read it; there's no such limit any more
+        return jsonify(extensions=[extension_json(e, mine_.get(e.id)) for e in rows], max_tabs=99)
 
     @app.post("/api/extensions/<ext_id>/install")
     @authed
@@ -377,7 +423,6 @@ def register(app, authed, ApiError):
         e = await published(ext_id)
         ue = await g.s.get(UserExtension, (g.user.id, ext_id))
         if ue is None:
-            await check_tab_room(e)
             ue = UserExtension(user_id=g.user.id, extension_id=ext_id, version=e.version, enabled=True)
             g.s.add(ue)
         ue.version = e.version
@@ -399,8 +444,6 @@ def register(app, authed, ApiError):
         on = (await request.get_json(silent=True) or {}).get("enabled")
         if not isinstance(on, bool):
             raise ApiError("enabled: true/false erwartet", "enabled: true/false expected")
-        if on and not ue.enabled:
-            await check_tab_room(e)
         ue.enabled = on
         await g.s.flush()
         return jsonify(extension=extension_json(e, ue), extensions=await installed(g.s, g.user.id))
@@ -408,8 +451,12 @@ def register(app, authed, ApiError):
     @app.delete("/api/extensions/<ext_id>")
     @authed
     async def uninstall(ext_id):
-        """Removed: the extension and everything it stored for me."""
+        """Removed: the extension and everything it stored for me; its tabs leave my layout."""
         await g.s.execute(delete(ExtensionDoc).where(ExtensionDoc.user_id == g.user.id, ExtensionDoc.extension_id == ext_id))
+        st = g.user.settings
+        layout = tablayout.loads(st.tabs)
+        if layout is not None:
+            st.tabs = json.dumps(tablayout.without(layout, lambda k: k.startswith(f"ext:{ext_id}:")))
         await g.s.execute(delete(UserExtension).where(UserExtension.user_id == g.user.id, UserExtension.extension_id == ext_id))
         await g.s.flush()
         return jsonify(ok=True, extensions=await installed(g.s, g.user.id))

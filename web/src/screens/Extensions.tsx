@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "preact/hooks"
 import { answer, appDeps, forgetPage, pageOf, parseRequest, storePage, textOf, withOrigin } from "../extensions"
 import type { CatalogExtension, InstalledExtension } from "../model"
+import { layoutNow, nav } from "../nav"
 import { online, refresh, req, state } from "../store"
+import { extKey, locate } from "../tablayout"
 import { lang, S } from "../strings"
 import { EmptyHint, LoadMore, OfflineState, PixelIcon, PxButton, PxCard, Switch } from "../ui/components"
 import { ConfirmButton } from "./Settings"
@@ -31,7 +33,7 @@ export function ExtensionsPage() {
     if (!r) return
     await storePage(e.id, r.extension.version, r.page)          // downloaded: it opens offline too
     update(r.extension)
-    await refresh()                                             // its tab comes with the state
+    await refresh()                                             // its tabs come with the state (to be placed)
   })
   const toggle = (e: CatalogExtension, on: boolean) => act(e.id, async () => {
     const r = await req<{ extension: CatalogExtension }>("PUT", `/extensions/${e.id}`, { enabled: on })
@@ -56,7 +58,7 @@ export function ExtensionsPage() {
             <div class="col grow" style={{ minWidth: 0 }}>
               <span class="t-strong">{textOf(e.name, l)}</span>
               <span class="t-small" style={{ fontSize: 12, color: e.official ? "var(--yellow)" : undefined }}>
-                {(e.official ? s.extensionOfficial : s.extensionBy(e.author)) + (e.tab ? " · " + s.extensionOwnTab : "") + ` · ${Math.max(1, Math.round(e.size / 1024))} KB`}
+                {(e.official ? s.extensionOfficial : s.extensionBy(e.author)) + (e.tabs?.length ? " · " + s.extensionTabsCount(e.tabs.length) : "") + ` · ${Math.max(1, Math.round(e.size / 1024))} KB`}
               </span>
             </div>
           </div>
@@ -68,6 +70,11 @@ export function ExtensionsPage() {
                 <span class="t-body grow">{s.extensionActive}</span>
                 <Switch on={e.enabled} onChange={(v) => { if (!busy) void toggle(e, v) }} label={s.extensionActive} />
               </div>
+              {/* switched on, but a tab of it isn't placed yet: where to place it */}
+              {e.enabled && (e.tabs ?? []).some((t) => !locate(layoutNow(), extKey(e.id, t.key))) && <div class="col tabs-waiting" style={{ gap: 10 }}>
+                <span class="t-small">{s.extensionTabsWaiting}</span>
+                <PxButton text={s.extensionArrangeTabs} kind="ghost" onClick={() => nav.push({ r: "settings", page: "tabs" })} />
+              </div>}
               <ConfirmButton label={s.extensionRemove} confirm={s.extensionRemoveConfirm} onConfirm={() => { void remove(e) }} />
             </>}
         </div></PxCard>)}
@@ -79,7 +86,8 @@ export function ExtensionsPage() {
 
 /** The tab an extension adds: its page in an iframe that may only run scripts (an opaque origin: no token, no app
  *  storage, no network by its CSP). [visible]: on screen now - the page hears "show" / "hide". */
-export function ExtensionTab({ id, visible }: { id: string; visible: boolean }) {
+/** An extension's tab "ext:<id>:<tabKey>": its page, told which tab it is (the bridge's context `tab`). */
+export function ExtensionTab({ id, tabKey, visible }: { id: string; tabKey: string; visible: boolean }) {
   const s = S.value
   const ext = state.value?.extensions?.find((e) => e.id === id)
   const [html, setHtml] = useState<string | null>(null)
@@ -105,7 +113,7 @@ export function ExtensionTab({ id, visible }: { id: string; visible: boolean }) 
       if (!win || e.source !== win || !ex) return
       const r = parseRequest(e.data)
       if (!r) return
-      void answer(ex.id, r, appDeps(ex)).then((a) => frame.current?.contentWindow?.postMessage(JSON.stringify(a), "*"))
+      void answer(ex.id, r, appDeps(ex, tabKey)).then((a) => frame.current?.contentWindow?.postMessage(JSON.stringify(a), "*"))
     }
     addEventListener("message", onMessage)
     return () => removeEventListener("message", onMessage)
@@ -114,7 +122,7 @@ export function ExtensionTab({ id, visible }: { id: string; visible: boolean }) 
     frame.current?.contentWindow?.postMessage(JSON.stringify({ momentum: 1, event: visible ? "show" : "hide" }), "*")
   }, [visible])
   if (!ext) return null
-  return <div class="fill col" style={{ paddingTop: "var(--safe-top)", paddingBottom: "calc(var(--tabbar) + var(--safe-bottom))" }}>
+  return <div class="fill col" data-ext-tab={`${id}:${tabKey}`} style={{ paddingTop: "var(--safe-top)", paddingBottom: "calc(var(--tabbar) + var(--safe-bottom))" }}>
     {html ? <iframe ref={frame} class="extension-frame" title={textOf(ext.name, lang.value)} sandbox="allow-scripts" srcDoc={html}
       style={{ flex: 1, width: "100%", border: 0, background: "var(--bg)", display: "block" }} />
       : failed && <EmptyHint title={textOf(ext.name, lang.value)} sub={s.extensionLoadFailed} icon={ext.icon} />}

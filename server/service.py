@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, update
 
 from . import momentum as m
-from . import limits
+from . import limits, tablayout
 from .db import DailyDecay, Event, Follow, Rule, Settings, User, utcnow
 
 # Order = progression. The milestones double from `milestone_step` on (momentum.LADDER).
@@ -619,7 +619,8 @@ async def state(s, user):
         free_score=user.free_score or 0.0,
         vehicle=vehicle_info(idx, st.milestone_step),
         settings=dict(timezone=st.timezone, milestone_step=st.milestone_step,
-                      haptics=st.haptics, show_history=st.show_history, daily_limit=st.daily_limit),
+                      haptics=st.haptics, show_history=st.show_history, daily_limit=st.daily_limit,
+                      tabs=tablayout.loads(st.tabs)),     # my tab layout (server/tablayout.py), null = the default
         decay=await decay_state(s, user, dd, today_gain, would_streak),
         rules=rules,
         limit=await limits.status(s, user.id),

@@ -15,8 +15,10 @@ def test_catalog_download_and_tab_in_the_state(tmp_path):
         cat = (await ann.req("get", "/api/extensions"))
         journal = next(e for e in cat["extensions"] if e["id"] == "journal")
         assert journal["official"] and not journal["installed"] and not journal["enabled"]
-        assert journal["name"] == {"de": "Tagebuch", "en": "Journal"} and journal["tab"]["icon"] == "openbook"
-        assert cat["max_tabs"] == ext.MAX_TABS
+        assert journal["name"] == {"de": "Tagebuch", "en": "Journal"}
+        assert [t["key"] for t in journal["tabs"]] == ["today", "entries"]
+        # Android apps from before tab layouts show `tab`: the first tab's name, the extension's own icon
+        assert journal["tab"] == {"title": {"de": "Heute", "en": "Today"}, "icon": "openbook"}
         assert (await ann.req("get", "/api/state"))["state"]["extensions"] == []
 
         got = await ann.req("post", "/api/extensions/journal/install")
@@ -29,7 +31,8 @@ def test_catalog_download_and_tab_in_the_state(tmp_path):
         assert page.index("Content-Security-Policy") < page.index("<script>") < page.index("momentum.data.list")
         st = (await ann.req("get", "/api/state"))["state"]
         assert st["extensions"] == [dict(id="journal", version=journal["version"], name=journal["name"], icon="openbook",
-                                         tab=journal["tab"], enabled=True)]
+                                         tabs=journal["tabs"], tab=journal["tab"], enabled=True)]
+        assert st["settings"]["tabs"] is None              # its tabs wait in the choice (settings -> tabs)
         # downloaded again (a new phone): the same page
         assert (await ann.req("get", "/api/extensions/journal/page"))["page"] == page
 
@@ -89,18 +92,10 @@ def test_data_in_the_extensions_own_format(tmp_path):
     run(tmp_path, scenario)
 
 
-def test_limits_size_count_storage_and_tabs(tmp_path, monkeypatch):
+def test_limits_size_count_storage(tmp_path, monkeypatch):
     async def scenario(app, c):
         ann = await user(c, "ann")
-        monkeypatch.setattr(ext, "MAX_TABS", 0)
-        r = await ann.req("post", "/api/extensions/journal/install", status=409)
-        assert "tabs" in r["error"]
-        monkeypatch.setattr(ext, "MAX_TABS", 3)
         await ann.req("post", "/api/extensions/journal/install")
-        await ann.req("put", "/api/extensions/journal", json={"enabled": False})
-        monkeypatch.setattr(ext, "MAX_TABS", 0)
-        await ann.req("put", "/api/extensions/journal", json={"enabled": True}, status=409)
-        monkeypatch.setattr(ext, "MAX_TABS", 3)
 
         monkeypatch.setattr(ext, "DOC_BYTES", 40)
         await ann.req("put", "/api/extensions/journal/data/entries/2026-11-01", json={"value": {"text": "x" * 50}}, status=413)
@@ -141,7 +136,7 @@ def test_every_shipped_extension_is_valid():
     shipped = ext.shipped()
     assert {m["id"] for m, _ in shipped} >= {"journal"}
     for m, page in shipped:
-        assert m["tab"] is None or set(m["tab"]["title"]) == {"de", "en"}
+        assert all(set(t["name"]) == {"de", "en"} and t["icon"].startswith("tab_") for t in m["tabs"])
         assert len(page.encode()) <= ext.PAGE_BYTES
 
 
@@ -150,8 +145,16 @@ def test_manifest_and_schema_checks():
                 description={"de": "Kurz.", "en": "Short."}, icon="note",
                 collections={"notes": {"schema": {"type": "object", "properties": {"t": {"type": "string", "maxLength": 10}}}}})
     m = ext.check_manifest(good, "<p>hi</p>")
-    assert m["tab"] is None and m["collections"]["notes"]["max_docs"] == ext.MAX_DOCS
-    assert ext.check_manifest({**good, "tab": {"title": {"de": "N", "en": "N"}}}, "x")["tab"]["icon"] == "note"
+    assert m["tabs"] == [] and m["collections"]["notes"]["max_docs"] == ext.MAX_DOCS and ext.legacy_tab(m) is None
+    tab = {"key": "list", "name": {"de": "Liste", "en": "List"}, "icon": "tab_list"}
+    two = ext.check_manifest({**good, "tabs": [tab, {**tab, "key": "stats", "icon": "tab_chart"}]}, "x")
+    assert [t["key"] for t in two["tabs"]] == ["list", "stats"] and ext.legacy_tab(two) == {"title": tab["name"], "icon": "note"}
+    for bad in ({**good, "tab": {"title": {"de": "N", "en": "N"}}},                 # API 1's single tab is gone
+                {**good, "tabs": [tab, tab]}, {**good, "tabs": [{**tab, "key": "Bad"}]},
+                {**good, "tabs": [{**tab, "icon": "note"}]}, {**good, "tabs": [{**tab, "name": {"de": "x"}}]},
+                {**good, "tabs": [{**tab, "key": f"t{i}"} for i in range(ext.MAX_EXT_TABS + 1)]}, {**good, "tabs": tab}):
+        with pytest.raises(ext.Invalid):
+            ext.check_manifest(bad, "x")
     for bad in ({**good, "id": "Bad Id"}, {**good, "version": "1"}, {**good, "api": 2}, {**good, "name": {"de": "x"}},
                 {**good, "icon": "no icon!"}, {**good, "collections": {"x": {"schema": {"type": "thing"}}}},
                 {**good, "collections": {"x": {"schema": {"$ref": "#"}}}},

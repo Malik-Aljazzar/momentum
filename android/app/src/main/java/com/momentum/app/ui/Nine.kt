@@ -327,7 +327,7 @@ fun ElectionTab(vm: AppViewModel) {
     }
 }
 
-/** The election's own tab (only there while it runs: App.kt `Tab.Election`). */
+/** The election's own tab (only there while it runs: ui/Tabs.kt `ELECTION`). */
 @Composable
 fun ElectionScreen(vm: AppViewModel) {
     val S = LocalStrings.current

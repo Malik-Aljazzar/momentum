@@ -1,11 +1,14 @@
 // The JSON of the Quart API, as is (snake_case). Mirrors android/.../data/Models.kt + Social.kt.
 import type { ReaderEnvelope } from "./e2ecrypto"
+import type { Layout } from "./tablayout"
 
 export interface Vehicle { key: string; label: string; category: string }
 
 export interface Meta {
   vehicles: Vehicle[]
   icons: string[]
+  /** the tab library (white glyphs tab_*): icons for groups and extension tabs */
+  tab_icons?: string[]
   timezones: string[]
   app?: { version_code?: number | null; version_name?: string; update_url?: string }
   /** sign in with Google (server/google.py); google_web: the PWA's redirect flow is set up */
@@ -49,6 +52,8 @@ export interface VehicleInfo {
 
 export interface UserSettings {
   timezone: string; milestone_step: number; haptics: boolean; show_history: boolean; daily_limit?: boolean
+  /** my tabs (server/tablayout.py, src/tablayout.ts); null = the default */
+  tabs?: Layout | null
 }
 
 export interface Decay {
@@ -114,7 +119,13 @@ export interface AppState {
 
 export type Texts = { de: string; en: string }
 export interface ExtensionTab { title: Texts; icon: string }
-export interface InstalledExtension { id: string; version: string; name: Texts; icon: string; tab: ExtensionTab | null; enabled: boolean }
+/** one of an extension's tabs (its manifest): placed by the player in settings -> tabs (src/tablayout.ts) */
+export interface ExtensionTabDef { key: string; name: Texts; icon: string }
+export interface InstalledExtension {
+  id: string; version: string; name: Texts; icon: string; tabs: ExtensionTabDef[]
+  /** API 1's single tab, kept for Android apps from before tab layouts */
+  tab: ExtensionTab | null; enabled: boolean
+}
 export interface CatalogExtension extends InstalledExtension {
   description: Texts; author: string; collections: string[]; official: boolean; size: number; installed: boolean
 }

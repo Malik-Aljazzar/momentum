@@ -61,7 +61,7 @@ import kotlinx.serialization.json.put
 // its always-visible save button stores exactly what changed (profile, game settings, language, password, picture).
 
 /** The settings' menu entries: a page of their own, or (report, news) what they open. = MENU in web/src/screens/Settings.tsx */
-private val MENU = listOf("profile" to "ui_edit", "game" to "ui_gauge", "app" to "ui_gear", "security" to "shield",
+private val MENU = listOf("profile" to "ui_edit", "game" to "ui_gauge", "app" to "ui_gear", "tabs" to "ui_grid", "security" to "shield",
     "extensions" to "sparkles", "report" to "bulb", "news" to "star", "legal" to "openbook", "account" to "ui_lock")
 
 @Composable
@@ -71,6 +71,7 @@ private fun menuText(key: String): Pair<String, String> {
         "profile" -> S.profile to S.settingsProfileHint
         "game" -> S.settingsGame to S.settingsGameHint
         "app" -> S.settingsApp to S.settingsAppHint
+        "tabs" -> S.settingsTabs to S.settingsTabsHint
         "security" -> S.settingsSecurity to S.settingsSecurityHint
         "extensions" -> S.extensionsTitle to S.extensionsHint
         "report" -> S.reportTitle to S.settingsReportHint
@@ -90,6 +91,7 @@ fun SettingsRoute(vm: AppViewModel, st: AppState, page: String?) {
                 "profile" -> ProfileSettings(vm, st)
                 "game" -> GameSettings(vm, st)
                 "app" -> AppSettings(vm)
+                "tabs" -> TabsSettings(vm, st)
                 "security" -> SecuritySettings(vm, st)
                 "extensions" -> ExtensionsPage(vm)
                 "legal" -> LegalSettings(vm)
@@ -171,7 +173,7 @@ private fun SettingsMenu(vm: AppViewModel, st: AppState) {
 
 /** A page's content; pages with fields get their always-visible save button ([save]) over its end. */
 @Composable
-private fun PageBody(save: (@Composable () -> Unit)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun PageBody(save: (@Composable () -> Unit)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = if (save != null) 120.dp else 32.dp),
@@ -185,7 +187,7 @@ private fun PageBody(save: (@Composable () -> Unit)? = null, content: androidx.c
 
 /** Always visible; enabled when something changed. */
 @Composable
-private fun SaveBar(vm: AppViewModel, dirty: Boolean, saving: Boolean, onSave: () -> Unit) {
+internal fun SaveBar(vm: AppViewModel, dirty: Boolean, saving: Boolean, onSave: () -> Unit) {
     val S = LocalStrings.current
     Box(
         Modifier

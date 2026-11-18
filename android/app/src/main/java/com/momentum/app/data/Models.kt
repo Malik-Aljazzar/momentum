@@ -14,6 +14,8 @@ data class Meta(
     @SerialName("google_client_id") val googleClientId: String? = null,
     /** e-mails with codes work: "forgot password" is offered (server/mail.py) */
     val mail: Boolean = false,
+    /** the tab library (white glyphs tab_*): icons for groups and extension tabs (server/tablayout.py) */
+    @SerialName("tab_icons") val tabIcons: List<String> = emptyList(),
 )
 
 @Serializable
@@ -42,7 +44,7 @@ data class AppState(
     val rules: List<Rule>,
     val events: List<Event>,
     val limit: DailyLimit = DailyLimit(),
-    /** downloaded extensions (server/extensions.py): an enabled one with a tab adds that tab */
+    /** downloaded extensions (server/extensions.py): the switched-on ones' tabs are in the choice of tabs */
     val extensions: List<InstalledExtension> = emptyList(),
 )
 
@@ -149,6 +151,8 @@ data class UserSettings(
     @SerialName("show_history") val showHistory: Boolean,
     /** on: takes part in the community competition (ranked momentum with the daily limit) */
     @SerialName("daily_limit") val dailyLimit: Boolean = true,
+    /** my tabs (server/tablayout.py, data/TabLayout.kt); null = the default */
+    val tabs: List<TabItem>? = null,
 )
 
 @Serializable

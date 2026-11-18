@@ -79,6 +79,8 @@ class Settings(Base):
     show_history: Mapped[bool] = mapped_column(Boolean, default=True)
     # off: no daily limit for the free score; the player leaves the community competition
     daily_limit: Mapped[bool] = mapped_column(Boolean, default=True)
+    # my tabs: the bar, groups, hidden ones (server/tablayout.py); null = the default
+    tabs: Mapped[str | None] = mapped_column(Text, nullable=True)
     user: Mapped[User] = relationship(back_populates="settings")
 
 

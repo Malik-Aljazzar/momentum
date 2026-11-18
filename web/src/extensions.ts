@@ -70,25 +70,18 @@ export async function answer(id: string, r: BridgeRequest, deps: BridgeDeps): Pr
   }
 }
 
-/** The app's bridge: the real server, the toast, the player. */
-export function appDeps(ext: InstalledExtension): BridgeDeps {
+/** The app's bridge: the real server, the toast, the player; `tab` = the manifest key of the tab the page is shown as. */
+export function appDeps(ext: InstalledExtension, tab: string | null = null): BridgeDeps {
   return {
     call: (method, path, body) => api.call(method, path, body),
     toast: (text) => showToast(text),
     context: () => {
       const u = state.value?.user
       return { api: 1, lang: lang.value, user: { username: u?.username ?? "", display_name: u?.display_name ?? "" },
-        extension: { id: ext.id, version: ext.version } }
+        extension: { id: ext.id, version: ext.version }, tab }
     },
   }
 }
-
-/** The tabs extensions add, in the order they were downloaded (enabled ones with a tab only). */
-export function extensionTabs(list: InstalledExtension[] | undefined): InstalledExtension[] {
-  return (list ?? []).filter((e) => e.enabled && e.tab)
-}
-
-export const tabKey = (id: string) => `ext:${id}` as const
 
 /** The name in the app's language. */
 export const textOf = (t: Texts, l: "de" | "en") => t[l] || t.en || t.de

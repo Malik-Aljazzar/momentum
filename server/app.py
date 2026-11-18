@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import momentum as m
-from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, extensions, limits, linkpreview, mentions, moderation, nine, posts, push, service, social, stories, storage, updates
+from . import adminapi, security, calls, challenges, chat, community, decays, e2e, emoji, extensions, limits, linkpreview, mentions, moderation, nine, posts, push, service, social, stories, storage, tablayout, updates
 from . import google as google_mod
 from . import github as github_mod
 from . import mail as mail_mod
@@ -228,7 +228,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     app.moderator = moderator
     icon_dir = SPRITE_DIR / "icons"
     icons = sorted(p.stem for p in icon_dir.glob("*.png")
-                   if not p.stem.startswith(("ui_", "scene_")))
+                   if not p.stem.startswith(("ui_", "scene_", "tab_")))
     timezones = sorted(available_timezones())
 
     @app.before_serving
@@ -238,6 +238,8 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             await mentions.migrate(s)
             await quota.load(s)
             await extensions.sync_shipped(s)   # the extensions shipped in server/shipped_extensions/
+            await s.flush()
+            await extensions.migrate_layouts(s)
             await s.commit()
         await blobs.setup()
         async with db.session() as s:          # one-off: older report screenshots leave the public path
@@ -553,7 +555,7 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
     async def meta():
         return jsonify(
             vehicles=[dict(key=k, label=l, category=c) for k, l, c in service.VEHICLES],
-            icons=icons, timezones=timezones,
+            icons=icons, tab_icons=list(tablayout.tab_icons()), timezones=timezones,
             # newest app version; older apps ask the user to update (download on the welcome page)
             app=dict(latest_app() or {}, update_url="/"),
             # sign in with Google: the web client id (Android's serverClientId); google_web = the PWA's flow works
@@ -1065,6 +1067,12 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
         for key in ("haptics", "show_history", "daily_limit"):
             if key in data:
                 setattr(st, key, bool(data[key]))
+        if "tabs" in data:                                    # my tab layout (server/tablayout.py); null = default
+            try:
+                layout = tablayout.check(data["tabs"], await extensions.available_tabs(g.s, user.id))
+            except tablayout.Invalid as e:
+                raise ApiError(e.de, e.en, 422)
+            st.tabs = None if layout is None else json.dumps(layout)
         for kind, field in service.BANNER_FIELDS.items():     # banner (road), banner_air, banner_space
             if field in data:
                 try:

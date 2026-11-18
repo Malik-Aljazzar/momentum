@@ -1,15 +1,16 @@
 // The app root (android/.../ui/App.kt): login / main screen, tabs, opened screens, overlays.
 import { useEffect, useRef, useState } from "preact/hooks"
-import { isExtensionTab, keepsTabs, nav, stack, tab, tabsNow, type Route, type Tab } from "./nav"
+import { keepsTabs, layoutNow, nav, stack, tab, tabsNow, type Route } from "./nav"
 import { foreground, hyperLore, hyperspace, limitNews, milestone, nineLore, online, pending, refresh, screen, state, updateRequired, whatsNew } from "./store"
 import { startE2E } from "./e2e"
 import { installed, isIos, notifyPermission, postponeNotifyHint, requestNotifications } from "./push"
 import { lang as currentLang, S } from "./strings"
 import { Avatar, PixelIcon, PxButton, Sheet, ToastHost } from "./ui/components"
 import { ConfirmEmailScreen, LoginScreen, OfflineScreen, UsernameScreen } from "./screens/Login"
-import { RulesScreen } from "./screens/Rules"
-import { RouteScreen, TabScreen } from "./screens/registry"
-import { ExtensionTab } from "./screens/Extensions"
+import { RouteScreen } from "./screens/registry"
+import { LeafScreen, TabGroupPage } from "./screens/TabGroup"
+import { tabBadge, TabIcon } from "./screens/tabinfo"
+import { isGroup, pageGroupId } from "./tablayout"
 import { HyperLoreOverlay, HyperspaceOverlay, LimitChangeOverlay, MilestoneOverlay, UpdateScreen, WhatsNewOverlay } from "./screens/Overlays"
 import { NineIcon, NineOverlay } from "./screens/Nine"
 import { OverlayHost } from "./ui/overlay"
@@ -65,16 +66,17 @@ function NotifyAsk() {
   </Sheet>
 }
 
-const ICONS: Partial<Record<Tab, string>> = { rules: "ui_updown", chats: "ui_chat", feed: "ui_feed" }
-
 function MainScreen() {
   const st = state.value
   const pager = useRef<HTMLDivElement>(null)
   const current = tab.value
   const routes = stack.value
   const tabs = tabsNow()
-  // the election ended / an extension switched off: its tab goes away (and whoever was on it lands on the profile)
-  useEffect(() => { if (!tabs.includes(tab.value)) tab.value = "profile" }, [tabs.join()])
+  const layout = layoutNow()
+  const groupOf = (page: string) => layout.find((i) => isGroup(i) && i.id === pageGroupId(page))
+  // the start, the election ended, a tab hidden / an extension switched off: whoever was on it lands on the profile
+  // (wherever it's placed)
+  useEffect(() => { if (!tabs.includes(tab.value)) nav.showTab("profile") }, [tabs.join()])
   // opened from a notification (?open=chat:12, post:3, challenge:5, notifications)
   useEffect(() => {
     const open = new URLSearchParams(location.search).get("open")
@@ -82,13 +84,13 @@ function MainScreen() {
     history.replaceState(null, "", "/app/")
     const [kind, id] = open.split(":")
     const n = Number(id)
-    if (kind === "chat" && n) { tab.value = "chats"; nav.push({ r: "chat", id: n }) }
+    if (kind === "chat" && n) { nav.showTab("chats"); nav.push({ r: "chat", id: n }) }
     else if (kind === "post" && n) nav.push({ r: "post", id: n })
     else if (kind === "challenge" && n) nav.push({ r: "challenge", id: n })
-    else if (kind === "notifications") { tab.value = "feed"; nav.push({ r: "notifications" }) }
+    else if (kind === "notifications") { nav.showTab("feed"); nav.push({ r: "notifications" }) }
     // the ringing notification: still ringing -> the call screen, over -> its chat
     else if (kind === "call" && n) void openCall(n).then((c) => {
-      if (c && c.status === "ended") { tab.value = "chats"; nav.push({ r: "chat", id: c.conversation_id }) }
+      if (c && c.status === "ended") { nav.showTab("chats"); nav.push({ r: "chat", id: c.conversation_id }) }
     })
   }, [])
   // encrypted chats: my key on this device (made on the first device, else unlocked with the recovery key)
@@ -140,9 +142,11 @@ function MainScreen() {
       {tabs.map((t) => <section key={t} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
         {/* a tab covered by an opened screen (or not the current one) doesn't play videos */}
         <OnTop.Provider value={routes.length === 0 && current === t}>
-          {t === "rules" ? <RulesScreen st={st} />
-            : isExtensionTab(t) ? <ExtensionTab id={t.slice(4)} visible={routes.length === 0 && current === t} />
-              : <TabScreen tab={t} />}
+          {(() => {
+            const g = groupOf(t)
+            return g && isGroup(g) ? <TabGroupPage group={g} st={st} active={current === t} />
+              : <LeafScreen k={t} st={st} visible={routes.length === 0 && current === t} />
+          })()}
         </OnTop.Provider>
       </section>)}
     </div>
@@ -156,8 +160,9 @@ function MainScreen() {
     <nav class="tabbar"><div>
       {tabs.map((t) => {
         const sel = t === current && !routes.some((r) => !keepsTabs(r))
-        const badge = t === "chats" ? st.unread.messages : t === "feed" ? st.unread.notifications : 0
-        const ext = isExtensionTab(t) ? st.extensions?.find((e) => `ext:${e.id}` === t) : undefined
+        const g = groupOf(t)
+        // a group: its own icon, a dot when one of its tabs has something new
+        const badge = g && isGroup(g) ? g.tabs.reduce((n, k) => n + tabBadge(k, st), 0) : tabBadge(t, st)
         return <button key={t} aria-label={t} onClick={() => nav.selectTab(t)}>
           {t === "profile"
             ? <div style={{ opacity: t === current ? 1 : .55 }}><Avatar name={st.user.display_name} url={st.user.avatar} size={24} /></div>
@@ -165,7 +170,8 @@ function MainScreen() {
               // the election's tab: the Larper himself, animated, while the vote is on
               ? <NineIcon nkey="larper" size={28} style={{ margin: "-2px" }} />
               : <div style={{ position: "relative" }}>
-              <PixelIcon name={ext?.tab?.icon ?? ICONS[t] ?? "ui_dots"} size={24} alpha={t === current ? 1 : .4} />
+              {g && isGroup(g) ? <PixelIcon name={g.icon} size={24} alpha={t === current ? 1 : .4} />
+                : <TabIcon k={t} st={st} size={24} alpha={t === current ? 1 : .4} />}
               {badge > 0 && <i style={{ position: "absolute", top: -2, right: -4, width: 8, height: 8, background: "var(--orange)" }} />}
             </div>}
           <i class="dot" style={{ background: sel ? "var(--text)" : "transparent" }} />

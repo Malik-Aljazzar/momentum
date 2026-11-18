@@ -11,7 +11,7 @@ import {
   type MemberKey,
 } from "../e2e"
 import type { CallBrief, ChatMessage, Conversation, LinkPreview, MediaItem, Reaction, Share, Typing, UserCard } from "../model"
-import { nav, stack, tab } from "../nav"
+import { currentLeaf, nav, stack } from "../nav"
 import { clearNotifications } from "../push"
 import { foreground, onError, online, refresh, req, showToast, state, uploadMedia } from "../store"
 import { cache } from "../storage"
@@ -79,7 +79,7 @@ export function ChatsScreen({ isTab = false }: { isTab?: boolean }) {
   const scroller = useRef<HTMLDivElement>(null)
   const keepTop = useRef(false)
   // the top chats whenever the list comes up (its tab, back from a chat: report #66)
-  const onTop = !isTab || (tab.value === "chats" && stack.value.length === 0)
+  const onTop = !isTab || (currentLeaf() === "chats" && stack.value.length === 0)
   useEffect(() => { if (!onTop) return; if (scroller.current) scroller.current.scrollTop = 0; loadStoryRings() }, [onTop])
   // a chat moving to the top stays in view while the list is at the top
   useLayoutEffect(() => { if (keepTop.current && scroller.current) scroller.current.scrollTop = 0 }, [convs])

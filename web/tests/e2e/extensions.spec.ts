@@ -1,5 +1,6 @@
-// Extensions (server/extensions.py): downloaded and switched on in the settings, a tab of their own, their page in a
-// sandboxed iframe that stores its data through the bridge (server/shipped_extensions/sdk.js) - the journal.
+// Extensions (server/extensions.py): downloaded and switched on in the settings, their tabs placed by hand (settings ->
+// tabs), their page in a sandboxed iframe that stores its data through the bridge (server/shipped_extensions/sdk.js) -
+// the journal.
 import { expect, test } from "@playwright/test"
 import { api, newUser, openApp, tab } from "./helpers"
 
@@ -15,22 +16,31 @@ test("the journal extension: download it, write in its tab, its data is on the s
   await page.locator("[data-page=extensions]").click()
   const card = page.locator(".extension-card[data-ext=journal]")
   await expect(card).toContainText("Tagebuch")
-  await expect(card).toContainText("Von Momentum · Eigener Tab")
+  await expect(card).toContainText("Von Momentum · 2 Tabs")
   await card.getByRole("button", { name: "Herunterladen" }).click()
   await expect(card.getByText("Aktiv")).toBeVisible()
+  // its tabs wait to be placed: straight to settings -> tabs
+  await expect(card.locator(".tabs-waiting")).toContainText("Einstellungen → Tabs")
   await page.screenshot({ path: test.info().outputPath("extensions.png") })
+  await card.getByRole("button", { name: "Tabs anordnen" }).click()
+  await page.locator(".tabs-hidden [data-tab='ext:journal:today'] button").click()        // no groups: into the bar
+  await page.getByRole("button", { name: "Speichern" }).click()
+  await expect(page.locator(".toast")).toContainText("Gespeichert")
+  await page.locator(".topbar button[aria-label=back]").click()
+  await expect(card.locator(".tabs-waiting")).toBeVisible()            // "entries" still waits (hidden)
 
-  // its tab: the page runs in a sandbox (scripts only, no network) and talks through the bridge
+  // its "today" tab: the page runs in a sandbox (scripts only, no network) and talks through the bridge
   await page.locator(".topbar button[aria-label=back]").click()
   await page.locator("button[aria-label=back]").first().click()
-  const journalTab = tab(page, "ext:journal")
+  const journalTab = tab(page, "ext:journal:today")
   await expect(journalTab).toBeVisible()
   await journalTab.click()
   const frame = page.locator("iframe.extension-frame")
   await expect(frame).toHaveAttribute("sandbox", "allow-scripts")
   const inside = page.frameLocator("iframe.extension-frame")
   await expect(inside.locator("#title")).toHaveText("Tagebuch")          // the bridge told it the language
-  await expect(inside.getByText("Noch keine Einträge")).toBeVisible()
+  await expect(inside.locator("#editor")).toBeVisible()                 // the bridge told it which tab: today's entry only
+  await expect(inside.locator("#entries")).toBeHidden()
   // the pager has glided to the tab (a click meanwhile can miss)
   await expect.poll(async () => Math.round((await frame.boundingBox())!.x)).toBe(0)
   const mood = inside.locator("button[aria-label='mood 4']")
@@ -39,7 +49,7 @@ test("the journal extension: download it, write in its tab, its data is on the s
   await inside.locator("#text").fill("Erster Eintrag im Tagebuch")
   await inside.locator("#save").click()
   await expect(page.locator(".toast")).toContainText("Gespeichert")     // the app's toast, asked for by the page
-  await expect(inside.locator(".entry")).toHaveCount(1)
+  await expect(inside.locator("#status")).toHaveText("Gespeichert")
   await page.screenshot({ path: test.info().outputPath("journal.png") })
   const docs = (await api(request, ann.token, "GET", "/extensions/journal/data/entries")).docs
   expect(docs).toHaveLength(1)
@@ -57,8 +67,8 @@ test("the journal extension: download it, write in its tab, its data is on the s
 
   // after a restart the tab is still there and shows the entry
   await page.reload()
-  await tab(page, "ext:journal").click()
-  await expect(page.frameLocator("iframe.extension-frame").locator(".entry")).toContainText("Erster Eintrag im Tagebuch")
+  await tab(page, "ext:journal:today").click()
+  await expect(page.frameLocator("iframe.extension-frame").locator("#text")).toHaveValue("Erster Eintrag im Tagebuch")
 
   // switched off: the tab goes; removed: its data too
   await tab(page, "profile").click()
@@ -72,6 +82,8 @@ test("the journal extension: download it, write in its tab, its data is on the s
   expect((await api(request, ann.token, "GET", "/state")).state.extensions).toEqual([])
   await page.locator(".topbar button[aria-label=back]").click()
   await page.locator("button[aria-label=back]").first().click()
-  await expect(tab(page, "ext:journal")).toHaveCount(0)
+  await expect(tab(page, "ext:journal:today")).toHaveCount(0)
+  // removed: its tab left the layout too
+  expect((await api(request, ann.token, "GET", "/state")).state.settings.tabs.some((t: any) => String(t.tab).startsWith("ext:"))).toBe(false)
   expect(errors).toEqual([])
 })

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ApiError } from "../../src/api"
-import { answer, type BridgeDeps, extensionTabs, MAX_MESSAGE, parseRequest, withOrigin } from "../../src/extensions"
-import type { InstalledExtension } from "../../src/model"
+import { answer, appDeps, type BridgeDeps, MAX_MESSAGE, parseRequest, withOrigin } from "../../src/extensions"
 
 /** A fake app: records the server calls, answers from a little table. */
 function fake(answers: Record<string, unknown> = {}) {
@@ -34,6 +33,10 @@ describe("the extension bridge (server/shipped_extensions/sdk.js <-> the app)", 
   it("answers with the player's context and shows toasts (short ones)", async () => {
     const { deps, toasts } = fake()
     expect((await answer("journal", ask("context"), deps)).result).toMatchObject({ lang: "de", extension: { id: "journal" } })
+    // the app's own bridge tells the page which of its tabs it is
+    const journal = { id: "journal", version: "1.1.0", name: { de: "T", en: "J" }, icon: "openbook", tabs: [], tab: null, enabled: true }
+    expect(appDeps(journal, "entries").context()).toMatchObject({ extension: { id: "journal" }, tab: "entries" })
+    expect(appDeps(journal).context()).toMatchObject({ tab: null })
     await answer("journal", ask("toast", { text: "x".repeat(300) }), deps)
     expect(toasts[0]).toHaveLength(140)
   })
@@ -67,12 +70,6 @@ describe("the extension bridge (server/shipped_extensions/sdk.js <-> the app)", 
     expect((await answer("journal", ask("app.token"), deps)).error?.status).toBe(400)
   })
 
-  it("tabs: switched-on extensions with a tab, in their order", () => {
-    const e = (id: string, enabled: boolean, tab: boolean): InstalledExtension =>
-      ({ id, version: "1.0.0", name: { de: id, en: id }, icon: "note", enabled, tab: tab ? { title: { de: id, en: id }, icon: "note" } : null })
-    expect(extensionTabs([e("a", true, true), e("b", false, true), e("c", true, false), e("d", true, true)]).map((x) => x.id)).toEqual(["a", "d"])
-    expect(extensionTabs(undefined)).toEqual([])
-  })
 
   it("fills in the server's address", () => {
     expect(withOrigin('<base href="__ORIGIN__/"><meta content="font-src __ORIGIN__">', "https://m.example"))

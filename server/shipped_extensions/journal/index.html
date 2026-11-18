@@ -3,6 +3,7 @@
 <head>
 <title>Journal</title>
 <style>
+  [hidden] { display: none !important; }
   .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
   .moods { display: flex; gap: 8px; margin: 10px 0 12px; }
   .mood { flex: 1; border: 0; border-radius: 14px; padding: 8px 0; background: var(--faint); font-size: 24px; line-height: 30px; cursor: pointer; }
@@ -23,7 +24,7 @@
     <h1 class="m-title" id="title">Tagebuch</h1>
     <span class="m-small" id="day"></span>
   </div>
-  <div class="m-card">
+  <div class="m-card" id="editor">
     <div class="m-label" id="question"></div>
     <div class="moods" id="moods"></div>
     <textarea class="m-field" id="text" maxlength="2000"></textarea>
@@ -46,11 +47,16 @@
       more: "Load more", none: "No entries yet – write the first one today.", placeholder: "What happened today?",
       today: "Today", chars: function (n) { return n + "/2000" }, failed: "Not saved – are you online?" },
   }
+  T.de.entries = "Einträge"
+  T.en.entries = "Entries"
   var MOODS = ["😫", "😕", "😐", "🙂", "😄"]
   var $ = function (id) { return document.getElementById(id) }
   var t = T.de, lang = "de"
   var day = isoDay(new Date()), mood = 0, saved = { text: "", mood: 0 }
   var docs = [], total = 0
+  // which tab this page is (the context's `tab`): "today" = only today's entry, "entries" = the list (a tapped one
+  // opens above it); none (apps from before tab layouts) = both on one page
+  var mode = "all"
 
   function isoDay(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0")
@@ -62,8 +68,9 @@
   }
   function dirty() { return $("text").value !== saved.text || mood !== saved.mood }
   function paintEditor() {
+    $("editor").hidden = $("day").hidden = mode === "entries" && !opened
     $("day").textContent = day === isoDay(new Date()) ? t.today + " · " + nice(day) : nice(day)
-    $("todayBtn").hidden = day === isoDay(new Date())
+    $("todayBtn").hidden = day === isoDay(new Date()) || mode !== "all"
     Array.prototype.forEach.call($("moods").children, function (b, i) { b.classList.toggle("on", mood === i + 1) })
     $("save").disabled = !dirty() || $("text").value.trim() === ""
     $("status").textContent = dirty() ? t.chars($("text").value.length) : (saved.text ? t.saved : "")
@@ -98,7 +105,9 @@
     })
     $("more").hidden = docs.length >= total
   }
+  var opened = false
   function open(key, value) {
+    opened = true
     day = key
     saved = { text: value ? value.text : "", mood: value && value.mood ? value.mood : 0 }
     $("text").value = saved.text
@@ -107,6 +116,7 @@
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
   function load(more) {
+    if (mode === "today") return Promise.resolve()
     return momentum.data.list("entries", { order: "-key", offset: more ? docs.length : 0, limit: 20 }).then(function (r) {
       docs = more ? docs.concat(r.docs) : r.docs
       total = r.total
@@ -114,6 +124,7 @@
     })
   }
   function loadDay() {
+    if (mode === "entries" && !opened) return Promise.resolve()
     return momentum.data.get("entries", day).then(function (v) {
       if (!dirty()) open(day, v)
     })
@@ -146,8 +157,11 @@
   momentum.ready.then(function (ctx) {
     lang = ctx.lang === "en" ? "en" : "de"
     t = T[lang]
+    mode = ctx.tab === "today" || ctx.tab === "entries" ? ctx.tab : "all"
     document.documentElement.lang = lang
-    $("title").textContent = t.title
+    $("title").textContent = mode === "entries" ? t.entries : t.title
+    $("earlier").hidden = mode !== "all"
+    $("entries").hidden = mode === "today"
     $("question").textContent = t.question
     $("save").textContent = t.save
     $("earlier").textContent = t.earlier

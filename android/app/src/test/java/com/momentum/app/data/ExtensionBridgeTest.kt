@@ -98,9 +98,16 @@ class ExtensionBridgeTest {
     }
 
     @Test
-    fun tabsAreTheSwitchedOnExtensionsWithATabInTheirOrder() {
-        fun e(id: String, enabled: Boolean, tab: Boolean) = InstalledExtension(id, "1.0.0", Texts(id, id), "note", if (tab) ExtensionTabInfo(Texts(id, id), "note") else null, enabled)
-        assertEquals(listOf("a", "d"), ExtensionBridge.extensionTabs(listOf(e("a", true, true), e("b", false, true), e("c", true, false), e("d", true, true))).map { it.id })
+    fun theContextSaysWhichTabThePageIs() {
+        val ext = InstalledExtension("journal", "1.1.0", Texts("Tagebuch", "Journal"), "openbook", enabled = true,
+            tabs = listOf(ExtensionTabDef("today", Texts("Heute", "Today"), "tab_pen")))
+        val c = ExtensionBridge.context("de", "ann", "Ann", ext, "today")
+        assertEquals("today", c["tab"]!!.jsonPrimitive.content)
+        assertEquals("de", c["lang"]!!.jsonPrimitive.content)
+        assertEquals(1, c["api"]!!.jsonPrimitive.int)
+        assertEquals("ann", c["user"]!!.jsonObject["username"]!!.jsonPrimitive.content)
+        assertEquals("1.1.0", c["extension"]!!.jsonObject["version"]!!.jsonPrimitive.content)
+        assertEquals(JsonNull, ExtensionBridge.context("en", "ann", "Ann", ext, null)["tab"])
     }
 
     @Test

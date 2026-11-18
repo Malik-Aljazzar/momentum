@@ -783,12 +783,44 @@ interface Strings {
     val extensionRemoveConfirm: String
     val extensionOfficial: String
     fun extensionBy(author: String): String
-    val extensionOwnTab: String
     val extensionsNone: String
     val extensionLoadFailed: String
     /** the competition card: a vehicle not reached yet */
     fun vehicleFrom(amount: String): String
     val streakTitle: String
+    /** settings -> tabs: the bar, groups, hidden tabs (server/tablayout.py) */
+    val settingsTabs: String
+    val settingsTabsHint: String
+    val tabsIntro: String
+    val tabsInBar: String
+    fun tabsBarCount(n: Int, max: Int): String
+    val tabsHidden: String
+    val tabsHiddenNone: String
+    val tabsNewGroup: String
+    fun tabsGroupDefault(n: Int): String
+    val tabsGroupName: String
+    val tabsGroupIcon: String
+    val tabsGroupShow: String
+    val tabsShowIcons: String
+    val tabsShowNames: String
+    val tabsShowBoth: String
+    val tabsGroupEmpty: String
+    val tabsWhere: String
+    val tabsIntoBar: String
+    val tabsBarFull: String
+    val tabsReset: String
+    val tabsMoveUp: String
+    val tabsMoveDown: String
+    val tabsIndent: String
+    val tabsOutdent: String
+    val tabsHide: String
+    val tabsAdd: String
+    val tabsEdit: String
+    val tabsRemoveGroup: String
+    val tabsProfileStays: String
+    fun extensionTabsCount(n: Int): String
+    val extensionTabsWaiting: String
+    val extensionArrangeTabs: String
 }
 
 object De : Strings {
@@ -1670,11 +1702,42 @@ object De : Strings {
     override val extensionRemoveConfirm = "Sicher? Ihre Daten gehen mit"
     override val extensionOfficial = "Von Momentum"
     override fun extensionBy(author: String) = "von $author"
-    override val extensionOwnTab = "Eigener Tab"
     override val extensionsNone = "Noch keine Extensions"
     override val extensionLoadFailed = "Diese Extension lässt sich gerade nicht laden – bist du online?"
     override fun vehicleFrom(amount: String) = "ab $amount Momentum"
     override val streakTitle = "Verpasste Tage in Folge"
+    override val settingsTabs = "Tabs"
+    override val settingsTabsHint = "Leiste anordnen, Gruppen, ausblenden"
+    override val tabsIntro = "Unten in der Leiste ist Platz für 5 – dort siehst du nur Icons. Eine Gruppe braucht einen Platz und fasst beliebig viele Tabs zusammen: Auf ihrer Seite wechselst du oben zwischen ihnen. Was nirgends eingeordnet ist, bleibt ausgeblendet."
+    override val tabsInBar = "In der Leiste"
+    override fun tabsBarCount(n: Int, max: Int) = "$n von $max Plätzen"
+    override val tabsHidden = "Ausgeblendet"
+    override val tabsHiddenNone = "Alles ist eingeordnet."
+    override val tabsNewGroup = "Neue Gruppe"
+    override fun tabsGroupDefault(n: Int) = "Gruppe $n"
+    override val tabsGroupName = "Name der Gruppe"
+    override val tabsGroupIcon = "Icon der Gruppe"
+    override val tabsGroupShow = "Oben in der Gruppe zeigen"
+    override val tabsShowIcons = "Icons"
+    override val tabsShowNames = "Namen"
+    override val tabsShowBoth = "Beides"
+    override val tabsGroupEmpty = "Diese Gruppe ist noch leer. Unter Einstellungen → Tabs füllst du sie."
+    override val tabsWhere = "Wohin damit?"
+    override val tabsIntoBar = "Unten in die Leiste"
+    override val tabsBarFull = "Die Leiste ist voll – nimm einen Tab heraus oder pack ihn in eine Gruppe."
+    override val tabsReset = "Standard wiederherstellen"
+    override val tabsMoveUp = "Nach oben"
+    override val tabsMoveDown = "Nach unten"
+    override val tabsIndent = "In die Gruppe darüber"
+    override val tabsOutdent = "Aus der Gruppe holen"
+    override val tabsHide = "Ausblenden"
+    override val tabsAdd = "Einordnen"
+    override val tabsEdit = "Gruppe bearbeiten"
+    override val tabsRemoveGroup = "Gruppe auflösen"
+    override val tabsProfileStays = "Das Profil bleibt immer – dort sind die Einstellungen."
+    override fun extensionTabsCount(n: Int) = if (n == 1) "1 Tab" else "$n Tabs"
+    override val extensionTabsWaiting = "Ihre Tabs warten unter Einstellungen → Tabs darauf, eingeordnet zu werden."
+    override val extensionArrangeTabs = "Tabs anordnen"
 }
 
 object En : Strings {
@@ -2558,11 +2621,42 @@ object En : Strings {
     override val extensionRemoveConfirm = "Sure? Its data goes too"
     override val extensionOfficial = "By Momentum"
     override fun extensionBy(author: String) = "by $author"
-    override val extensionOwnTab = "Own tab"
     override val extensionsNone = "No extensions yet"
     override val extensionLoadFailed = "This extension can't be loaded right now – are you online?"
     override fun vehicleFrom(amount: String) = "from $amount momentum"
     override val streakTitle = "Missed days in a row"
+    override val settingsTabs = "Tabs"
+    override val settingsTabsHint = "Arrange the bar, groups, hide"
+    override val tabsIntro = "The bar at the bottom has room for 5 – it shows icons only. A group takes one place and holds as many tabs as you like: on its page you switch between them at the top. Whatever isn't placed anywhere stays hidden."
+    override val tabsInBar = "In the bar"
+    override fun tabsBarCount(n: Int, max: Int) = "$n of $max places"
+    override val tabsHidden = "Hidden"
+    override val tabsHiddenNone = "Everything has its place."
+    override val tabsNewGroup = "New group"
+    override fun tabsGroupDefault(n: Int) = "Group $n"
+    override val tabsGroupName = "Group name"
+    override val tabsGroupIcon = "Group icon"
+    override val tabsGroupShow = "Show at the top of the group"
+    override val tabsShowIcons = "Icons"
+    override val tabsShowNames = "Names"
+    override val tabsShowBoth = "Both"
+    override val tabsGroupEmpty = "This group is still empty. Fill it under Settings → Tabs."
+    override val tabsWhere = "Where to?"
+    override val tabsIntoBar = "Into the bottom bar"
+    override val tabsBarFull = "The bar is full – take a tab out or put it into a group."
+    override val tabsReset = "Restore the default"
+    override val tabsMoveUp = "Move up"
+    override val tabsMoveDown = "Move down"
+    override val tabsIndent = "Into the group above"
+    override val tabsOutdent = "Out of the group"
+    override val tabsHide = "Hide"
+    override val tabsAdd = "Place"
+    override val tabsEdit = "Edit group"
+    override val tabsRemoveGroup = "Dissolve group"
+    override val tabsProfileStays = "The profile always stays – the settings live there."
+    override fun extensionTabsCount(n: Int) = if (n == 1) "1 tab" else "$n tabs"
+    override val extensionTabsWaiting = "Its tabs are waiting under Settings → Tabs to be placed."
+    override val extensionArrangeTabs = "Arrange tabs"
 }
 
 fun stringsFor(lang: Lang): Strings = if (lang == Lang.DE) De else En

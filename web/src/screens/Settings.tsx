@@ -21,13 +21,14 @@ import { cropImage, pickFiles } from "../ui/media"
 import { RELEASES } from "../changelog"
 import { WhatsNewOverlay } from "./Overlays"
 import { ExtensionsPage } from "./Extensions"
+import { TabsEditor } from "./TabsEditor"
 
 declare const __BUILD__: string
 
 /** The menu's entries: a page of their own, or (report, news) what they open. */
 const MENU: { key: SettingsPageKey | "report" | "news"; icon: string }[] = [
   { key: "profile", icon: "ui_edit" }, { key: "game", icon: "ui_gauge" }, { key: "app", icon: "ui_gear" },
-  { key: "security", icon: "shield" }, { key: "extensions", icon: "sparkles" }, { key: "report", icon: "bulb" },
+  { key: "tabs", icon: "ui_grid" }, { key: "security", icon: "shield" }, { key: "extensions", icon: "sparkles" }, { key: "report", icon: "bulb" },
   { key: "news", icon: "star" }, { key: "legal", icon: "openbook" }, { key: "account", icon: "ui_lock" },
 ]
 
@@ -37,6 +38,7 @@ function menuText(key: SettingsPageKey | "report" | "news"): [string, string] {
     case "profile": return [s.profile, s.settingsProfileHint]
     case "game": return [s.settingsGame, s.settingsGameHint]
     case "app": return [s.settingsApp, s.settingsAppHint]
+    case "tabs": return [s.settingsTabs, s.settingsTabsHint]
     case "security": return [s.settingsSecurity, s.settingsSecurityHint]
     case "extensions": return [s.extensionsTitle, s.extensionsHint]
     case "report": return [s.reportTitle, s.settingsReportHint]
@@ -101,6 +103,7 @@ function SubPage({ st, page }: { st: AppState; page: SettingsPageKey }) {
       {page === "profile" ? <ProfileSettings st={st} />
         : page === "game" ? <GameSettings st={st} />
           : page === "app" ? <AppSettings />
+            : page === "tabs" ? <TabsEditor st={st} />
             : page === "security" ? <SecuritySettings st={st} />
               : page === "extensions" ? <ExtensionsPage />
                 : page === "legal" ? <LegalSettings />
@@ -110,7 +113,7 @@ function SubPage({ st, page }: { st: AppState; page: SettingsPageKey }) {
 }
 
 /** A page's content above its save button (pages without fields leave the button out). */
-function PageBody({ children, saveBar }: { children: ComponentChildren; saveBar?: ComponentChildren }) {
+export function PageBody({ children, saveBar }: { children: ComponentChildren; saveBar?: ComponentChildren }) {
   return <>
     <div class="fill scroll" style={{ padding: `4px 16px calc(var(--safe-bottom) + ${saveBar ? 120 : 32}px)` }}>
       <div class="col" style={{ gap: 14 }}>{children}</div>
@@ -120,7 +123,7 @@ function PageBody({ children, saveBar }: { children: ComponentChildren; saveBar?
 }
 
 /** Always visible; enabled when something changed. */
-function SaveBar({ dirty, saving, onSave }: { dirty: boolean; saving: boolean; onSave: () => void }) {
+export function SaveBar({ dirty, saving, onSave }: { dirty: boolean; saving: boolean; onSave: () => void }) {
   const s = S.value
   return <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "24px 16px calc(var(--safe-bottom) + 12px)", background: "linear-gradient(180deg, transparent, var(--bg) 40%)" }}>
     <PxButton text={saving ? "…" : s.save} style={{ width: "100%", opacity: dirty ? 1 : .4 }}
@@ -129,7 +132,7 @@ function SaveBar({ dirty, saving, onSave }: { dirty: boolean; saving: boolean; o
 }
 
 /** Saves [body] (the server settings) and then runs [after]; a toast in [toastLang] when all went well. */
-function useSaver(body: Record<string, unknown>, after?: () => Promise<boolean> | boolean) {
+export function useSaver(body: Record<string, unknown>, after?: () => Promise<boolean> | boolean) {
   const [saving, setSaving] = useState(false)
   const run = async (toastLang: Lang = currentLang.value) => {
     setSaving(true)

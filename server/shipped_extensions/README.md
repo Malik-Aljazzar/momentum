@@ -3,7 +3,7 @@
 An extension is an optional part of the app. Players download it in **Settings → Extensions** and switch it on.
 Today an extension can:
 
-- add a **tab** of its own to the bottom bar (at most 3 extension tabs are on at once), and
+- bring **tabs** of its own (up to 6), and
 - store **data in a format it defines** on the Momentum server, per player.
 
 The same extension runs in both apps (Android and the iPhone PWA): it's a web page, shown sandboxed.
@@ -12,7 +12,7 @@ The same extension runs in both apps (Android and the iPhone PWA): it's a web pa
 
 ```
 <id>/
-  manifest.json   what it is, its tab, its data format
+  manifest.json   what it is, its tabs, its data format
   index.html      its whole UI: one self-contained page (inline CSS / JS, at most 512 KB)
 ```
 
@@ -25,13 +25,16 @@ catalog holds only shipped ones.
 ```json
 {
   "id": "journal",                       // a-z, 0-9, _ (2-40), the folder's name
-  "version": "1.0.0",                    // bump it on every change
+  "version": "1.1.0",                    // bump it on every change
   "api": 1,
   "name": { "de": "Tagebuch", "en": "Journal" },          // up to 40 characters each
   "description": { "de": "…", "en": "…" },              // up to 300
   "author": "Momentum",
   "icon": "openbook",                    // a Momentum pixel icon name (see /api/meta "icons") or one emoji
-  "tab": { "title": { "de": "Tagebuch", "en": "Journal" }, "icon": "openbook" },   // optional
+  "tabs": [                              // optional, up to 6
+    { "key": "today", "name": { "de": "Heute", "en": "Today" }, "icon": "tab_pen" },
+    { "key": "entries", "name": { "de": "Einträge", "en": "Entries" }, "icon": "tab_book" }
+  ],
   "entry": "index.html",
   "collections": {                       // up to 20
     "entries": {
@@ -44,6 +47,13 @@ catalog holds only shipped ones.
   }
 }
 ```
+
+**Tabs:** every tab needs a `key` (a-z, 0-9, _, up to 20, unique in the extension), a `name` in German and English
+(up to 20 characters) and an `icon` from the tab library: the white `tab_*` glyphs (`/api/meta` → `tab_icons`, drawn
+in `pixelart/tab_icons.py`). Players see your tabs by that name and icon: once the extension is switched on they're in
+**Settings → Tabs**, where each player puts them into the bottom bar (up to 5 places, icons only), into a group (a tab
+menu at the top with names, icons or both - the player decides) or leaves them out. Every tab shows the same page; the
+context tells it which one it is (`tab`), so one page can be several screens.
 
 **Schema:** a subset of JSON Schema – `type` (object, array, string, number, integer, boolean, null, or a list of
 them), `properties`, `required`, `additionalProperties` (true / false / a schema), `items`, `minItems`, `maxItems`,
@@ -64,7 +74,8 @@ emojis), the colours as CSS variables (`--bg`, `--card`, `--text`, `--muted`, `-
 The page talks to Momentum only through `window.momentum`:
 
 ```js
-const ctx = await momentum.ready      // {api: 1, lang: "de" | "en", user: {username, display_name}, extension: {id, version}}
+const ctx = await momentum.ready      // {api: 1, lang: "de" | "en", user: {username, display_name}, extension: {id, version}, tab}
+// ctx.tab = the key of the tab this page is shown as (null in apps from before tabs - show everything then)
 await momentum.data.put("entries", "2026-11-18", { text: "…", mood: 4 })   // -> {key, value, updated_at}
 await momentum.data.get("entries", "2026-11-18")                             // -> the value, or null
 await momentum.data.list("entries", { order: "-key", offset: 0, limit: 20 }) // -> {docs: [{key, value, updated_at}], total}

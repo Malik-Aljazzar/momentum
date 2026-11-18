@@ -58,14 +58,19 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 // Extensions (server/extensions.py; = web/src/screens/Extensions.tsx): the settings page to download, switch on / off
-// and remove them, and the tab an extension adds - its page in a WebView, answered by the bridge (data/Extensions.kt).
+// and remove them, and an extension's tabs - its page in a WebView per tab, answered by the bridge (data/Extensions.kt).
+// Where the tabs go (the bar, a group, hidden) the player decides in settings -> tabs (ui/TabsEditor.kt).
 
 /** Settings -> Extensions: the catalog, each with download / on-off / remove. */
 @Composable
 fun ExtensionsPage(vm: AppViewModel) {
     val S = LocalStrings.current
+    val nav = LocalNav.current
     val scope = rememberCoroutineScope()
     val pages = ExtensionPages(LocalContext.current)
+    // my tabs as shown: an extension whose tabs are placed nowhere says where they wait
+    val st = vm.state
+    val layout = st?.let { com.momentum.app.data.TabLayout.effectiveLayout(it.settings.tabs, com.momentum.app.data.TabLayout.availableTabs(it.extensions)) }
     var list by remember { mutableStateOf<List<CatalogExtension>?>(null) }
     var more by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf<String?>(null) }
@@ -101,18 +106,25 @@ fun ExtensionsPage(vm: AppViewModel) {
                         Column(Modifier.weight(1f)) {
                             Text(e.name.of(lang), style = T.bodyStrong)
                             Text((if (e.official) S.extensionOfficial else S.extensionBy(e.author)) +
-                                (if (e.tab != null) " · " + S.extensionOwnTab else "") + " · ${maxOf(1, Math.round(e.size / 1024f))} KB",
+                                (if (e.tabs.isNotEmpty()) " · " + S.extensionTabsCount(e.tabs.size) else "") + " · ${maxOf(1, Math.round(e.size / 1024f))} KB",
                                 style = T.small.copy(fontSize = 12.sp, color = if (e.official) Px.Yellow else Px.Muted))
                         }
                     }
                     Text(e.description.of(lang), style = T.body.copy(color = Px.Muted))
+                    val waiting = e.installed && e.enabled && layout != null && e.tabs.any {
+                        com.momentum.app.data.TabLayout.locate(layout, com.momentum.app.data.TabLayout.extKey(e.id, it.key)) == null
+                    }
+                    if (waiting) {
+                        Text(S.extensionTabsWaiting, style = T.small.copy(color = Px.Yellow))
+                        PxButton(S.extensionArrangeTabs, Modifier.fillMaxWidth(), style = BtnStyle.Ghost) { nav.push(Route.Settings("tabs")) }
+                    }
                     if (!e.installed) {
                         PxButton(if (busy == e.id) "…" else S.extensionDownload, Modifier.fillMaxWidth()) {
                             act(e.id) {
                                 val r = vm.req<InstallResponse>("POST", "/extensions/${e.id}/install") ?: return@act
                                 pages.store(e.id, r.extension.version, r.page)          // downloaded: it opens offline too
                                 update(r.extension)
-                                vm.refresh()                                              // its tab comes with the state
+                                vm.refresh()                                              // its tabs come with the state
                             }
                         }
                     } else {
@@ -141,8 +153,9 @@ fun ExtensionsPage(vm: AppViewModel) {
     }
 }
 
-/** What the page may ask the app for: its data on the server (the token stays here), a toast, who's playing. */
-private class AppDeps(private val vm: AppViewModel, private val ext: () -> InstalledExtension) : ExtensionBridge.Deps {
+/** What the page may ask the app for: its data on the server (the token stays here), a toast, who's playing and which
+ *  of the extension's tabs it is ([tab]). */
+private class AppDeps(private val vm: AppViewModel, private val tab: String?, private val ext: () -> InstalledExtension) : ExtensionBridge.Deps {
     override suspend fun call(method: String, path: String, body: JsonElement?): JsonElement =
         vm.api.json.parseToJsonElement(vm.api.raw(method, path, body))
 
@@ -150,13 +163,7 @@ private class AppDeps(private val vm: AppViewModel, private val ext: () -> Insta
 
     override fun context(): JsonElement {
         val u = vm.state?.user
-        val e = ext()
-        return buildJsonObject {
-            put("api", 1)
-            put("lang", vm.lang.code)
-            put("user", buildJsonObject { put("username", u?.username.orEmpty()); put("display_name", u?.displayName.orEmpty()) })
-            put("extension", buildJsonObject { put("id", e.id); put("version", e.version) })
-        }
+        return ExtensionBridge.context(vm.lang.code, u?.username.orEmpty(), u?.displayName.orEmpty(), ext(), tab)
     }
 }
 
@@ -174,12 +181,13 @@ private class JsBridge(private val web: WebView, private val scope: CoroutineSco
 }
 
 /**
- * The tab an extension adds: its page in a WebView that may only run its scripts - no navigation, no files, no
- * window.open; its CSP allows no network. [visible]: on screen now - the page hears "show" / "hide".
+ * One of an extension's tabs ([tab] = its manifest key): the extension's page in a WebView that may only run its
+ * scripts - no navigation, no files, no window.open; its CSP allows no network. The page learns which tab it is from
+ * the context. [visible]: on screen now - the page hears "show" / "hide".
  */
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
-fun ExtensionTab(vm: AppViewModel, id: String, visible: Boolean) {
+fun ExtensionTab(vm: AppViewModel, id: String, tab: String?, visible: Boolean) {
     val S = LocalStrings.current
     val ext = vm.state?.extensions?.firstOrNull { it.id == id } ?: return
     val current by rememberUpdatedState(ext)
@@ -216,13 +224,13 @@ fun ExtensionTab(vm: AppViewModel, id: String, visible: Boolean) {
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
                             }
-                            addJavascriptInterface(JsBridge(this, scope, id, AppDeps(vm) { current }), "MomentumAndroid")
+                            addJavascriptInterface(JsBridge(this, scope, id, AppDeps(vm, tab) { current }), "MomentumAndroid")
                             loadDataWithBaseURL(null, page, "text/html", "utf-8", null)
                             web = this
                         }
                     },
                     onRelease = { it.removeJavascriptInterface("MomentumAndroid"); it.destroy() },
-                    modifier = Modifier.fillMaxSize().semantics { contentDescription = "extension ${ext.id}" },
+                    modifier = Modifier.fillMaxSize().semantics { contentDescription = "extension ${ext.id}:${tab.orEmpty()}" },
                 )
             }
         } else if (failed) EmptyHint(ext.name.of(vm.lang.code), S.extensionLoadFailed, ext.icon)
