@@ -1,0 +1,591 @@
+<!doctype html>
+<html>
+<head>
+<title>Daylist</title>
+<style>
+  [hidden] { display: none !important; }
+  body { user-select: none; -webkit-user-select: none; }
+  input, textarea { user-select: text; -webkit-user-select: text; }
+  .top { display: flex; align-items: center; gap: 12px; margin: 4px 0 2px; }
+  .top .m-title { flex: 1; min-width: 0; }
+  .corner { width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--faint); display: flex;
+    align-items: center; justify-content: center; cursor: pointer; flex: none; }
+  .sub { margin: 4px 0 14px; }
+  .meter { display: flex; gap: 3px; margin: 0 0 16px; }
+  .meter i { flex: 1; height: 6px; background: var(--faint); }
+  .meter i.on { background: var(--yellow); }
+  img.px { image-rendering: pixelated; display: block; }
+  .emo { display: inline-block; text-align: center; line-height: 1; }
+  .list { background: var(--card); border-radius: 24px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+  .list > .row + .row, .list > div + div { border-top: 1px solid var(--line); }
+  .task { cursor: pointer; transition: opacity .3s, background .2s; }
+  .task:active { background: var(--card2); }
+  .task.gone { opacity: 0; }
+  .box { width: 26px; height: 26px; flex: none; border: 2px solid var(--muted); border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; font: 700 11px Silkscreen; color: var(--muted); }
+  .box.on { background: var(--yellow); border-color: var(--yellow); color: #000; }
+  .box.busy { border-style: dashed; border-color: var(--yellow); }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .name { overflow-wrap: anywhere; }
+  .links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; line-height: 16px; color: var(--muted); }
+  .links .l { display: inline-flex; align-items: center; gap: 3px; }
+  .pips { display: flex; gap: 3px; margin-top: 3px; }
+  .pips i { width: 12px; height: 5px; background: var(--faint); }
+  .pips i.on { background: var(--yellow); }
+  .count { font: 700 11px Silkscreen; color: var(--yellow); }
+  .mini { width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--faint); display: flex;
+    align-items: center; justify-content: center; cursor: pointer; flex: none; }
+  .quick { display: flex; gap: 8px; margin-top: 12px; }
+  .quick .m-field { flex: 1; }
+  .empty { text-align: center; padding: 26px 12px; }
+  .gain { font: 700 12px Silkscreen; color: var(--lime); white-space: nowrap; }
+  .gain.neg { color: var(--orange); }
+  .small-btn { border: 0; border-radius: 12px; padding: 8px 12px; background: var(--faint); color: var(--text); cursor: pointer; font-size: 14px; flex: none; }
+  .section { margin: 22px 4px 8px; }
+  /* the editor */
+  .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 0; border-radius: 12px; padding: 8px 11px; background: var(--faint); color: var(--text); cursor: pointer; font-size: 14px; }
+  .chip.on { background: var(--text); color: #000; }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper b { min-width: 46px; text-align: center; font: 700 14px Silkscreen; }
+  .note { font-size: 13px; line-height: 17px; color: var(--muted); }
+  .link { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .link .main { flex: 1; }
+  .picker { display: flex; flex-direction: column; background: var(--card2); border-radius: 16px; overflow: hidden; }
+  .pick { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 0; background: none; color: var(--text); cursor: pointer; text-align: left; font-size: 15px; }
+  .pick + .pick { border-top: 1px solid var(--line); }
+  .actions { display: flex; gap: 10px; margin-top: 8px; }
+  .actions .m-button { flex: 1; }
+  input[type=date].m-field { color-scheme: dark; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function () {
+  "use strict"
+  var T = {
+    de: {
+      today: "Heute", tasks: "Aufgaben", done: "Erledigt", edit: "Aufgaben bearbeiten", close: "Fertig",
+      progress: function (a, b) { return a + " von " + b + " erledigt" },
+      allDone: "Für heute ist alles erledigt.", noTasks: "Noch keine Aufgaben – tippe oben rechts auf den Stift.",
+      quick: "Nur für heute …", add: "Hinzufügen", newTask: "Neue Aufgabe", task: "Aufgabe",
+      name: "Bezeichnung", when: "Wann", times: "Wie oft, bis es zählt", taps: "Klicks beim Erledigen",
+      tapsHint: "Diese Regeln werden für dich angetippt, sobald die Aufgabe erledigt ist.",
+      addRule: "Regel verknüpfen", noRules: "Du hast keine antippbaren Regeln.", save: "Speichern", del: "Löschen",
+      sure: "Wirklich löschen?", nameMissing: "Gib der Aufgabe eine Bezeichnung.", daysMissing: "Wähle mindestens einen Tag.",
+      types: { days: "Jeden Tag", every: "Alle … Tage", weekdays: "Wochentage", week: "Jede Woche", month: "Jeden Monat", monthday: "Am … im Monat", once: "Einmal" },
+      wd: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
+      everyN: function (n) { return n === 1 ? "Jeden Tag" : n === 2 ? "Jeden 2. Tag" : "Alle " + n + " Tage" },
+      daysUnit: "Tage", weekNote: "Einmal pro Woche – bleibt in der Liste, bis du es erledigt hast.",
+      monthNote: "Einmal pro Monat – bleibt in der Liste, bis du es erledigt hast.",
+      everyNote: "Ab heute gezählt.", onceNote: "Bleibt in der Liste, bis du es erledigt hast.",
+      week: "Jede Woche", month: "Jeden Monat", last: "Letzter",
+      monthday: function (d) { return d === 0 ? "Am Monatsletzten" : "Am " + d + ". jeden Monats" },
+      once: function (d, today) { return d === today ? "Nur heute" : d < today ? "Seit " + nice(d) : "Am " + nice(d) },
+      timesN: function (n) { return n === 1 ? "1×" : n + "×" },
+      timesNote: function (n) { return n === 1 ? "Ein Tipp, und es ist erledigt." : "Zählt erst nach " + n + " Tipps." },
+      doneToast: function (name, gain) { return "Erledigt: " + name + (gain ? " (" + sign(gain) + ")" : "") },
+      undone: function (name) { return "Zurück in der Liste: " + name },
+      undo: "Rückgängig", stepBack: "Einen Tipp zurück",
+      noneDone: "Heute ist noch nichts erledigt.", doneSum: function (n, gain) { return n + " erledigt" + (gain ? " · " + sign(gain) + " Momentum" : "") },
+      openTasks: "Offen", offline: "Daylist braucht eine Verbindung – bist du online?", ruleGone: "Regel gelöscht",
+    },
+    en: {
+      today: "Today", tasks: "Tasks", done: "Done", edit: "Edit tasks", close: "Done",
+      progress: function (a, b) { return a + " of " + b + " done" },
+      allDone: "Everything's done for today.", noTasks: "No tasks yet – tap the pencil at the top right.",
+      quick: "Just for today …", add: "Add", newTask: "New task", task: "Task",
+      name: "Name", when: "When", times: "How often until it counts", taps: "Taps when done",
+      tapsHint: "These rules are tapped for you as soon as the task is done.",
+      addRule: "Link a rule", noRules: "You have no tappable rules.", save: "Save", del: "Delete",
+      sure: "Really delete?", nameMissing: "Give the task a name.", daysMissing: "Pick at least one day.",
+      types: { days: "Every day", every: "Every … days", weekdays: "Weekdays", week: "Every week", month: "Every month", monthday: "On day … of the month", once: "Once" },
+      wd: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+      everyN: function (n) { return n === 1 ? "Every day" : n === 2 ? "Every other day" : "Every " + n + " days" },
+      daysUnit: "days", weekNote: "Once a week – stays in the list until you've done it.",
+      monthNote: "Once a month – stays in the list until you've done it.",
+      everyNote: "Counted from today.", onceNote: "Stays in the list until you've done it.",
+      week: "Every week", month: "Every month", last: "Last",
+      monthday: function (d) { return d === 0 ? "On the last day of the month" : "On day " + d + " of every month" },
+      once: function (d, today) { return d === today ? "Today only" : d < today ? "Since " + nice(d) : "On " + nice(d) },
+      timesN: function (n) { return n + "×" },
+      timesNote: function (n) { return n === 1 ? "One tap and it's done." : "Counts only after " + n + " taps." },
+      doneToast: function (name, gain) { return "Done: " + name + (gain ? " (" + sign(gain) + ")" : "") },
+      undone: function (name) { return "Back in the list: " + name },
+      undo: "Undo", stepBack: "One tap back",
+      noneDone: "Nothing done yet today.", doneSum: function (n, gain) { return n + " done" + (gain ? " · " + sign(gain) + " momentum" : "") },
+      openTasks: "Open", offline: "Daylist needs a connection – are you online?", ruleGone: "Rule deleted",
+    },
+  }
+  var t = T.de, lang = "de"
+  var mode = "all"               // the tab: "list", "done"; none (older apps) = both on one page
+  var view = "list"              // list | edit | task
+  var tasks = [], byId = {}, rules = {}, ruleList = [], days = {}
+  var today = isoDay(new Date())
+  var draft = null, picking = false, sure = false
+  var busy = {}
+  var app = document.getElementById("app")
+
+  // ---- dates (the phone's own days)
+  function pad(n) { return String(n).padStart(2, "0") }
+  function isoDay(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) }
+  function fromIso(k) { var p = k.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]) }
+  function dayNum(k) { var p = k.split("-"); return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000) }
+  function addDays(k, n) { var d = fromIso(k); d.setDate(d.getDate() + n); return isoDay(d) }
+  function weekday(k) { var w = fromIso(k).getDay(); return w === 0 ? 7 : w }            // Monday 1 .. Sunday 7
+  function lastDay(k) { var d = fromIso(k); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() }
+  function nice(k) {
+    return fromIso(k).toLocaleDateString(lang === "de" ? "de-DE" : "en-US", { weekday: "short", day: "numeric", month: "short" })
+  }
+  function sign(n) { return (n >= 0 ? "+" : "−") + Math.abs(Math.round(n)).toLocaleString(lang === "de" ? "de-DE" : "en-US") }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7) }
+
+  // ---- when a task is due (repeat: days {every} / weekdays {days} / week / month / monthday {day} / once {date})
+  function periodStart(task) {
+    var r = task.repeat
+    if (r.type === "week") return addDays(today, 1 - weekday(today))
+    if (r.type === "month") return today.slice(0, 8) + "01"
+    if (r.type === "once") return r.date < today ? r.date : today
+    return today
+  }
+  function entry(day, id) { var d = days[day]; return d && d.t ? d.t[id] : null }
+  function inPeriod(task, fn) {
+    var from = periodStart(task)
+    for (var k in days) if (k >= from && k <= today) { var e = entry(k, task.id); if (e) fn(e, k) }
+  }
+  function due(task) {
+    var r = task.repeat
+    if (r.type !== "once" && task.start && today < task.start) return false
+    switch (r.type) {
+      case "days": return (dayNum(today) - dayNum(task.start || today)) % (r.every || 1) === 0
+      case "weekdays": return (r.days || []).indexOf(weekday(today)) >= 0
+      case "week": case "month": return true
+      case "monthday": var last = lastDay(today), want = r.day === 0 || r.day > last ? last : r.day; return +today.slice(8) === want
+      case "once": return r.date <= today
+    }
+    return false
+  }
+  function doneNow(task) {
+    if (task.repeat.type === "once") return !!task.done
+    var done = false
+    inPeriod(task, function (e) { if (e.done) done = true })
+    return done
+  }
+  function clicks(task) { var n = 0; inPeriod(task, function (e) { if (!e.done) n += e.n || 0 }); return n }
+  function open() { return tasks.filter(function (x) { return due(x) && !doneNow(x) }) }
+  function doneToday() {
+    var d = days[today], out = []
+    if (d && d.t) for (var id in d.t) if (d.t[id].done) out.push({ id: id, e: d.t[id] })
+    return out.sort(function (a, b) { return a.e.done < b.e.done ? 1 : -1 })
+  }
+  function repeatText(task) {
+    var r = task.repeat
+    switch (r.type) {
+      case "days": return t.everyN(r.every || 1)
+      case "weekdays": return r.days.length === 7 ? t.everyN(1) : r.days.slice().sort().map(function (d) { return t.wd[d - 1] }).join(", ")
+      case "week": return t.week
+      case "month": return t.month
+      case "monthday": return t.monthday(r.day)
+      case "once": return t.once(r.date, today)
+    }
+    return ""
+  }
+
+  // ---- data (server: tasks / days collections, checked against the manifest's schema)
+  function load() {
+    today = isoDay(new Date())
+    return Promise.all([
+      // an app from before the rules bridge answers "unknown method": then it's a plain task list
+      momentum.rules.list().catch(function () { return [] }).then(function (list) {
+        ruleList = list
+        rules = {}
+        list.forEach(function (r) { rules[r.id] = r })
+      }),
+      loadAll("tasks").then(function (docs) {
+        tasks = docs.map(function (d) { var x = d.value; x.id = d.key; return x })
+          .sort(function (a, b) { return (a.repeat.type === "once") - (b.repeat.type === "once") || (a.created || "").localeCompare(b.created || "") })
+        byId = {}
+        tasks.forEach(function (x) { byId[x.id] = x })
+      }),
+      momentum.data.list("days", { order: "-key", limit: 40 }).then(function (r) {
+        days = {}
+        r.docs.forEach(function (d) { days[d.key] = d.value })
+      }),
+    ])
+  }
+  function loadAll(col, offset, acc) {
+    offset = offset || 0
+    acc = acc || []
+    return momentum.data.list(col, { order: "key", offset: offset, limit: 100 }).then(function (r) {
+      acc = acc.concat(r.docs)
+      return acc.length < r.total && r.docs.length ? loadAll(col, acc.length, acc) : acc
+    })
+  }
+  /** changes one day (read fresh first: the other tab may have written meanwhile) */
+  function changeDay(day, fn) {
+    return momentum.data.get("days", day).then(function (doc) {
+      doc = doc && doc.t ? doc : { t: {} }
+      fn(doc.t)
+      for (var id in doc.t) if (!doc.t[id].n && !doc.t[id].done) delete doc.t[id]
+      days[day] = doc
+      if (Object.keys(doc.t).length) return momentum.data.put("days", day, doc)
+      return momentum.data.delete("days", day).catch(function () {})
+    })
+  }
+  function saveTask(task) {
+    var v = {}
+    for (var k in task) if (k !== "id") v[k] = task[k]
+    return momentum.data.put("tasks", task.id, v)
+  }
+  /** old days and finished one-offs go (the storage is limited) */
+  function tidy() {
+    var cut = addDays(today, -62), week = addDays(today, -7)
+    momentum.data.list("days", { order: "key", limit: 20 }).then(function (r) {
+      r.docs.forEach(function (d) { if (d.key < cut) momentum.data.delete("days", d.key).catch(function () {}) })
+    }).catch(function () {})
+    tasks.forEach(function (x) {
+      if (x.repeat.type === "once" && x.done && x.done < week) momentum.data.delete("tasks", x.id).catch(function () {})
+    })
+  }
+  function fail(e) {
+    momentum.toast(e && e.status === 0 ? t.offline : (e && e.message) || t.offline)
+  }
+
+  // ---- doing tasks
+  function bump(task) {
+    if (busy[task.id]) return
+    var times = task.times || 1
+    if (clicks(task) + 1 >= times) return complete(task)
+    busy[task.id] = true
+    changeDay(today, function (x) {
+      var e = x[task.id] || { n: 0 }
+      e.n = (e.n || 0) + 1
+      e.name = task.name
+      x[task.id] = e
+    }).catch(fail).then(function () { busy[task.id] = false; render() })
+    var e = entry(today, task.id)
+    days[today] = days[today] || { t: {} }
+    days[today].t[task.id] = { n: (e ? e.n || 0 : 0) + 1, name: task.name }      // shown at once
+    render()
+  }
+  function complete(task) {
+    busy[task.id] = true
+    render()
+    var ev = [], gain = 0, problem = null
+    var links = (task.taps || []).filter(function (l) { return rules[l.rule] })
+    var chain = Promise.resolve()
+    links.forEach(function (l) {
+      for (var i = 0; i < l.n; i++) chain = chain.then(function () {
+        if (problem) return
+        return momentum.rules.tap(l.rule).then(function (r) {
+          if (r.event) ev.push(r.event)
+          gain += r.delta || 0
+        }, function (e) { problem = e })
+      })
+    })
+    return chain.then(function () {
+      return changeDay(today, function (x) {
+        var e = x[task.id] || { n: 0 }
+        x[task.id] = { n: (e.n || 0) + 1, done: new Date().toISOString(), ev: ev, gain: gain, name: task.name }
+      })
+    }).then(function () {
+      if (task.repeat.type === "once") { task.done = today; return saveTask(task) }
+    }).then(function () {
+      if (problem) fail(problem); else momentum.toast(t.doneToast(task.name, gain))
+    }, fail).then(function () {
+      busy[task.id] = false
+      var row = app.querySelector('.task[data-id="' + task.id + '"]')
+      if (row) { row.querySelector(".box").className = "box on"; row.classList.add("gone") }
+      setTimeout(render, row ? 320 : 0)
+    })
+  }
+  function stepBack(task) {
+    if (busy[task.id]) return
+    busy[task.id] = true
+    changeDay(today, function (x) { if (x[task.id]) x[task.id].n = Math.max(0, (x[task.id].n || 0) - 1) })
+      .catch(fail).then(function () { busy[task.id] = false; render() })
+  }
+  /** a done task back into the list: its taps are taken back, its last tap with them */
+  function undoDone(id) {
+    var e = entry(today, id)
+    if (!e || busy[id]) return
+    busy[id] = true
+    render()
+    var problem = null
+    var chain = Promise.resolve()
+    ;(e.ev || []).slice().reverse().forEach(function (ev) {
+      chain = chain.then(function () { return momentum.rules.undo(ev).catch(function (x) { problem = problem || x }) })
+    })
+    chain.then(function () {
+      return changeDay(today, function (x) {
+        var y = x[id]
+        if (y) x[id] = { n: Math.max(0, (y.n || 1) - 1), name: y.name }
+      })
+    }).then(function () {
+      var task = byId[id]
+      if (task && task.repeat.type === "once" && task.done) { task.done = null; return saveTask(task) }
+    }).then(function () {
+      if (problem) fail(problem); else momentum.toast(t.undone(e.name || ""))
+    }, fail).then(function () { busy[id] = false; render() })
+  }
+  function quickAdd(input) {
+    var name = input.value.trim()
+    if (!name) return
+    var task = { id: newId(), name: name.slice(0, 80), repeat: { type: "once", date: today }, times: 1, taps: [], created: new Date().toISOString() }
+    input.value = ""
+    saveTask(task).then(function () {
+      tasks.push(task)
+      byId[task.id] = task
+      render()
+      var q = app.querySelector("#quick")
+      if (q) q.focus()
+    }, fail)
+  }
+
+  // ---- drawing
+  function h(tag, attrs) {
+    var el = document.createElement(tag)
+    for (var k in attrs || {}) {
+      var v = attrs[k]
+      if (v == null || v === false) continue
+      if (k === "class") el.className = v
+      else if (k === "text") el.textContent = v
+      else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), v)
+      else el.setAttribute(k, v === true ? "" : v)
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      var c = arguments[i]
+      if (c == null || c === false) continue
+      ;[].concat(c).forEach(function (x) { if (x != null && x !== false) el.appendChild(typeof x === "string" ? document.createTextNode(x) : x) })
+    }
+    return el
+  }
+  function icon(name, size) {
+    size = size || 18
+    if (/^[a-z0-9_]+$/.test(name || "")) return h("img", { class: "px", src: "sprites/icons/" + name + ".png", width: size, height: size, alt: "" })
+    return h("span", { class: "emo", style: "font-size:" + size + "px;width:" + size + "px" }, name || "")
+  }
+  function links(task) {
+    var list = (task.taps || []).map(function (l) {
+      var r = rules[l.rule]
+      return h("span", { class: "l" }, r ? icon(r.icon, 14) : null, (r ? r.name : t.ruleGone) + (l.n > 1 ? " ×" + l.n : ""))
+    })
+    return list.length ? h("div", { class: "links" }, list) : null
+  }
+  function header(title, sub, corner) {
+    return [h("div", { class: "top" }, h("h1", { class: "m-title", id: "title", text: title }), corner || null),
+      sub ? h("div", { class: "m-small sub", id: "sub", text: sub }) : null]
+  }
+
+  function listView() {
+    var items = open(), done = doneToday()
+    var total = items.length + done.length
+    var out = header(t.tasks, nice(today) + " · " + t.progress(done.length, total),
+      h("button", { class: "corner", id: "edit", "aria-label": t.edit, title: t.edit, onclick: function () { view = "edit"; render() } }, icon("ui_edit", 18)))
+    if (total) out.push(h("div", { class: "meter" }, Array.apply(null, Array(Math.min(total, 24))).map(function (_, i) {
+      return h("i", { class: i < Math.round(done.length / total * Math.min(total, 24)) ? "on" : "" })
+    })))
+    if (!tasks.length) out.push(h("div", { class: "m-small empty", text: t.noTasks }))
+    else if (!items.length) out.push(h("div", { class: "m-small empty", id: "allDone", text: t.allDone }))
+    else out.push(h("div", { class: "list", id: "open" }, items.map(taskRow)))
+    var input = h("input", { class: "m-field", id: "quick", placeholder: t.quick, maxlength: 80, enterkeyhint: "done",
+      onkeydown: function (e) { if (e.key === "Enter") quickAdd(input) } })
+    out.push(h("div", { class: "quick" }, input,
+      h("button", { class: "mini", id: "quickAdd", "aria-label": t.add, onclick: function () { quickAdd(input) } }, icon("ui_plus", 16))))
+    if (mode === "all") out.push(h("div", { class: "m-label section", text: t.done }), doneList(done))
+    return out
+  }
+  function taskRow(task) {
+    var times = task.times || 1, n = clicks(task)
+    var pips = times > 1 && times <= 12 ? h("div", { class: "pips" }, Array.apply(null, Array(times)).map(function (_, i) {
+      return h("i", { class: i < n ? "on" : "" })
+    })) : null
+    var sub = [links(task), task.repeat.type === "once" && task.repeat.date < today ? h("div", { class: "links", text: repeatText(task) }) : null]
+    return h("div", { class: "row task", "data-id": task.id, onclick: function () { bump(task) } },
+      h("div", { class: "box" + (busy[task.id] && n + 1 >= times ? " busy" : "") }),
+      // several taps: the bar under the name fills up (very many: a number instead)
+      h("div", { class: "main" }, h("span", { class: "name", text: task.name }), sub, pips),
+      times > 12 ? h("span", { class: "count", text: n + "/" + times }) : null,
+      n > 0 ? h("button", { class: "mini back1", "aria-label": t.stepBack, title: t.stepBack,
+        onclick: function (e) { e.stopPropagation(); stepBack(task) } }, h("span", { class: "count", text: "−1", style: "color:var(--text)" })) : null)
+  }
+  function doneList(done) {
+    if (!done.length) return h("div", { class: "m-small empty", id: "noneDone", text: t.noneDone })
+    return h("div", { class: "list", id: "doneList" }, done.map(function (d) {
+      var task = byId[d.id], at = new Date(d.e.done)
+      return h("div", { class: "row done-row", "data-id": d.id },
+        h("div", { class: "box on" }, "✓"),
+        h("div", { class: "main" }, h("span", { class: "name", text: (task && task.name) || d.e.name || "?" }),
+          h("span", { class: "m-small", text: pad(at.getHours()) + ":" + pad(at.getMinutes()) })),
+        d.e.gain ? h("span", { class: "gain" + (d.e.gain < 0 ? " neg" : ""), text: sign(d.e.gain) }) : null,
+        h("button", { class: "small-btn undo", disabled: busy[d.id], onclick: function () { undoDone(d.id) } }, t.undo))
+    }))
+  }
+  function doneView() {
+    var done = doneToday(), gain = done.reduce(function (s, d) { return s + (d.e.gain || 0) }, 0)
+    return header(t.done, nice(today) + " · " + t.doneSum(done.length, gain)).concat([doneList(done)])
+  }
+
+  // the editor: all tasks, one task
+  function editView() {
+    var out = header(t.tasks, null,
+      h("button", { class: "corner", id: "edit", "aria-label": t.close, title: t.close, onclick: function () { view = "list"; render() } }, icon("ui_close", 16)))
+    out.push(h("button", { class: "m-button", id: "new", style: "width:100%;margin:12px 0 14px",
+      onclick: function () { openTask(null) } }, "+ " + t.newTask))
+    var shown = tasks.filter(function (x) { return x.repeat.type !== "once" || !x.done })
+    if (shown.length) out.push(h("div", { class: "list", id: "all" }, shown.map(function (task) {
+      return h("div", { class: "row task", "data-id": task.id, onclick: function () { openTask(task) } },
+        h("div", { class: "main" },
+          h("span", { class: "name" }, task.name, (task.times || 1) > 1 ? h("span", { class: "count", text: "  ×" + task.times }) : null),
+          h("span", { class: "m-small", text: repeatText(task) }), links(task)),
+        h("span", { class: "m-small", text: "›" }))
+    })))
+    return out
+  }
+  function openTask(task) {
+    draft = task ? JSON.parse(JSON.stringify(task)) : { id: null, name: "", repeat: { type: "days", every: 1 }, times: 1, taps: [] }
+    picking = false
+    sure = false
+    view = "task"
+    render()
+    if (!task) { var n = app.querySelector("#name"); if (n) n.focus() }
+  }
+  function typeOf(r) { return r.type === "days" && (r.every || 1) > 1 ? "every" : r.type }
+  function setType(k) {
+    var r = draft.repeat, old = typeOf(r)
+    if (k === old) return
+    draft.repeat = k === "days" ? { type: "days", every: 1 } : k === "every" ? { type: "days", every: 2 }
+      : k === "weekdays" ? { type: "weekdays", days: [weekday(today)] } : k === "monthday" ? { type: "monthday", day: +today.slice(8) }
+      : k === "once" ? { type: "once", date: today } : { type: k }
+    render()
+  }
+  function stepper(id, value, label, min, max, onset) {
+    return h("div", { class: "stepper", id: id },
+      h("button", { class: "mini minus", "aria-label": "−", disabled: value <= min, onclick: function () { onset(Math.max(min, value - 1)) } }, "−"),
+      h("b", { text: label }),
+      h("button", { class: "mini plus", "aria-label": "+", disabled: value >= max, onclick: function () { onset(Math.min(max, value + 1)) } }, "+"))
+  }
+  function taskView() {
+    var d = draft, r = d.repeat, type = typeOf(r)
+    var out = [h("div", { class: "top" },
+      h("button", { class: "corner", id: "back", "aria-label": "back", onclick: function () { view = "edit"; render() } }, icon("ui_back", 16)),
+      h("h1", { class: "m-title", id: "title", text: d.id ? t.task : t.newTask }))]
+    var name = h("input", { class: "m-field", id: "name", maxlength: 80, value: d.name, placeholder: t.name,
+      oninput: function () { d.name = name.value } })
+    out.push(h("div", { class: "field", style: "margin-top:16px" }, h("span", { class: "m-label", text: t.name }), name))
+    // when
+    var detail = null
+    if (type === "every") detail = [stepper("every", r.every, (r.every) + " " + t.daysUnit, 2, 365, function (v) { r.every = v; render() }),
+      h("span", { class: "note", text: t.everyNote })]
+    else if (type === "weekdays") detail = h("div", { class: "chips", id: "weekdays" }, t.wd.map(function (w, i) {
+      var on = r.days.indexOf(i + 1) >= 0
+      return h("button", { class: "chip" + (on ? " on" : ""), "data-wd": i + 1, onclick: function () {
+        r.days = on ? r.days.filter(function (x) { return x !== i + 1 }) : r.days.concat([i + 1]).sort()
+        render()
+      } }, w)
+    }))
+    else if (type === "week") detail = h("span", { class: "note", text: t.weekNote })
+    else if (type === "month") detail = h("span", { class: "note", text: t.monthNote })
+    else if (type === "monthday") detail = h("div", { class: "chips" },
+      stepper("monthday", r.day || 1, r.day === 0 ? "–" : r.day + ".", 1, 31, function (v) { r.day = v; render() }),
+      h("button", { class: "chip" + (r.day === 0 ? " on" : ""), id: "lastDay", onclick: function () { r.day = r.day === 0 ? 1 : 0; render() } }, t.last))
+    else if (type === "once") {
+      var date = h("input", { class: "m-field", type: "date", id: "date", value: r.date, min: today,
+        onchange: function () { if (date.value) r.date = date.value } })
+      detail = [date, h("span", { class: "note", text: t.onceNote })]
+    }
+    out.push(h("div", { class: "field" }, h("span", { class: "m-label", text: t.when }),
+      h("div", { class: "chips", id: "types" }, ["days", "every", "weekdays", "week", "month", "monthday", "once"].map(function (k) {
+        return h("button", { class: "chip" + (k === type ? " on" : ""), "data-type": k, onclick: function () { setType(k) } }, t.types[k])
+      })), detail))
+    // how often
+    out.push(h("div", { class: "field" }, h("span", { class: "m-label", text: t.times }),
+      stepper("times", d.times || 1, t.timesN(d.times || 1), 1, 99, function (v) { d.times = v; render() }),
+      h("span", { class: "note", text: t.timesNote(d.times || 1) })))
+    // the taps
+    var linked = d.taps.map(function (l) {
+      var rule = rules[l.rule]
+      return h("div", { class: "link", "data-rule": l.rule },
+        rule ? icon(rule.icon, 20) : icon("ui_close", 14),
+        h("div", { class: "main" }, h("span", { class: "name", text: rule ? rule.name : t.ruleGone })),
+        stepper(null, l.n, "×" + l.n, 0, 20, function (v) {
+          if (v === 0) d.taps = d.taps.filter(function (x) { return x !== l }); else l.n = v
+          render()
+        }))
+    })
+    var free = ruleList.filter(function (x) { return !d.taps.some(function (l) { return l.rule === x.id }) })
+    out.push(h("div", { class: "field" }, h("span", { class: "m-label", text: t.taps }), h("span", { class: "note", text: t.tapsHint }),
+      linked.length ? h("div", { id: "linked" }, linked) : null,
+      !ruleList.length ? h("span", { class: "note", text: t.noRules })
+        : picking ? h("div", { class: "picker", id: "picker" }, free.map(function (x) {
+          return h("button", { class: "pick", "data-rule": x.id, onclick: function () {
+            d.taps.push({ rule: x.id, n: 1 })
+            picking = false
+            render()
+          } }, icon(x.icon, 20), h("span", { class: "main", text: x.name }),
+            h("span", { class: "gain" + (x.kind === "dec" ? " neg" : ""), text: x.kind === "dec" ? "−" : "+" }))
+        }))
+          : free.length ? h("button", { class: "small-btn", id: "addRule", style: "align-self:flex-start",
+            onclick: function () { picking = true; render() } }, "+ " + t.addRule) : null))
+    out.push(h("div", { class: "actions" },
+      d.id ? h("button", { class: "m-button ghost", id: "deleteTask", onclick: function () {
+        if (!sure) { sure = true; render(); return }
+        momentum.data.delete("tasks", d.id).then(function () {
+          tasks = tasks.filter(function (x) { return x.id !== d.id })
+          delete byId[d.id]
+          view = "edit"
+          render()
+        }, fail)
+      } }, sure ? t.sure : t.del) : null,
+      h("button", { class: "m-button", id: "saveTask", onclick: save }, t.save)))
+    return out
+  }
+  function save() {
+    var d = draft
+    d.name = d.name.trim()
+    if (!d.name) return momentum.toast(t.nameMissing)
+    if (d.repeat.type === "weekdays" && !d.repeat.days.length) return momentum.toast(t.daysMissing)
+    var old = d.id ? byId[d.id] : null
+    var task = { id: d.id || newId(), name: d.name, repeat: d.repeat, times: d.times || 1, taps: d.taps,
+      created: (old && old.created) || new Date().toISOString() }
+    // "every n days" counts from the day it was set up (or changed)
+    task.start = old && old.start && JSON.stringify(old.repeat) === JSON.stringify(d.repeat) ? old.start : today
+    if (old && old.done && d.repeat.type === "once") task.done = old.done
+    saveTask(task).then(function () {
+      if (old) tasks = tasks.map(function (x) { return x.id === task.id ? task : x }); else tasks.push(task)
+      byId[task.id] = task
+      view = "edit"
+      render()
+    }, fail)
+  }
+
+  function render() {
+    var nodes = mode === "done" ? doneView() : view === "edit" ? editView() : view === "task" ? taskView() : listView()
+    var keep = app.querySelector("#quick")
+    var typed = keep && keep.value, focused = keep && document.activeElement === keep
+    app.innerHTML = ""
+    nodes.forEach(function (n) { if (n) app.appendChild(n) })
+    var quick = app.querySelector("#quick")
+    if (quick && typed) quick.value = typed
+    if (quick && focused) quick.focus()
+  }
+
+  function refresh() {
+    return load().then(function () { if (view !== "task") render() }, function (e) { fail(e); render() })
+  }
+  momentum.ready.then(function (ctx) {
+    lang = ctx.lang === "en" ? "en" : "de"
+    t = T[lang]
+    document.documentElement.lang = lang
+    mode = ctx.tab === "list" || ctx.tab === "done" ? ctx.tab : "all"
+    return refresh().then(tidy)
+  })
+  // back on the tab: the other tab (or another phone) may have changed things; a new day may have begun
+  momentum.on("show", function () { refresh() })
+})()
+</script>
+</body>
+</html>

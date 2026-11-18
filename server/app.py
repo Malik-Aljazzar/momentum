@@ -1013,12 +1013,13 @@ def create_app(db_url=None, blobs=None, push_enabled=None, e2e_default=None, goo
             result = await service.trigger(g.s, g.user, rule, at)
         except limits.LimitReached:
             raise ApiError("Tageslimit erreicht – morgen geht's weiter", "Daily limit reached – more tomorrow", 409)
+        await g.s.flush()
+        last = await g.s.scalar(select(Event).where(Event.user_id == g.user.id, Event.rule_id == rule_id)
+                                .order_by(Event.id.desc()).limit(1))
         if op_id:
-            await g.s.flush()
-            last = await g.s.scalar(select(Event).where(Event.user_id == g.user.id, Event.rule_id == rule_id)
-                                    .order_by(Event.id.desc()).limit(1))
             last.op_id = op_id
-        return await state_response(**result)
+        # the tap's event: what an extension remembers to take it back later (rules.undo)
+        return await state_response(**result, event_id=last.id)
 
     @app.get("/api/events")
     @authed

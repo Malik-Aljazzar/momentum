@@ -821,6 +821,8 @@ interface Strings {
     fun extensionTabsCount(n: Int): String
     val extensionTabsWaiting: String
     val extensionArrangeTabs: String
+    /** an extension's permission (manifest "permissions"), shown on its card */
+    val extensionPermRules: String
 }
 
 object De : Strings {
@@ -1738,6 +1740,7 @@ object De : Strings {
     override fun extensionTabsCount(n: Int) = if (n == 1) "1 Tab" else "$n Tabs"
     override val extensionTabsWaiting = "Ihre Tabs warten unter Einstellungen → Tabs darauf, eingeordnet zu werden."
     override val extensionArrangeTabs = "Tabs anordnen"
+    override val extensionPermRules = "Darf deine antippbaren Regeln sehen und für dich antippen"
 }
 
 object En : Strings {
@@ -2657,6 +2660,7 @@ object En : Strings {
     override fun extensionTabsCount(n: Int) = if (n == 1) "1 tab" else "$n tabs"
     override val extensionTabsWaiting = "Its tabs are waiting under Settings → Tabs to be placed."
     override val extensionArrangeTabs = "Arrange tabs"
+    override val extensionPermRules = "May see your tappable rules and tap them for you"
 }
 
 fun stringsFor(lang: Lang): Strings = if (lang == Lang.DE) De else En

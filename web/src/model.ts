@@ -125,6 +125,8 @@ export interface InstalledExtension {
   id: string; version: string; name: Texts; icon: string; tabs: ExtensionTabDef[]
   /** API 1's single tab, kept for Android apps from before tab layouts */
   tab: ExtensionTab | null; enabled: boolean
+  /** what it may do besides its data ("rules": see / tap the player's rules) */
+  permissions?: string[]
 }
 export interface CatalogExtension extends InstalledExtension {
   description: Texts; author: string; collections: string[]; official: boolean; size: number; installed: boolean

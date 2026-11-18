@@ -7,7 +7,7 @@ on). A tab that isn't placed is hidden. The profile always stays (the settings l
 
 Stored as JSON in Settings.tabs, null = DEFAULT:
   [{"tab": "rules"}, {"id": "g1", "name": "Social", "icon": "tab_people", "show": "both", "tabs": ["chats", "feed"]},
-   {"tab": "ext:journal:today"}, {"tab": "profile"}]
+   {"tab": "ext:daylist:list"}, {"tab": "profile"}]
 """
 import json
 import re

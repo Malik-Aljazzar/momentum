@@ -3,9 +3,11 @@ import { ApiError } from "../../src/api"
 import { answer, appDeps, type BridgeDeps, MAX_MESSAGE, parseRequest, withOrigin } from "../../src/extensions"
 
 /** A fake app: records the server calls, answers from a little table. */
-function fake(answers: Record<string, unknown> = {}) {
+function fake(answers: Record<string, unknown> = {}, permissions: string[] = []) {
   const calls: [string, string, unknown][] = []
   const toasts: string[] = []
+  const taps: number[] = []
+  const undone: number[] = []
   const deps: BridgeDeps = {
     call: async (method, path, body) => {
       calls.push([method, path, body])
@@ -15,8 +17,16 @@ function fake(answers: Record<string, unknown> = {}) {
     },
     toast: (t) => toasts.push(t),
     context: () => ({ api: 1, lang: "de", user: { username: "ann", display_name: "ann" }, extension: { id: "journal", version: "1.0.0" } }),
+    permissions,
+    rules: () => [{ id: 3, name: "Sport", icon: "ball", kind: "acc", value: 40 }],
+    tap: async (rule) => {
+      if (rule === 99) throw new ApiError("Tageslimit erreicht", 409)
+      taps.push(rule)
+      return { event: 500 + rule, delta: 40, capped: false }
+    },
+    undo: async (event) => { undone.push(event) },
   }
-  return { deps, calls, toasts }
+  return { deps, calls, toasts, taps, undone }
 }
 
 const ask = (method: string, params: Record<string, unknown> = {}, id = 7) => ({ momentum: 1 as const, id, method, params })
@@ -70,6 +80,21 @@ describe("the extension bridge (server/shipped_extensions/sdk.js <-> the app)", 
     expect((await answer("journal", ask("app.token"), deps)).error?.status).toBe(400)
   })
 
+
+  it("the player's rules only with the permission: list, tap, take back", async () => {
+    const without = fake()
+    expect((await answer("daylist", ask("rules.list"), without.deps)).error).toEqual({ message: "permission rules missing", status: 403 })
+    expect((await answer("daylist", ask("rules.tap", { rule: 3 }), without.deps)).error?.status).toBe(403)
+    expect(without.taps).toEqual([])
+    const { deps, taps, undone } = fake({}, ["rules"])
+    expect((await answer("daylist", ask("rules.list"), deps)).result).toEqual([{ id: 3, name: "Sport", icon: "ball", kind: "acc", value: 40 }])
+    expect((await answer("daylist", ask("rules.tap", { rule: 3 }), deps)).result).toEqual({ event: 503, delta: 40, capped: false })
+    expect(taps).toEqual([3])
+    expect((await answer("daylist", ask("rules.tap", { rule: 99 }), deps)).error).toEqual({ message: "Tageslimit erreicht", status: 409 })
+    expect((await answer("daylist", ask("rules.tap", { rule: "x" }), deps)).error?.status).toBe(400)
+    expect((await answer("daylist", ask("rules.undo", { event: 503 }), deps)).result).toBe(true)
+    expect(undone).toEqual([503])
+  })
 
   it("fills in the server's address", () => {
     expect(withOrigin('<base href="__ORIGIN__/"><meta content="font-src __ORIGIN__">', "https://m.example"))

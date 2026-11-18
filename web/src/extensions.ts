@@ -5,7 +5,7 @@
 import { api, ApiError } from "./api"
 import type { InstalledExtension, Texts } from "./model"
 import { cache } from "./storage"
-import { showToast, state } from "./store"
+import { extensionTap, extensionUndo, showToast, state } from "./store"
 import { lang } from "./strings"
 
 export interface BridgeRequest { momentum: 1; id: number; method: string; params: Record<string, unknown> }
@@ -15,6 +15,14 @@ export interface BridgeDeps {
   call: (method: "GET" | "PUT" | "DELETE", path: string, body?: unknown) => Promise<unknown>
   toast: (text: string) => void
   context: () => unknown
+  /** the manifest's permissions ("rules": rules.list / tap / undo) */
+  permissions: string[]
+  /** the player's tappable rules */
+  rules: () => unknown[]
+  /** one tap of a rule, like the player's (online): {event, delta, capped} */
+  tap: (rule: number) => Promise<unknown>
+  /** a tap taken back */
+  undo: (event: number) => Promise<unknown>
 }
 
 /** A bridge message from the page is at most this long (a document is at most 16 KB on the server). */
@@ -54,6 +62,15 @@ export async function answer(id: string, r: BridgeRequest, deps: BridgeDeps): Pr
         break
       case "data.put": result = ((await deps.call("PUT", `${base}/${seg(p.key)}`, { value: p.value })) as { doc: unknown }).doc; break
       case "data.delete": await deps.call("DELETE", `${base}/${seg(p.key)}`); result = true; break
+      case "rules.list": case "rules.tap": case "rules.undo": {
+        if (!deps.permissions.includes("rules")) return { momentum: 1, id: r.id, error: { message: "permission rules missing", status: 403 } }
+        const n = Math.floor(Number(r.method === "rules.undo" ? p.event : p.rule))
+        if (r.method === "rules.list") result = deps.rules()
+        else if (!Number.isFinite(n) || n <= 0) return { momentum: 1, id: r.id, error: { message: "a rule / event id expected", status: 400 } }
+        else if (r.method === "rules.tap") result = await deps.tap(n)
+        else { await deps.undo(n); result = true }
+        break
+      }
       case "data.list": {
         const offset = Math.max(0, Math.floor(Number(p.offset) || 0))
         const limit = Math.min(100, Math.max(1, Math.floor(Number(p.limit) || 30)))
@@ -80,6 +97,11 @@ export function appDeps(ext: InstalledExtension, tab: string | null = null): Bri
       return { api: 1, lang: lang.value, user: { username: u?.username ?? "", display_name: u?.display_name ?? "" },
         extension: { id: ext.id, version: ext.version }, tab }
     },
+    permissions: ext.permissions ?? [],
+    rules: () => (state.value?.rules ?? []).filter((x) => x.tappable !== false && x.id > 0)
+      .map((x) => ({ id: x.id, name: x.name, icon: x.icon, kind: x.kind, value: x.value })),
+    tap: (rule) => extensionTap(rule),
+    undo: (event) => extensionUndo(event),
   }
 }
 

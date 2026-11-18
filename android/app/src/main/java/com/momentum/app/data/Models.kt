@@ -236,6 +236,8 @@ data class StateResponse(
     val capped: Boolean = false,
     /** this tap crossed 1 million: the spaceship jumps into hyperspace */
     val hyperspace: Boolean = false,
+    /** a tap's event (POST /rules/<id>/trigger): what an extension keeps to take it back */
+    @SerialName("event_id") val eventId: Int? = null,
 )
 
 @Serializable

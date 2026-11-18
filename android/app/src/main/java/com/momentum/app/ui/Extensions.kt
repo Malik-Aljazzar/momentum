@@ -111,6 +111,11 @@ fun ExtensionsPage(vm: AppViewModel) {
                         }
                     }
                     Text(e.description.of(lang), style = T.body.copy(color = Px.Muted))
+                    if ("rules" in e.permissions) Row(verticalAlignment = Alignment.CenterVertically) {
+                        PixelIcon("ui_lock", 14.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(S.extensionPermRules, style = T.small.copy(color = Px.Yellow))
+                    }
                     val waiting = e.installed && e.enabled && layout != null && e.tabs.any {
                         com.momentum.app.data.TabLayout.locate(layout, com.momentum.app.data.TabLayout.extKey(e.id, it.key)) == null
                     }
@@ -165,6 +170,16 @@ private class AppDeps(private val vm: AppViewModel, private val tab: String?, pr
         val u = vm.state?.user
         return ExtensionBridge.context(vm.lang.code, u?.username.orEmpty(), u?.displayName.orEmpty(), ext(), tab)
     }
+
+    override val permissions: List<String> get() = ext().permissions
+
+    override fun rules() = vm.state?.rules.orEmpty().map {
+        com.momentum.app.data.BridgeRule(it.id, it.name, it.icon, it.kind, it.value, it.tappable)
+    }
+
+    override suspend fun tap(rule: Int) = vm.extensionTap(rule)
+
+    override suspend fun undo(event: Int) = vm.extensionUndo(event)
 }
 
 /** The page's way in: `window.MomentumAndroid.post(json)` (sdk.js); answers go back through `window.__momentumReceive`. */

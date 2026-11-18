@@ -6,6 +6,20 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18 e
+
+### DE
+- Neue Extension: die Daylist. Deine Aufgaben, die immer wiederkommen – jeden Tag, jeden zweiten Tag, an bestimmten Wochentagen, einmal pro Woche oder Monat, am Soundsovielten oder nur einmal. Mit dem Stift oben rechts legst du sie an.
+- Verknüpf eine Aufgabe mit Regeln: Erledigst du sie, tippt die Daylist diese Regeln für dich an (auch mehrmals). Manche Aufgaben zählen erst nach mehreren Tipps, zum Beispiel Beten nach 5 – ein kleiner Balken zeigt, wie weit du bist.
+- Spontan was zu tun? Schreib es unten in die Liste – es bleibt, bis du es erledigt hast. Der Tab „Erledigt“ zeigt, was du heute geschafft hast; dort nimmst du eine Aufgabe auch wieder zurück, samt ihrer Klicks.
+- Das Tagebuch gibt es nicht mehr.
+
+### EN
+- New extension: the Daylist. Your tasks that keep coming back – every day, every other day, on certain weekdays, once a week or a month, on a day of the month or just once. Set them up with the pencil at the top right.
+- Link a task to rules: once you've done it, the Daylist taps those rules for you (several times, too). Some tasks only count after several taps, e.g. praying after 5 – a little bar shows how far you are.
+- Something to do on the spot? Write it at the bottom of the list – it stays until you've done it. The "Done" tab shows what you got done today; there you can also take a task back, its taps with it.
+- The journal is gone.
+
 ## 2026-11-18 d
 
 ### DE

@@ -41,7 +41,7 @@ def test_a_layout_is_checked_and_kept(tmp_path):
                     [{"tab": "profile"}, {"tab": "profile"}],                  # twice
                     [{"tab": "profile"}, {**GROUP, "tabs": ["chats", "chats"]}],
                     [{"tab": "profile"}, {"tab": "nope"}],
-                    [{"tab": "profile"}, {"tab": "ext:journal:today"}],        # not downloaded
+                    [{"tab": "profile"}, {"tab": "ext:daylist:list"}],        # not downloaded
                     [{"tab": "profile"}, {**GROUP, "icon": "ui_chat"}],        # not from the library
                     [{"tab": "profile"}, {**GROUP, "show": "mixed"}],
                     [{"tab": "profile"}, {**GROUP, "id": "x1"}],
@@ -59,18 +59,18 @@ def test_a_layout_is_checked_and_kept(tmp_path):
 def test_extension_tabs_in_the_choice_and_out_when_removed(tmp_path):
     async def scenario(app, c):
         ann = await user(c, "ann")
-        await ann.req("post", "/api/extensions/journal/install")
-        group = {"id": "gj", "name": "Tagebuch", "icon": "tab_book", "show": "names",
-                 "tabs": ["ext:journal:entries", "ext:journal:today"]}
+        await ann.req("post", "/api/extensions/daylist/install")
+        group = {"id": "gj", "name": "Daylist", "icon": "tab_book", "show": "names",
+                 "tabs": ["ext:daylist:done", "ext:daylist:list"]}
         layout = [{"tab": "rules"}, {"tab": "chats"}, {"tab": "feed"}, group, {"tab": "profile"}]
         await ann.req("put", "/api/settings", json={"tabs": layout})
-        await ann.req("put", "/api/settings", json={"tabs": [{"tab": "profile"}, {"tab": "ext:journal:nope"}]}, status=422)
+        await ann.req("put", "/api/settings", json={"tabs": [{"tab": "profile"}, {"tab": "ext:daylist:nope"}]}, status=422)
         # switched off: the place is kept (the apps leave the tabs out meanwhile)
-        await ann.req("put", "/api/extensions/journal", json={"enabled": False})
+        await ann.req("put", "/api/extensions/daylist", json={"enabled": False})
         assert (await ann.req("get", "/api/state"))["state"]["settings"]["tabs"] == layout
         await ann.req("put", "/api/settings", json={"tabs": layout})              # still placeable while off
         # removed: its tabs leave the layout
-        await ann.req("delete", "/api/extensions/journal")
+        await ann.req("delete", "/api/extensions/daylist")
         tabs = (await ann.req("get", "/api/state"))["state"]["settings"]["tabs"]
         assert tabs == [{"tab": "rules"}, {"tab": "chats"}, {"tab": "feed"}, {**group, "tabs": []}, {"tab": "profile"}]
         await ann.req("put", "/api/settings", json={"tabs": layout}, status=422)
@@ -82,10 +82,10 @@ def test_extension_tabs_from_before_layouts_keep_their_place(tmp_path):
         ann = await user(c, "ann")
         ben = await user(c, "ben")
         cid = await user(c, "cid")
-        await ann.req("post", "/api/extensions/journal/install")           # on: moved into the layout
-        await ben.req("post", "/api/extensions/journal/install")
-        await ben.req("put", "/api/extensions/journal", json={"enabled": False})     # off: nothing to keep
-        await cid.req("post", "/api/extensions/journal/install")
+        await ann.req("post", "/api/extensions/daylist/install")           # on: moved into the layout
+        await ben.req("post", "/api/extensions/daylist/install")
+        await ben.req("put", "/api/extensions/daylist", json={"enabled": False})     # off: nothing to keep
+        await cid.req("post", "/api/extensions/daylist/install")
         mine = [{"tab": "profile"}, {"tab": "rules"}]
         await cid.req("put", "/api/settings", json={"tabs": mine})        # own layout already: untouched
         async with app.db.session() as s:
@@ -93,10 +93,10 @@ def test_extension_tabs_from_before_layouts_keep_their_place(tmp_path):
             await ext.migrate_layouts(s)
             await s.commit()
         tabs = (await ann.req("get", "/api/state"))["state"]["settings"]["tabs"]
-        # the journal's two tabs don't fit next to the four: one group, named after it
+        # the daylist's two tabs don't fit next to the four: one group, named after it
         assert tabs == [{"tab": "rules"}, {"tab": "chats"}, {"tab": "feed"},
-                        {"id": "g1", "name": "Tagebuch", "icon": "tab_pen", "show": "both",
-                         "tabs": ["ext:journal:today", "ext:journal:entries"]}, {"tab": "profile"}]
+                        {"id": "g1", "name": "Daylist", "icon": "tab_list", "show": "both",
+                         "tabs": ["ext:daylist:list", "ext:daylist:done"]}, {"tab": "profile"}]
         assert (await ben.req("get", "/api/state"))["state"]["settings"]["tabs"] is None
         assert (await cid.req("get", "/api/state"))["state"]["settings"]["tabs"] == mine
         # once only

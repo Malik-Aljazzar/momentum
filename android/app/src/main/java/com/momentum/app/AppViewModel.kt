@@ -600,6 +600,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (online) sync()       // rule was only known locally: sync creates it first
     }
 
+    /** A tap an extension asked for (bridge rules.tap): online only, straight to the server, its answer handled like a
+     *  card tap's (milestone, hyperspace, capped). Throws [ApiException] (offline: status 0). */
+    suspend fun extensionTap(ruleId: Int): com.momentum.app.data.BridgeTap {
+        val body = buildJsonObject { put("at", OffsetDateTime.now().toString()); put("op_id", UUID.randomUUID().toString()) }
+        val res = api.call<StateResponse>("POST", "/rules/$ruleId/trigger", body)
+        putState(res.state)
+        if (res.milestone) milestone = true
+        if (res.hyperspace) hyperspace = true
+        if (res.capped && res.state.settings.dailyLimit) cappedToast(res.delta ?: 0.0)
+        return com.momentum.app.data.BridgeTap(res.eventId ?: 0, res.delta ?: 0.0, res.capped)
+    }
+
+    /** An extension takes back a tap it made (bridge rules.undo). Throws [ApiException]. */
+    suspend fun extensionUndo(eventId: Int) {
+        putState(api.call<StateResponse>("POST", "/events/$eventId/undo").state)
+    }
+
     private class Tap(val eventId: Int, val amount: Double, val capped: Boolean)
     private var tapSeq = 0
 

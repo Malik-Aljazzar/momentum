@@ -1,0 +1,86 @@
+{
+  "id": "daylist",
+  "version": "1.0.0",
+  "api": 1,
+  "name": { "de": "Daylist", "en": "Daylist" },
+  "description": {
+    "de": "Deine Aufgaben, die immer wiederkommen – jeden Tag, an bestimmten Wochentagen, einmal pro Woche oder Monat. Erledigst du eine, tippt sie die verknüpften Regeln für dich an. Ein zweiter Tab zeigt, was du heute geschafft hast.",
+    "en": "Your tasks that keep coming back – every day, on certain weekdays, once a week or a month. Done one, and it taps the linked rules for you. A second tab shows what you got done today."
+  },
+  "author": "Momentum",
+  "icon": "check",
+  "tabs": [
+    { "key": "list", "name": { "de": "Aufgaben", "en": "Tasks" }, "icon": "tab_list" },
+    { "key": "done", "name": { "de": "Erledigt", "en": "Done" }, "icon": "tab_check" }
+  ],
+  "permissions": ["rules"],
+  "entry": "index.html",
+  "collections": {
+    "tasks": {
+      "key_pattern": "^[a-z0-9]{6,20}$",
+      "max_docs": 500,
+      "schema": {
+        "type": "object",
+        "required": ["name", "repeat"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "repeat": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": false,
+            "properties": {
+              "type": { "enum": ["days", "weekdays", "week", "month", "monthday", "once"] },
+              "every": { "type": "integer", "minimum": 1, "maximum": 365 },
+              "days": { "type": "array", "minItems": 1, "maxItems": 7, "items": { "type": "integer", "minimum": 1, "maximum": 7 } },
+              "day": { "type": "integer", "minimum": 0, "maximum": 31 },
+              "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+            }
+          },
+          "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "times": { "type": "integer", "minimum": 1, "maximum": 99 },
+          "taps": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": ["rule", "n"],
+              "additionalProperties": false,
+              "properties": {
+                "rule": { "type": "integer" },
+                "n": { "type": "integer", "minimum": 1, "maximum": 20 }
+              }
+            }
+          },
+          "done": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "created": { "type": "string", "maxLength": 40 }
+        }
+      }
+    },
+    "days": {
+      "key_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "max_docs": 400,
+      "schema": {
+        "type": "object",
+        "required": ["t"],
+        "additionalProperties": false,
+        "properties": {
+          "t": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "n": { "type": "integer", "minimum": 0, "maximum": 99 },
+                "done": { "type": ["string", "null"], "maxLength": 40 },
+                "ev": { "type": "array", "maxItems": 400, "items": { "type": "integer" } },
+                "gain": { "type": "number" },
+                "name": { "type": "string", "maxLength": 80 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

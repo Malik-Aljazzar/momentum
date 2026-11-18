@@ -65,6 +65,16 @@
         return call("data.list", { collection: collection, offset: o.offset || 0, limit: o.limit || 30, order: o.order || "key" })
       },
     }),
+    /** the player's rules - only with the manifest's permission "rules" (else the call fails with status 403) */
+    rules: Object.freeze({
+      /** the tappable ones: [{id, name, icon (a sprite name or one emoji), kind: "acc" | "dec", value}] */
+      list: function () { return call("rules.list") },
+      /** taps rule `id` once, like the player would (daily limit, milestones and all); resolves {event, delta, capped}
+       *  - keep `event` to take the tap back */
+      tap: function (id) { return call("rules.tap", { rule: id }) },
+      /** takes a tap back (an event from tap) */
+      undo: function (event) { return call("rules.undo", { event: event }) },
+    }),
     /** a short message at the bottom of the app */
     toast: function (text) { return call("toast", { text: String(text) }) },
     /** "show" (the tab came into view) / "hide" */

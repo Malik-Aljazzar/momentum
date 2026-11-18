@@ -110,6 +110,57 @@ class ExtensionBridgeTest {
         assertEquals(JsonNull, ExtensionBridge.context("en", "ann", "Ann", ext, null)["tab"])
     }
 
+    /** A fake app whose extension has [perms]: two tappable rules, one that isn't, one only known on this phone. */
+    private class RulesFake(override val permissions: List<String>) : ExtensionBridge.Deps {
+        val taps = mutableListOf<Int>()
+        val undone = mutableListOf<Int>()
+        override suspend fun call(method: String, path: String, body: JsonElement?): JsonElement = JsonObject(emptyMap())
+        override fun toast(text: String) {}
+        override fun context(): JsonElement = JsonObject(emptyMap())
+        override fun rules() = listOf(
+            BridgeRule(1, "Sport", "ball", "acc", 50.0, true), BridgeRule(2, "Doom", "tv", "dec", 40.0, true),
+            BridgeRule(3, "Auto", "bed", "acc", 10.0, false), BridgeRule(-4, "Neu", "star", "acc", 5.0, true))
+        override suspend fun tap(rule: Int): BridgeTap {
+            if (rule == 9) throw ApiException("Tageslimit erreicht", 409)
+            taps += rule
+            return BridgeTap(100 + rule, 50.0, false)
+        }
+        override suspend fun undo(event: Int) { undone += event }
+    }
+
+    @Test
+    fun rulesOnlyWithThePermission() = runBlocking {
+        val no = RulesFake(emptyList())
+        for (m in listOf("rules.list", "rules.tap", "rules.undo")) {
+            val a = ExtensionBridge.answer("daylist", ask(m, params("rule" to 1, "event" to 101)), no)
+            assertEquals(403, a["error"]!!.jsonObject["status"]!!.jsonPrimitive.int)
+            assertEquals("permission rules missing", a["error"]!!.jsonObject["message"]!!.jsonPrimitive.content)
+        }
+        assertEquals(emptyList<Int>(), no.taps)
+        assertEquals(emptyList<Int>(), no.undone)
+    }
+
+    @Test
+    fun rulesListTapAndUndo() = runBlocking {
+        val f = RulesFake(listOf("rules"))
+        // only what the player can tap, not rules only known on this phone
+        val list = ExtensionBridge.answer("daylist", ask("rules.list"), f)["result"] as kotlinx.serialization.json.JsonArray
+        assertEquals(listOf(1, 2), list.map { it.jsonObject["id"]!!.jsonPrimitive.int })
+        assertEquals("dec", list[1].jsonObject["kind"]!!.jsonPrimitive.content)
+        assertEquals("Sport", list[0].jsonObject["name"]!!.jsonPrimitive.content)
+        assertEquals(50.0, list[0].jsonObject["value"]!!.jsonPrimitive.content.toDouble(), 0.0)
+        val tap = ExtensionBridge.answer("daylist", ask("rules.tap", params("rule" to 1)), f)["result"]!!.jsonObject
+        assertEquals(101, tap["event"]!!.jsonPrimitive.int)
+        assertEquals(50.0, tap["delta"]!!.jsonPrimitive.content.toDouble(), 0.0)
+        assertEquals("false", tap["capped"]!!.jsonPrimitive.content)
+        assertEquals(listOf(1), f.taps)
+        val refused = ExtensionBridge.answer("daylist", ask("rules.tap", params("rule" to 9)), f)
+        assertEquals(409, refused["error"]!!.jsonObject["status"]!!.jsonPrimitive.int)
+        assertEquals(400, ExtensionBridge.answer("daylist", ask("rules.tap"), f)["error"]!!.jsonObject["status"]!!.jsonPrimitive.int)
+        assertEquals(JsonPrimitive(true), ExtensionBridge.answer("daylist", ask("rules.undo", params("event" to 101)), f)["result"])
+        assertEquals(listOf(101), f.undone)
+    }
+
     @Test
     fun fillsInTheServersAddressAndEscapesLikeEncodeUriComponent() {
         assertEquals("""<base href="https://m.example/"><meta content="font-src https://m.example">""",

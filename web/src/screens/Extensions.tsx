@@ -63,6 +63,10 @@ export function ExtensionsPage() {
             </div>
           </div>
           <span class="t-body" style={{ color: "var(--muted)" }}>{textOf(e.description, l)}</span>
+          {e.permissions?.includes("rules") && <div class="row ext-permission" style={{ gap: 8 }}>
+            <PixelIcon name="ui_lock" size={14} />
+            <span class="t-small" style={{ color: "var(--yellow)" }}>{s.extensionPermRules}</span>
+          </div>}
           {!e.installed
             ? <PxButton text={busy === e.id ? "…" : s.extensionDownload} onClick={() => { if (!busy) void install(e) }} />
             : <>

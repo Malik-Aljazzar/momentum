@@ -375,6 +375,25 @@ export async function trigger(rule: Rule) {
   if (online.value) await sync()            // the rule was only known locally: sync creates it first
 }
 
+/** A tap an extension asked for (bridge rules.tap; extensions work online only): straight to the server, the answer
+ *  shown like a tap on the card (milestone, hyperspace, the limit). Throws the server's refusal. */
+export async function extensionTap(ruleId: number): Promise<{ event: number | null; delta: number; capped: boolean }> {
+  const res = await api.call<StateResponse & { event_id?: number }>("POST", `/rules/${ruleId}/trigger`,
+    { at: new Date().toISOString(), op_id: uuid() })
+  batch(() => {
+    putState(res.state)
+    if (res.milestone) milestone.value = true
+    if (res.hyperspace) hyperspace.value = true
+  })
+  if (res.capped && res.state.settings.daily_limit !== false) cappedToast(res.delta ?? 0)
+  return { event: res.event_id ?? null, delta: res.delta ?? 0, capped: !!res.capped }
+}
+
+/** An extension's tap taken back (bridge rules.undo). */
+export async function extensionUndo(eventId: number) {
+  putState((await api.call<StateResponse>("POST", `/events/${eventId}/undo`)).state)
+}
+
 /** Takes a tap back (offline: locally, sent later). False when the server refused it. */
 export async function undo(event: Event): Promise<boolean> {
   const keys = meta.value?.vehicles.map((v) => v.key) ?? []

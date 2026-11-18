@@ -69,19 +69,19 @@ test("a group in the bar: made in the settings, its tab menu at the top, nothing
 
 test("extension tabs: in the choice once switched on, placed by hand - into the bar and into a group that slides", async ({ page, request }) => {
   const ann = await newUser(request, "ann")
-  await api(request, ann.token, "POST", "/extensions/journal/install")
+  await api(request, ann.token, "POST", "/extensions/daylist/install")
   const group = { id: "g1", name: "Alles", icon: "tab_star", show: "both", tabs: ["rules", "chats", "feed"] }
   await api(request, ann.token, "PUT", "/settings", { tabs: [group, { tab: "profile" }] })
   await openApp(page, ann.token)
-  await expect(page.locator("nav.tabbar button:not([aria-label=election])")).toHaveCount(2)            // not placed yet: no journal tab
+  await expect(page.locator("nav.tabbar button:not([aria-label=election])")).toHaveCount(2)            // not placed yet: no daylist tab
   await openTabsEditor(page)
   const hidden = page.locator(".tabs-hidden")
-  await expect(hidden.locator("[data-tab='ext:journal:today']")).toContainText("Heute")
-  await expect(hidden.locator("[data-tab='ext:journal:today']")).toContainText("Tagebuch")
+  await expect(hidden.locator("[data-tab='ext:daylist:list']")).toContainText("Aufgaben")
+  await expect(hidden.locator("[data-tab='ext:daylist:list']")).toContainText("Daylist")
   // into the group: where to?
-  await hidden.locator("[data-tab='ext:journal:today'] button").click()
+  await hidden.locator("[data-tab='ext:daylist:list'] button").click()
   await page.locator(".tabs-where [data-group=g1]").click()
-  await hidden.locator("[data-tab='ext:journal:entries'] button").click()
+  await hidden.locator("[data-tab='ext:daylist:done'] button").click()
   await page.getByRole("button", { name: "Unten in die Leiste" }).click()
   await expect(page.locator(".tabs-hidden")).toContainText("Alles ist eingeordnet.")
   await page.getByRole("button", { name: "Speichern" }).click()
@@ -99,29 +99,28 @@ test("extension tabs: in the choice once switched on, placed by hand - into the 
   }))
   expect(sizes.cut).toBe(0)
   expect(sizes.scroll).toBeGreaterThan(sizes.width)
-  await menu.locator("[data-tab='ext:journal:today']").click()
-  await expect(menu.locator("[data-tab='ext:journal:today']")).toBeInViewport()
-  const today = page.frameLocator(".tab-group[data-group=g1] iframe.extension-frame")
-  await expect(today.locator("#title")).toHaveText("Tagebuch")             // its "today" tab: the editor, no list
-  await expect(today.locator("#editor")).toBeVisible()
-  await expect(today.locator("#entries")).toBeHidden()
+  await menu.locator("[data-tab='ext:daylist:list']").click()
+  await expect(menu.locator("[data-tab='ext:daylist:list']")).toBeInViewport()
+  const tasks = page.frameLocator(".tab-group[data-group=g1] iframe.extension-frame")
+  await expect(tasks.locator("#title")).toHaveText("Aufgaben")             // its task list (the context said which tab)
+  await expect(tasks.locator("#quick")).toBeVisible()
   await page.screenshot({ path: test.info().outputPath("group-slides.png") })
 
-  // the bar's journal tab is the other one: the entries
-  await tab(page, "ext:journal:entries").click()
+  // the bar's daylist tab is the other one: done today
+  await tab(page, "ext:daylist:done").click()
   await expect(page.locator("iframe.extension-frame")).toHaveCount(2)          // the group's one stays as it was
-  const list = page.frameLocator("[data-ext-tab='journal:entries'] iframe.extension-frame")
-  await expect(list.locator("#title")).toHaveText("Einträge")
-  await expect(list.locator("#entries")).toBeVisible()
-  await expect(list.locator("#editor")).toBeHidden()                    // until an entry is opened
+  const done = page.frameLocator("[data-ext-tab='daylist:done'] iframe.extension-frame")
+  await expect(done.locator("#title")).toHaveText("Erledigt")
+  await expect(done.locator("#noneDone")).toBeVisible()
+  await expect(done.locator("#quick")).toHaveCount(0)
 
   // switched off: its tabs leave the bar and the group; on again: back in their places
-  await api(request, ann.token, "PUT", "/extensions/journal", { enabled: false })
+  await api(request, ann.token, "PUT", "/extensions/daylist", { enabled: false })
   await page.reload()
-  await expect(tab(page, "ext:journal:entries")).toHaveCount(0)
+  await expect(tab(page, "ext:daylist:done")).toHaveCount(0)
   await tab(page, "group:g1").click()
   await expect(page.locator(".group-menu [data-tab]")).toHaveCount(3)
-  await api(request, ann.token, "PUT", "/extensions/journal", { enabled: true })
+  await api(request, ann.token, "PUT", "/extensions/daylist", { enabled: true })
   await page.reload()
-  await expect(tab(page, "ext:journal:entries")).toBeVisible()
+  await expect(tab(page, "ext:daylist:done")).toBeVisible()
 })

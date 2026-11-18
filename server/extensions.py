@@ -10,6 +10,8 @@ API 1 - what an extension can do today:
 - `tabs`: tabs of its own (up to MAX_EXT_TABS; each a key, a name and an icon from the tab library tab_*). While it's
   switched on they're in the player's choice of tabs (settings -> tabs, server/tablayout.py): the bar, a group, or hidden.
   The page is the same for every tab; it learns which one it is from the context (`tab`).
+- `permissions`: what else it may do through the bridge, shown before downloading. "rules": see the player's tappable
+  rules and tap them (and take such a tap back) - the apps answer rules.list / rules.tap / rules.undo only then.
 - `collections`: data in its own format, stored per player: documents (JSON) under a key, checked against the JSON
   schema (a subset, see check_schema) the manifest gives each collection; limits DOC_BYTES, `max_docs`, TOTAL_BYTES
 
@@ -33,6 +35,7 @@ from .db import Base, Config, Settings, utcnow
 ROOT = Path(__file__).parent / "shipped_extensions"
 API = 1
 MAX_EXT_TABS = 6                   # tabs one extension may bring
+PERMISSIONS = ("rules",)           # see / tap the player's rules (bridge rules.*)
 TAB_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,19}$")
 PAGE_BYTES = 512 * 1024            # an extension's page
 DOC_BYTES = 16 * 1024              # one stored document (its JSON)
@@ -232,7 +235,11 @@ def check_manifest(m, page):
         raise Invalid(f"api: {API} erwartet", f"api: {API} expected")
     out = dict(id=m["id"], version=m["version"], api=API, name=_texts(m.get("name"), "name", 40),
                description=_texts(m.get("description"), "description", 300), icon=_icon(m.get("icon"), "icon"),
-               author=str(m.get("author", "")).strip()[:40], tabs=[], collections={})
+               author=str(m.get("author", "")).strip()[:40], tabs=[], permissions=[], collections={})
+    perms = m.get("permissions", [])
+    if not isinstance(perms, list) or any(p not in PERMISSIONS for p in perms) or len(set(perms)) != len(perms):
+        raise Invalid(f"permissions: nur {', '.join(PERMISSIONS)}", f"permissions: only {', '.join(PERMISSIONS)}")
+    out["permissions"] = list(perms)
     if "tab" in m:
         raise Invalid("tab: heißt jetzt tabs (eine Liste)", "tab: is now tabs (a list)")
     tabs = m.get("tabs", [])
@@ -284,14 +291,20 @@ def shipped():
 
 
 async def sync_shipped(s):
-    """Puts the shipped extensions into the catalog (new ones, changed versions / pages)."""
-    for m, page in shipped():
+    """Puts the shipped extensions into the catalog (new ones, changed versions / pages); a shipped one that's gone
+    from the folder leaves the catalog (hidden: its players' rows stay, nobody sees it)."""
+    current = shipped()
+    ids = {m["id"] for m, _ in current}
+    for e in await s.scalars(select(Extension).where(Extension.author_id.is_(None), Extension.status == "published")):
+        if e.id not in ids:
+            e.status = "hidden"
+    for m, page in current:
         e = await s.get(Extension, m["id"])
         text = json.dumps(m, ensure_ascii=False)
         if e is None:
             s.add(Extension(id=m["id"], version=m["version"], manifest=text, page=page, author_id=None, status="published"))
-        elif (e.version, e.manifest, e.page) != (m["version"], text, page):
-            e.version, e.manifest, e.page, e.updated_at = m["version"], text, page, utcnow()
+        elif (e.version, e.manifest, e.page, e.status) != (m["version"], text, page, "published"):
+            e.version, e.manifest, e.page, e.updated_at, e.status = m["version"], text, page, utcnow(), "published"
 
 
 def manifest_of(e):
@@ -308,7 +321,8 @@ def extension_json(e, mine=None):
     """A catalog entry; `mine` = the player's UserExtension (installed) or None."""
     m = manifest_of(e)
     return dict(id=e.id, version=e.version, name=m["name"], description=m["description"], author=m["author"],
-                icon=m["icon"], tabs=m["tabs"], tab=legacy_tab(m), collections=sorted(m["collections"]),
+                icon=m["icon"], tabs=m["tabs"], tab=legacy_tab(m), permissions=m.get("permissions", []),
+                collections=sorted(m["collections"]),
                 official=e.author_id is None, size=len(e.page.encode()), installed=mine is not None,
                 enabled=bool(mine and mine.enabled))
 
@@ -323,7 +337,7 @@ async def installed(s, user_id):
     for ue, e in rows:
         m = manifest_of(e)
         out.append(dict(id=e.id, version=e.version, name=m["name"], icon=m["icon"], tabs=m["tabs"], tab=legacy_tab(m),
-                        enabled=bool(ue.enabled)))
+                        permissions=m.get("permissions", []), enabled=bool(ue.enabled)))
     return out
 
 

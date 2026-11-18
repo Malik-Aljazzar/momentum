@@ -452,7 +452,10 @@ Optional parts players download in Settings -> Extensions and switch on. API 1: 
 in its own format (collections of JSON documents per player, checked against the manifest's JSON-schema
 subset; 16 KB / doc, 2 MB / extension, `max_docs`). An extension = `server/shipped_extensions/<id>/manifest.json` +
 one self-contained `index.html` (synced into the `extensions` table at start; author docs: that folder's README.md;
-the first one is `journal`). Both apps show the page sandboxed: PWA iframe `sandbox="allow-scripts"` (opaque origin:
+the first one is `daylist`: recurring tasks that tap the player's rules - the `journal` was retired on 2026-11-18; a
+shipped one gone from the folder is hidden by `sync_shipped`). Manifest `permissions` (today only "rules": the bridge's
+`rules.list` / `rules.tap` / `rules.undo`, enforced by the hosts, shown on the catalog card); `rules.tap` goes straight
+to the server (trigger answers `event_id`), never into the offline queue. Both apps show the page sandboxed: PWA iframe `sandbox="allow-scripts"` (opaque origin:
 no token / storage), Android WebView without navigation; `compose()` puts base.css, the bridge `sdk.js`, a CSP without
 any network and `<base href="__ORIGIN__/">` in front - the app replaces `__ORIGIN__` with its server (fonts need CORS:
 `/app/fonts/`, `/sprites/` send `Access-Control-Allow-Origin: *`). Bridge messages are JSON text
