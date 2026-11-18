@@ -6,6 +6,16 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18
+
+### DE
+- Fenster, die von unten aufgehen (z. B. „Banner wählen“), kannst du jetzt nach unten wegwischen – sie gleiten dabei mit.
+- Ein Video, das dein Gerät nicht abspielen kann, sagt das jetzt deutlich, statt nur ein durchgestrichenes Play-Zeichen zu zeigen. Videos aus der Android-App werden dafür immer in einem Format verschickt, das auch iPhones abspielen.
+
+### EN
+- Windows that open from the bottom (e.g. "Choose banner") can now be swiped down to close – they follow your finger.
+- A video your device can't play now says so clearly instead of showing a crossed-out play sign. To avoid that, the Android app always sends videos in a format iPhones can play too.
+
 ## 2026-11-06
 
 ### DE

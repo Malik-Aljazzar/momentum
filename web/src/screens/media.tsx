@@ -7,7 +7,7 @@ import { fmt, signed } from "../format"
 import { S } from "../strings"
 import { IconBtn, PixelIcon, RemoteImage, SlidingText } from "../ui/components"
 import { RuleDetailSheet } from "./shared"
-import { streamFailed, useCoverLayer, videoSrc } from "../ui/video"
+import { streamFailed, useCoverLayer, VideoFailed, videoSrc } from "../ui/video"
 
 export interface ViewerItem { media: MediaItem; caption?: string | null; triggers?: Trigger[] }
 
@@ -84,6 +84,19 @@ export function TriggerList({ triggers, top = 92 }: { triggers?: Trigger[] | nul
   </div>
 }
 
+/** A video in the big view; one this phone can't play says so (report #70). */
+function ViewerVideo({ media, autoPlay }: { media: MediaItem; autoPlay: boolean }) {
+  const src = videoSrc(media.url, media.hls)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => setFailed(false), [src])
+  return <>
+    <video src={src} onError={() => { if (src === media.url) setFailed(true); else streamFailed(media.hls) }}
+      poster={media.thumb} controls={!failed} playsInline loop autoPlay={autoPlay}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+    {failed && <VideoFailed />}
+  </>
+}
+
 /** Full screen, swipe sideways through the pictures, X closes; the caption under each. */
 function MediaViewer({ items, start, onClose }: { items: ViewerItem[]; start: number; onClose: () => void }) {
   const pager = useRef<HTMLDivElement>(null)
@@ -108,10 +121,7 @@ function MediaViewer({ items, start, onClose }: { items: ViewerItem[]; start: nu
       {items.map((it, i) => <div key={i} class="col" style={{ flex: "0 0 100%", height: "100%", scrollSnapAlign: "start", position: "relative" }}>
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
           {isCovered(it.media) ? <SensitiveCover media={it.media} fit="contain" />
-            : it.media.kind === "video"
-            ? <video src={videoSrc(it.media.url, it.media.hls)} onError={() => streamFailed(it.media.hls)}
-              poster={it.media.thumb} controls playsInline loop autoPlay={i === page}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+            : it.media.kind === "video" ? <ViewerVideo media={it.media} autoPlay={i === page} />
             : <RemoteImage url={it.media.url} class="fill" fit="contain" fallback={<RemoteImage url={it.media.thumb} class="fill" fit="contain" />} />}
           <TriggerBadges triggers={it.triggers} top={64} />
         </div>

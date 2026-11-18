@@ -433,15 +433,87 @@ export function ToastHost({ bottom }: { bottom: string }) {
 /** Bottom sheet (ModalBottomSheet / PxSheet). */
 /** A bottom sheet. Rendered into <body>: above the tab bar, never clipped by a card
  *  or scrolled along with the list it was opened from. */
+/** A pulled-down sheet goes away when it was pulled a quarter of its height or flicked down (report #71). */
+export const sheetDismisses = (dy: number, height: number, pxPerMs: number) => dy > height * .25 || (dy > 24 && pxPerMs > .6)
+
+/** A bottom sheet: the scrim or a swipe down closes it, sliding away (report #71; Android: ModalBottomSheet). The
+ *  swipe starts on the handle, or anywhere while the content is scrolled to its top. */
 export function Sheet({ onClose, children, label }: { onClose: () => void; children: ComponentChildren; label?: string }) {
+  const sheet = useRef<HTMLDivElement>(null)
+  const scrim = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const closing = useRef(false)
+  const close = useRef(onClose)
+  close.current = onClose
+  const slideAway = () => {
+    const el = sheet.current
+    if (closing.current) return
+    closing.current = true
+    if (!el) { close.current(); return }
+    el.style.transition = "transform .2s ease-in"
+    el.style.transform = "translateY(100%)"
+    if (scrim.current) { scrim.current.style.transition = "opacity .2s"; scrim.current.style.opacity = "0" }
+    setTimeout(() => close.current(), 200)
+  }
+  useEffect(() => {
+    const el = sheet.current
+    if (!el) return
+    let y0 = -1, x0 = 0, t0 = 0, dy = 0, dragging = false, lastY = 0, lastT = 0, speed = 0
+    const down = (e: TouchEvent) => {
+      const t = e.touches[0]
+      const onHandle = (e.target as HTMLElement).classList?.contains("handle")
+      // inside the content only when it's at its top (else the touch scrolls it)
+      if (closing.current || (!onHandle && (body.current?.scrollTop ?? 0) > 0)) { y0 = -1; return }
+      y0 = t.clientY; x0 = t.clientX; t0 = lastT = e.timeStamp; lastY = t.clientY; dy = 0; speed = 0; dragging = false
+    }
+    const move = (e: TouchEvent) => {
+      if (y0 < 0) return
+      const t = e.touches[0]
+      dy = t.clientY - y0
+      if (!dragging) {
+        // sideways (a row of banners) or up (scrolling the content): not this sheet's swipe
+        if (Math.abs(t.clientX - x0) > Math.abs(dy) || dy < 0) { if (Math.abs(dy) > 6 || Math.abs(t.clientX - x0) > 6) y0 = -1; return }
+        if (dy < 8) return
+        dragging = true
+        el.style.transition = "none"
+      }
+      e.preventDefault()             // the page under it doesn't scroll along
+      const dt = e.timeStamp - lastT
+      if (dt > 0) speed = (t.clientY - lastY) / dt
+      lastY = t.clientY; lastT = e.timeStamp
+      el.style.transform = `translateY(${Math.max(0, dy)}px)`
+      if (scrim.current) scrim.current.style.opacity = String(Math.max(0, 1 - dy / el.clientHeight))
+    }
+    const up = () => {
+      if (y0 < 0 || !dragging) { y0 = -1; return }
+      y0 = -1
+      if (sheetDismisses(dy, el.clientHeight, flickSpeed(speed, dy, t0, lastT))) slideAway()
+      else {
+        el.style.transition = "transform .2s ease-out"
+        el.style.transform = ""
+        if (scrim.current) { scrim.current.style.transition = "opacity .2s"; scrim.current.style.opacity = "" }
+      }
+    }
+    el.addEventListener("touchstart", down, { passive: true })
+    el.addEventListener("touchmove", move, { passive: false })
+    el.addEventListener("touchend", up)
+    el.addEventListener("touchcancel", up)
+    return () => {
+      el.removeEventListener("touchstart", down); el.removeEventListener("touchmove", move)
+      el.removeEventListener("touchend", up); el.removeEventListener("touchcancel", up)
+    }
+  }, [])
   return createPortal(<>
-    <div class="sheet-scrim" onClick={onClose} />
-    <div class="sheet" role="dialog" aria-label={label}>
+    <div ref={scrim} class="sheet-scrim" onClick={slideAway} />
+    <div ref={sheet} class="sheet" role="dialog" aria-label={label}>
       <div class="handle" />
-      <div class="body">{children}</div>
+      <div ref={body} class="body">{children}</div>
     </div>
   </>, document.body)
 }
+
+/** The flick's speed: the last move's, or the whole swipe's when the last move came too fast to measure. */
+const flickSpeed = (last: number, dy: number, t0: number, t1: number) => last > 0 ? last : t1 > t0 ? dy / (t1 - t0) : 0
 
 export function EmptyHint({ title, sub, icon = "chat" }: { title: string; sub?: string; icon?: string }) {
   return <div class="empty">

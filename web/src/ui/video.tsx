@@ -130,16 +130,31 @@ export function VideoPlayer({ url, hls, thumb, playing, soundUrl, preview }: {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [first, setFirst] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [active, held] = useMediaFocus(box, playing)
   const src = videoSrc(url, hls)
+  useEffect(() => setFailed(false), [src])
   useTrack(video, url, active, held, !soundUrl && !preview, src)
   useTrack(audio, soundUrl, active, held, true)
   return <div ref={box} class="fill" style={{ overflow: "hidden" }} onClick={preview ? undefined : () => { soundOn.value = !soundOn.value }}>
     <video ref={setVideo} src={src} poster={thumb ?? undefined} playsInline muted loop preload="metadata"
-      onLoadedData={() => setFirst(true)} onError={() => streamFailed(hls)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      onLoadedData={() => setFirst(true)} onError={() => { if (src === url) setFailed(true); else streamFailed(hls) }}
+      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
     {soundUrl && <audio ref={setAudio} src={soundUrl} loop preload="none" />}
     {!first && thumb && <RemoteImage url={thumb} class="fill" />}
+    {failed && <VideoFailed />}
     {!preview && <SoundBadge />}
+  </div>
+}
+
+/** A video this phone can't play (report #70: an iPhone and an Android chat video): said in words, not with the
+ *  browser's broken play sign (= VideoFailed in Video.kt). */
+export function VideoFailed() {
+  return <div class="col center video-failed" role="note" style={{
+    position: "absolute", inset: 0, gap: 10, padding: 24, textAlign: "center", background: "rgba(0,0,0,0.6)", pointerEvents: "none",
+  }}>
+    <PixelIcon name="ui_video" size={32} alpha={.8} />
+    <span class="t-small" style={{ color: "var(--text)" }}>{S.value.videoUnplayable}</span>
   </div>
 }
 

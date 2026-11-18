@@ -337,6 +337,7 @@ interface Strings {
     fun onlyMembersCanSubscribe(group: String?): String
     fun origin(origin: String, label: String): String
     val notAvailable: String
+    val videoUnplayable: String
     val readOnlyRule: String
     val sharedRule: String
     val sharedPost: String
@@ -1174,6 +1175,7 @@ object De : Strings {
         else -> ""
     }
     override val notAvailable = "Nicht verfügbar"
+    override val videoUnplayable = "Dieses Video lässt sich auf diesem Gerät nicht abspielen."
     override val readOnlyRule = "Abonnierte Regeln kann nur ihr Ersteller ändern."
     override val sharedRule = "Regel"
     override val sharedPost = "Post"
@@ -2035,6 +2037,7 @@ object En : Strings {
         else -> ""
     }
     override val notAvailable = "Not available"
+    override val videoUnplayable = "This video can't be played on this device."
     override val readOnlyRule = "Only its creator can change a subscribed rule."
     override val sharedRule = "Rule"
     override val sharedPost = "Post"

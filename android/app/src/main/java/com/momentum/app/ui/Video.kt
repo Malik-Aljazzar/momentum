@@ -260,13 +260,19 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
                 /** the video's adaptive stream (server/hls.py), [url] is the fallback */
                 hls: String? = null) {
     var firstFrame by remember { mutableStateOf(false) }
+    var failed by remember(url, hls) { mutableStateOf(false) }
     val focus = mediaFocus(playing)
     val active = focus.active
     val video = rememberTrack(url, active, focus.held, audible = soundUrl == null && !preview, hls = hls)!!
     rememberTrack(soundUrl, active, focus.held, audible = true)
     DisposableEffect(video) {
+        // a stream's first error only switches to the file (setUp); an error of the file: it can't play here
+        var spare = if (hls != null && VideoStreams.source(url, hls) == hls) 1 else 0
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() { firstFrame = true }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                if (spare > 0) spare-- else failed = true
+            }
         }
         video.addListener(listener)
         onDispose { video.removeListener(listener) }
@@ -277,7 +283,22 @@ fun VideoPlayer(url: String, thumb: String?, playing: Boolean, modifier: Modifie
                 .also { v -> v.player = video }
         }, Modifier.fillMaxSize())
         if (!firstFrame && thumb != null) RemoteImage(thumb, Modifier.fillMaxSize())
+        if (failed) VideoFailed()
         if (!preview) SoundBadge(Modifier.align(Alignment.BottomEnd).padding(10.dp))
+    }
+}
+
+/** A video this phone can't play (report #70): said in words (= VideoFailed in web/src/ui/video.tsx). */
+@Composable
+private fun VideoFailed() {
+    androidx.compose.foundation.layout.Column(
+        Modifier.fillMaxSize().background(Color(0x99000000)).padding(24.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        PixelIcon("ui_video", 32.dp, alpha = .8f)
+        Text(LocalStrings.current.videoUnplayable, style = T.small.copy(color = Px.Text),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 

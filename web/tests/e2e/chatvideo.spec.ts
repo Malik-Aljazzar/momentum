@@ -121,3 +121,32 @@ test("a video in an encrypted chat: shrunk and sealed on the phone, opened on th
   await playsInTheBigView(b, true)
   await cr.close()
 })
+
+test("a video this phone can't play says so instead of the browser's broken play sign (report #70)", async ({ page, browser, request }) => {
+  const { ann, ben } = await friends(request)
+  const conv = (await api(request, ann.token, "POST", "/conversations/direct", { username: ben.name })).conversation
+  await openApp(page, ann.token)
+  await tab(page, "chats").click()
+  await page.getByText(ben.name).first().click()
+  await sendVideo(page, "kaputt")
+  await expect.poll(async () => (await api(request, ben.token, "GET", `/conversations/${conv.id}/messages`)).messages.length, { timeout: 40_000 }).toBe(1)
+  // without the service worker (page.route doesn't see what it fetches)
+  const b = await (await browser.newContext({ ...devices["iPhone 13"], baseURL: test.info().project.use.baseURL, serviceWorkers: "block" })).newPage()
+  // this phone gets something it can't decode instead of the video: the messages' video address points to a JSON answer
+  await b.route(/\/api\/conversations\/\d+\/messages/, async (r) => {
+    const res = await r.fetch()
+    const body = await res.json()
+    for (const m of body.messages ?? []) if (m.media?.kind === "video") m.media.url = "/api/meta"
+    await r.fulfill({ response: res, json: body })
+  })
+  await openApp(b, ben.token)
+  await tab(b, "chats").click()
+  await b.getByText(ann.name).first().click()
+  const bubble = b.locator(".chat-video").last()
+  await expect(bubble).toBeVisible({ timeout: 20_000 })
+  await bubble.click()
+  const viewer = b.getByRole("dialog", { name: "viewer" })
+  await expect(viewer.locator(".video-failed")).toHaveText("Dieses Video lässt sich auf diesem Gerät nicht abspielen.", { timeout: 20_000 })
+  await b.screenshot({ path: test.info().outputPath("video-failed.png") })
+  await b.context().close()
+})

@@ -11,6 +11,7 @@ import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -55,6 +56,10 @@ suspend fun compressVideo(ctx: Context, uri: Uri, onProgress: (Float) -> Unit = 
             .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setEndPositionMs(MAX_MS).build()).build(),
     ).setEffects(Effects(emptyList(), listOf(Presentation.createForWidthAndHeight(tw, th, Presentation.LAYOUT_SCALE_TO_FIT))))
         .build()
+    // HDR (e.g. a Samsung's HDR10+ video) is tone-mapped to SDR: kept HDR, the Transformer would switch to HEVC (H.264
+    // has no HDR), which iPhones didn't play as an encrypted chat video (report #70) - SDR H.264 plays everywhere
+    val composition = Composition.Builder(EditedMediaItemSequence(item))
+        .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
     return withContext(Dispatchers.Main) {           // the Transformer needs a looper thread
         var running: Transformer? = null
         val poll = launch {                          // the upload's progress bar
@@ -82,7 +87,7 @@ suspend fun compressVideo(ctx: Context, uri: Uri, onProgress: (Float) -> Unit = 
                 })
                 .build()
             running = transformer
-            transformer.start(item, out.absolutePath)
+            transformer.start(composition, out.absolutePath)
             cont.invokeOnCancellation { transformer.cancel(); out.delete() }
         } } finally { poll.cancel() }
     }
