@@ -823,6 +823,8 @@ interface Strings {
     val extensionArrangeTabs: String
     /** an extension's permission (manifest "permissions"), shown on its card */
     val extensionPermRules: String
+    /** the icon picker an extension opens (bridge pickIcon): the rules' icons and every emoji */
+    val extensionPickIcon: String
 }
 
 object De : Strings {
@@ -1741,6 +1743,7 @@ object De : Strings {
     override val extensionTabsWaiting = "Ihre Tabs warten unter Einstellungen → Tabs darauf, eingeordnet zu werden."
     override val extensionArrangeTabs = "Tabs anordnen"
     override val extensionPermRules = "Darf deine antippbaren Regeln sehen und für dich antippen"
+    override val extensionPickIcon = "Icon wählen"
 }
 
 object En : Strings {
@@ -2661,6 +2664,7 @@ object En : Strings {
     override val extensionTabsWaiting = "Its tabs are waiting under Settings → Tabs to be placed."
     override val extensionArrangeTabs = "Arrange tabs"
     override val extensionPermRules = "May see your tappable rules and tap them for you"
+    override val extensionPickIcon = "Choose an icon"
 }
 
 fun stringsFor(lang: Lang): Strings = if (lang == Lang.DE) De else En

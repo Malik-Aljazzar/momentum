@@ -113,6 +113,8 @@ object ExtensionBridge {
         suspend fun tap(rule: Int): BridgeTap = throw ApiException("offline", 0, fromServer = false)
         /** takes a tap back; throws [ApiException] */
         suspend fun undo(event: Int): Unit = throw ApiException("offline", 0, fromServer = false)
+        /** the rules' icon choice (pixel sprites + any emoji) with [current] selected; the pick, null = closed without one */
+        suspend fun pickIcon(current: String?): String? = null
     }
 
     /** The page's message (JSON text) as a request; null when it's something else. */
@@ -160,6 +162,10 @@ object ExtensionBridge {
             when (r.method) {
                 "context" -> ok(r.id, deps.context())
                 "toast" -> { deps.toast(str(p, "text").take(140)); ok(r.id, JsonPrimitive(true)) }
+                "pickIcon" -> {
+                    val current = (p["current"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    ok(r.id, deps.pickIcon(current)?.let { JsonPrimitive(it) } ?: JsonNull)
+                }
                 "data.get" -> try {
                     val doc = deps.call("GET", "$base/${uriComponent(str(p, "key"))}").jsonObject["doc"]?.jsonObject
                     ok(r.id, doc?.get("value") ?: JsonNull)

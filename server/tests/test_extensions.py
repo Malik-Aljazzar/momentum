@@ -60,6 +60,11 @@ def test_data_in_the_extensions_own_format(tmp_path):
         doc = (await ann.req("put", f"{BASE}/task003", json={"value": TASK}))["doc"]
         assert doc["key"] == "task003" and doc["value"] == TASK and doc["updated_at"]
         await ann.req("put", f"{BASE}/task002", json={"value": {"name": "Joggen", "repeat": {"type": "weekdays", "days": [1, 3, 5]}}})
+        # a task's own icon (picked like a rule's: a sprite name or an emoji)
+        for icon in ("star", "🙏"):
+            await ann.req("put", f"{BASE}/task004", json={"value": {**TASK, "icon": icon}})
+        await ann.req("put", f"{BASE}/task004", json={"value": {**TASK, "icon": ""}}, status=422)
+        await ann.req("delete", f"{BASE}/task004")
         await ann.req("put", f"{BASE}/task001", json={"value": {"name": "Einkaufen", "repeat": {"type": "once", "date": "2026-11-18"}, "done": None}})
         assert (await ann.req("get", f"{BASE}/task003"))["doc"]["value"] == TASK
         await ann.req("get", f"{BASE}/nothere1", status=404)

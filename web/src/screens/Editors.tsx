@@ -8,7 +8,7 @@ import type { Decay, Rule } from "../model"
 import { meta, save, showToast, state } from "../store"
 import { S } from "../strings"
 import type { ClozeBuilder, DecayGaps, RuleGaps } from "../strings/types"
-import { Label, PixelIcon, PxButton, PxTextField, Switch } from "../ui/components"
+import { Label, PixelIcon, PxButton, PxTextField, Sheet, Switch } from "../ui/components"
 import { EmojiPicker } from "../ui/emoji"
 import { isEmojiIcon } from "../emoji"
 
@@ -207,10 +207,8 @@ export function RuleEditor({ rule, kind, onClose, submit, onDelete, title, publi
   } : { kind, name: "", icon: acc ? "star" : "storm", mode: "constant", base: 50, param: 0, min_value: 0, reset_days: 0, pct: 70, public: false,
     idle_days: 0, idle_rule_id: null, tappable: true, reset_unit: "d", idle_unit: "d" })
   const [showIcons, setShowIcons] = useState(false)
-  const [pickEmoji, setPickEmoji] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }))
-  const icons = meta.value?.icons ?? []
 
   const setMode = (mode: string) => setD((x) => {
     let n = { ...x, mode }
@@ -279,16 +277,8 @@ export function RuleEditor({ rule, kind, onClose, submit, onDelete, title, publi
       </>}
     </>}
 
-    {showIcons && <div class="row" style={{ flexWrap: "wrap", gap: 8 }}>
-      {/* any emoji as the icon (pixel art like the sprites) */}
-      <button class="center" aria-label="emoji" onClick={() => setPickEmoji(true)} style={{ width: 52, height: 52, borderRadius: 14,
-        background: isEmojiIcon(d.icon) ? (acc ? "rgba(167,240,112,0.25)" : "rgba(239,125,87,0.25)") : "var(--faint)" }}>
-        <PixelIcon name={isEmojiIcon(d.icon) ? d.icon : "😀"} size={32} /></button>
-      {pickEmoji && <EmojiPicker onPick={(e) => { set({ icon: e }); setShowIcons(false) }} onClose={() => setPickEmoji(false)} />}
-      {icons.map((name) => <button key={name} class="center" onClick={() => { set({ icon: name }); setShowIcons(false) }} style={{
-        width: 52, height: 52, borderRadius: 14, background: name === d.icon ? (acc ? "rgba(167,240,112,0.25)" : "rgba(239,125,87,0.25)") : "var(--faint)",
-      }}><PixelIcon name={name} size={32} /></button>)}
-    </div>}
+    {showIcons && <IconChoices selected={d.icon} tint={acc ? "rgba(167,240,112,0.25)" : "rgba(239,125,87,0.25)"}
+      onPick={(icon) => { set({ icon }); setShowIcons(false) }} />}
 
     <Preview caption={s.previewRule} values={steps} />
 
@@ -311,6 +301,34 @@ export function RuleEditor({ rule, kind, onClose, submit, onDelete, title, publi
       <PxButton text={s.save} onClick={doSave} class="grow" />
     </div>
   </SheetBody>
+}
+
+/** The icons a rule can have (= IconChoices in ui/Editors.kt): any emoji (the first cell opens the picker), then every
+ *  pixel icon; [selected] is highlighted with [tint]. */
+export function IconChoices({ selected, tint, onPick }: { selected: string | null; tint: string; onPick: (icon: string) => void }) {
+  const [pickEmoji, setPickEmoji] = useState(false)
+  const icons = meta.value?.icons ?? []
+  const own = !!selected && isEmojiIcon(selected)
+  return <div class="row icon-choices" style={{ flexWrap: "wrap", gap: 8 }}>
+    {/* any emoji as the icon (pixel art like the sprites) */}
+    <button class="center" aria-label="emoji" onClick={() => setPickEmoji(true)} style={{ width: 52, height: 52, borderRadius: 14,
+      background: own ? tint : "var(--faint)" }}>
+      <PixelIcon name={own ? selected : "😀"} size={32} /></button>
+    {pickEmoji && <EmojiPicker onPick={onPick} onClose={() => setPickEmoji(false)} />}
+    {icons.map((name) => <button key={name} class="center" data-icon={name} onClick={() => onPick(name)} style={{
+      width: 52, height: 52, borderRadius: 14, background: name === selected ? tint : "var(--faint)",
+    }}><PixelIcon name={name} size={32} /></button>)}
+  </div>
+}
+
+/** An extension asked for an icon (bridge pickIcon): the rules' choice in a sheet; closing it picks nothing. */
+export function IconPickSheet({ current, onPick, onClose }: { current: string | null; onPick: (icon: string) => void; onClose: () => void }) {
+  return <Sheet onClose={onClose} label="icons">
+    <div class="col" style={{ gap: 14 }}>
+      <div class="t-title" style={{ fontSize: 20 }}>{S.value.extensionPickIcon}</div>
+      <IconChoices selected={current} tint="rgba(255,205,117,0.25)" onPick={onPick} />
+    </div>
+  </Sheet>
 }
 
 // ---------------------------------------------------------------- daily decay

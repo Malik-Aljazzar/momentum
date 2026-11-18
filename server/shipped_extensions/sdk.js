@@ -77,6 +77,10 @@
     }),
     /** a short message at the bottom of the app */
     toast: function (text) { return call("toast", { text: String(text) }) },
+    /** opens the app's icon picker - the same as for rules: Momentum's pixel icons and every emoji (current: the one
+     *  shown as chosen). Resolves the picked icon (a sprite name or one emoji) or null when closed without a pick.
+     *  Draw it like a rule's icon: a name = the picture "sprites/icons/<name>.png", else the emoji as text. */
+    pickIcon: function (current) { return call("pickIcon", { current: typeof current === "string" ? current : null }) },
     /** "show" (the tab came into view) / "hide" */
     on: function (event, fn) { (listeners[event] = listeners[event] || []).push(fn) },
   }

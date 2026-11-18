@@ -8,6 +8,7 @@ function fake(answers: Record<string, unknown> = {}, permissions: string[] = [])
   const toasts: string[] = []
   const taps: number[] = []
   const undone: number[] = []
+  const asked: (string | null)[] = []
   const deps: BridgeDeps = {
     call: async (method, path, body) => {
       calls.push([method, path, body])
@@ -25,8 +26,10 @@ function fake(answers: Record<string, unknown> = {}, permissions: string[] = [])
       return { event: 500 + rule, delta: 40, capped: false }
     },
     undo: async (event) => { undone.push(event) },
+    // the sheet: "star" picked when it showed "ball", closed without a pick otherwise
+    pickIcon: async (current) => { asked.push(current); return current === "ball" ? "star" : null },
   }
-  return { deps, calls, toasts, taps, undone }
+  return { deps, calls, toasts, taps, undone, asked }
 }
 
 const ask = (method: string, params: Record<string, unknown> = {}, id = 7) => ({ momentum: 1 as const, id, method, params })
@@ -94,6 +97,17 @@ describe("the extension bridge (server/shipped_extensions/sdk.js <-> the app)", 
     expect((await answer("daylist", ask("rules.tap", { rule: "x" }), deps)).error?.status).toBe(400)
     expect((await answer("daylist", ask("rules.undo", { event: 503 }), deps)).result).toBe(true)
     expect(undone).toEqual([503])
+  })
+
+  it("opens the rules' icon picker for the page: the pick, or null when closed (no permission needed)", async () => {
+    const { deps, asked } = fake()
+    expect((await answer("daylist", ask("pickIcon", { current: "ball" }), deps)).result).toBe("star")
+    expect((await answer("daylist", ask("pickIcon", {}), deps)).result).toBeNull()
+    await answer("daylist", ask("pickIcon", { current: 5 }), deps)
+    expect(asked).toEqual(["ball", null, null])          // only a text is a current icon
+    // the app's bridge without a sheet picks nothing
+    const ext = { id: "daylist", version: "1.1.0", name: { de: "D", en: "D" }, icon: "check", tabs: [], tab: null, enabled: true }
+    expect(await appDeps(ext, "list").pickIcon("star")).toBeNull()
   })
 
   it("fills in the server's address", () => {

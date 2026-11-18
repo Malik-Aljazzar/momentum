@@ -161,6 +161,32 @@ class ExtensionBridgeTest {
         assertEquals(listOf(101), f.undone)
     }
 
+    /** A fake app whose icon sheet answers [picked] (null = closed without a pick); remembers what was selected. */
+    private class IconFake(val picked: String?) : ExtensionBridge.Deps {
+        val asked = mutableListOf<String?>()
+        override suspend fun call(method: String, path: String, body: JsonElement?): JsonElement = JsonObject(emptyMap())
+        override fun toast(text: String) {}
+        override fun context(): JsonElement = JsonObject(emptyMap())
+        override suspend fun pickIcon(current: String?): String? { asked += current; return picked }
+    }
+
+    @Test
+    fun pickIconAnswersThePickOrNull() = runBlocking {
+        val f = IconFake("ball")
+        assertEquals(JsonPrimitive("ball"), ExtensionBridge.answer("daylist", ask("pickIcon", params("current" to "star")), f)["result"])
+        val emoji = IconFake("🙏")
+        assertEquals(JsonPrimitive("🙏"), ExtensionBridge.answer("daylist", ask("pickIcon"), emoji)["result"])
+        // closed without a pick: null (no permission needed either way)
+        val closed = IconFake(null)
+        val a = ExtensionBridge.answer("daylist", ask("pickIcon", params("current" to 5)), closed)
+        assertEquals(JsonNull, a["result"])
+        assertNull(a["error"])
+        // only a string is passed on as the selected icon
+        assertEquals(listOf<String?>("star"), f.asked)
+        assertEquals(listOf<String?>(null), emoji.asked)
+        assertEquals(listOf<String?>(null), closed.asked)
+    }
+
     @Test
     fun fillsInTheServersAddressAndEscapesLikeEncodeUriComponent() {
         assertEquals("""<base href="https://m.example/"><meta content="font-src https://m.example">""",

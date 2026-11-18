@@ -56,6 +56,13 @@
   .picker { display: flex; flex-direction: column; background: var(--card2); border-radius: 16px; overflow: hidden; }
   .pick { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 0; background: none; color: var(--text); cursor: pointer; text-align: left; font-size: 15px; }
   .pick + .pick { border-top: 1px solid var(--line); }
+  .ticon { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; }
+  .lab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .textbtn { border: 0; background: none; padding: 0; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .namerow { display: flex; gap: 8px; align-items: center; }
+  .iconbtn { width: 45px; height: 45px; flex: none; border: 0; border-radius: 14px; background: var(--faint); display: flex;
+    align-items: center; justify-content: center; cursor: pointer; }
+  .iconbtn .empty-icon { opacity: .55; }
   .actions { display: flex; gap: 10px; margin-top: 8px; }
   .actions .m-button { flex: 1; }
   input[type=date].m-field { color-scheme: dark; }
@@ -92,6 +99,7 @@
       undo: "Rückgängig", stepBack: "Einen Tipp zurück",
       noneDone: "Heute ist noch nichts erledigt.", doneSum: function (n, gain) { return n + " erledigt" + (gain ? " · " + sign(gain) + " Momentum" : "") },
       openTasks: "Offen", offline: "Daylist braucht eine Verbindung – bist du online?", ruleGone: "Regel gelöscht",
+      icon: "Icon wählen", noIcon: "Ohne Icon", iconOld: "Icons wählen geht erst mit der neuesten Version der App.",
     },
     en: {
       today: "Today", tasks: "Tasks", done: "Done", edit: "Edit tasks", close: "Done",
@@ -118,6 +126,7 @@
       undo: "Undo", stepBack: "One tap back",
       noneDone: "Nothing done yet today.", doneSum: function (n, gain) { return n + " done" + (gain ? " · " + sign(gain) + " momentum" : "") },
       openTasks: "Open", offline: "Daylist needs a connection – are you online?", ruleGone: "Rule deleted",
+      icon: "Choose an icon", noIcon: "No icon", iconOld: "Choosing icons needs the latest version of the app.",
     },
   }
   var t = T.de, lang = "de"
@@ -368,6 +377,10 @@
     if (/^[a-z0-9_]+$/.test(name || "")) return h("img", { class: "px", src: "sprites/icons/" + name + ".png", width: size, height: size, alt: "" })
     return h("span", { class: "emo", style: "font-size:" + size + "px;width:" + size + "px" }, name || "")
   }
+  /** the task's own icon (picked like a rule's: a pixel icon or an emoji), if it has one */
+  function taskIcon(task, size) {
+    return task && task.icon ? h("span", { class: "ticon" }, icon(task.icon, size || 22)) : null
+  }
   function links(task) {
     var list = (task.taps || []).map(function (l) {
       var r = rules[l.rule]
@@ -406,6 +419,7 @@
     var sub = [links(task), task.repeat.type === "once" && task.repeat.date < today ? h("div", { class: "links", text: repeatText(task) }) : null]
     return h("div", { class: "row task", "data-id": task.id, onclick: function () { bump(task) } },
       h("div", { class: "box" + (busy[task.id] && n + 1 >= times ? " busy" : "") }),
+      taskIcon(task),
       // several taps: the bar under the name fills up (very many: a number instead)
       h("div", { class: "main" }, h("span", { class: "name", text: task.name }), sub, pips),
       times > 12 ? h("span", { class: "count", text: n + "/" + times }) : null,
@@ -418,6 +432,7 @@
       var task = byId[d.id], at = new Date(d.e.done)
       return h("div", { class: "row done-row", "data-id": d.id },
         h("div", { class: "box on" }, "✓"),
+        taskIcon(task),
         h("div", { class: "main" }, h("span", { class: "name", text: (task && task.name) || d.e.name || "?" }),
           h("span", { class: "m-small", text: pad(at.getHours()) + ":" + pad(at.getMinutes()) })),
         d.e.gain ? h("span", { class: "gain" + (d.e.gain < 0 ? " neg" : ""), text: sign(d.e.gain) }) : null,
@@ -438,6 +453,7 @@
     var shown = tasks.filter(function (x) { return x.repeat.type !== "once" || !x.done })
     if (shown.length) out.push(h("div", { class: "list", id: "all" }, shown.map(function (task) {
       return h("div", { class: "row task", "data-id": task.id, onclick: function () { openTask(task) } },
+        taskIcon(task),
         h("div", { class: "main" },
           h("span", { class: "name" }, task.name, (task.times || 1) > 1 ? h("span", { class: "count", text: "  ×" + task.times }) : null),
           h("span", { class: "m-small", text: repeatText(task) }), links(task)),
@@ -475,7 +491,12 @@
       h("h1", { class: "m-title", id: "title", text: d.id ? t.task : t.newTask }))]
     var name = h("input", { class: "m-field", id: "name", maxlength: 80, value: d.name, placeholder: t.name,
       oninput: function () { d.name = name.value } })
-    out.push(h("div", { class: "field", style: "margin-top:16px" }, h("span", { class: "m-label", text: t.name }), name))
+    var pick = h("button", { class: "iconbtn", id: "icon", "aria-label": t.icon, title: t.icon, onclick: chooseIcon },
+      d.icon ? icon(d.icon, 28) : h("span", { class: "empty-icon" }, icon("ui_plus", 16)))
+    out.push(h("div", { class: "field", style: "margin-top:16px" },
+      h("div", { class: "lab" }, h("span", { class: "m-label", text: t.name }),
+        d.icon ? h("button", { class: "textbtn", id: "noIcon", onclick: function () { delete d.icon; render() } }, t.noIcon) : null),
+      h("div", { class: "namerow" }, pick, name)))
     // when
     var detail = null
     if (type === "every") detail = [stepper("every", r.every, (r.every) + " " + t.daysUnit, 2, 365, function (v) { r.every = v; render() }),
@@ -543,6 +564,15 @@
       h("button", { class: "m-button", id: "saveTask", onclick: save }, t.save)))
     return out
   }
+  /** the app's icon picker - the same icons and emojis as a rule's */
+  function chooseIcon() {
+    var d = draft
+    momentum.pickIcon(d.icon || null).then(function (x) {
+      if (x && draft === d && view === "task") { d.icon = x; render() }
+    }, function (e) {
+      momentum.toast(e && e.status === 400 ? t.iconOld : e && e.status === 0 ? t.offline : (e && e.message) || t.iconOld)
+    })
+  }
   function save() {
     var d = draft
     d.name = d.name.trim()
@@ -551,6 +581,7 @@
     var old = d.id ? byId[d.id] : null
     var task = { id: d.id || newId(), name: d.name, repeat: d.repeat, times: d.times || 1, taps: d.taps,
       created: (old && old.created) || new Date().toISOString() }
+    if (d.icon) task.icon = d.icon
     // "every n days" counts from the day it was set up (or changed)
     task.start = old && old.start && JSON.stringify(old.repeat) === JSON.stringify(d.repeat) ? old.start : today
     if (old && old.done && d.repeat.type === "once") task.done = old.done

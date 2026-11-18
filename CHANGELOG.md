@@ -6,6 +6,14 @@ points. A version heading is any unique text (the date; a second release on the 
 e.g. `2026-11-02 b`) - only the order in this file matters. Rules: keep the format, every user-facing
 change gets a line, no empty versions.
 
+## 2026-11-18 f
+
+### DE
+- Daylist: Deine Aufgaben bekommen ein Icon – dieselben Pixel-Icons und Emojis wie deine Regeln. Tipp im Aufgaben-Editor auf das Feld vor der Bezeichnung.
+
+### EN
+- Daylist: your tasks get an icon – the same pixel icons and emojis as your rules. Tap the box in front of the name in the task editor.
+
 ## 2026-11-18 e
 
 ### DE

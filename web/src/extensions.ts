@@ -23,6 +23,8 @@ export interface BridgeDeps {
   tap: (rule: number) => Promise<unknown>
   /** a tap taken back */
   undo: (event: number) => Promise<unknown>
+  /** the rules' icon picker over the page: the picked icon, null when closed without a pick */
+  pickIcon: (current: string | null) => Promise<string | null>
 }
 
 /** A bridge message from the page is at most this long (a document is at most 16 KB on the server). */
@@ -52,6 +54,7 @@ export async function answer(id: string, r: BridgeRequest, deps: BridgeDeps): Pr
     switch (r.method) {
       case "context": result = deps.context(); break
       case "toast": deps.toast(String(p.text ?? "").slice(0, 140)); result = true; break
+      case "pickIcon": result = await deps.pickIcon(typeof p.current === "string" ? p.current : null); break
       case "data.get":
         try {
           result = ((await deps.call("GET", `${base}/${seg(p.key)}`)) as { doc: { value: unknown } }).doc.value
@@ -87,8 +90,10 @@ export async function answer(id: string, r: BridgeRequest, deps: BridgeDeps): Pr
   }
 }
 
-/** The app's bridge: the real server, the toast, the player; `tab` = the manifest key of the tab the page is shown as. */
-export function appDeps(ext: InstalledExtension, tab: string | null = null): BridgeDeps {
+/** The app's bridge: the real server, the toast, the player; `tab` = the manifest key of the tab the page is shown as,
+ *  [pickIcon] = the icon sheet of the extension's tab (Extensions.tsx). */
+export function appDeps(ext: InstalledExtension, tab: string | null = null,
+  pickIcon: (current: string | null) => Promise<string | null> = async () => null): BridgeDeps {
   return {
     call: (method, path, body) => api.call(method, path, body),
     toast: (text) => showToast(text),
@@ -102,6 +107,7 @@ export function appDeps(ext: InstalledExtension, tab: string | null = null): Bri
       .map((x) => ({ id: x.id, name: x.name, icon: x.icon, kind: x.kind, value: x.value })),
     tap: (rule) => extensionTap(rule),
     undo: (event) => extensionUndo(event),
+    pickIcon,
   }
 }
 

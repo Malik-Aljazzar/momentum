@@ -5,7 +5,8 @@ Today an extension can:
 
 - bring **tabs** of its own (up to 6),
 - with the permission `rules`: see the player's tappable **rules** and tap them for the player (and take such a tap
-  back), and
+  back),
+- open the app's **icon picker** (the same pixel icons and emojis as a rule's), and
 - store **data in a format it defines** on the Momentum server, per player.
 
 The same extension runs in both apps (Android and the iPhone PWA): it's a web page, shown sandboxed.
@@ -92,11 +93,14 @@ await momentum.rules.list()           // -> [{id, name, icon, kind: "acc" | "dec
 await momentum.rules.tap(12)          // -> {event, delta, capped}: keep `event` to take the tap back
 await momentum.rules.undo(event)      // -> true
 momentum.toast("Gespeichert")
+await momentum.pickIcon("star")       // the rules' icon picker -> a sprite name or one emoji, null when closed
+// draw it like a rule's icon: a name = <img src="sprites/icons/<name>.png">, else the emoji as text (font "Pixel Emoji")
 momentum.on("show", () => reload())   // the tab came into view ("hide": it went away)
 ```
 
 Calls return promises; a failure rejects with an `Error` whose `message` is the server's explanation and `status`
 its HTTP status (0 = offline, 409 = not installed, 413 too big, 422 doesn't fit the schema, 507 storage full).
+An app older than a method answers it with status 400 ("unknown method") - say so (e.g. "update the app").
 
 ## What a page can't do
 

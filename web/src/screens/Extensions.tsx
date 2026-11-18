@@ -8,6 +8,7 @@ import { online, refresh, req, state } from "../store"
 import { extKey, locate } from "../tablayout"
 import { lang, S } from "../strings"
 import { EmptyHint, LoadMore, OfflineState, PixelIcon, PxButton, PxCard, Switch } from "../ui/components"
+import { IconPickSheet } from "./Editors"
 import { ConfirmButton } from "./Settings"
 
 /** Settings -> Extensions: the catalog, each with download / on-off / remove. */
@@ -99,6 +100,20 @@ export function ExtensionTab({ id, tabKey, visible }: { id: string; tabKey: stri
   const frame = useRef<HTMLIFrameElement>(null)
   const current = useRef<InstalledExtension | undefined>(ext)
   current.current = ext
+  // the page asked for an icon (bridge pickIcon): the sheet is open until a pick or closing it (= null)
+  const [picking, setPicking] = useState<{ current: string | null } | null>(null)
+  const pending = useRef<((icon: string | null) => void) | null>(null)
+  const finish = (icon: string | null) => {
+    pending.current?.(icon)
+    pending.current = null
+    setPicking(null)
+  }
+  const pickIcon = (cur: string | null) => new Promise<string | null>((done) => {
+    pending.current?.(null)                       // a second ask: the first one picked nothing
+    pending.current = done
+    setPicking({ current: cur })
+  })
+  useEffect(() => () => pending.current?.(null), [])
   useEffect(() => {
     if (!ext) return
     let alive = true
@@ -117,7 +132,7 @@ export function ExtensionTab({ id, tabKey, visible }: { id: string; tabKey: stri
       if (!win || e.source !== win || !ex) return
       const r = parseRequest(e.data)
       if (!r) return
-      void answer(ex.id, r, appDeps(ex, tabKey)).then((a) => frame.current?.contentWindow?.postMessage(JSON.stringify(a), "*"))
+      void answer(ex.id, r, appDeps(ex, tabKey, pickIcon)).then((a) => frame.current?.contentWindow?.postMessage(JSON.stringify(a), "*"))
     }
     addEventListener("message", onMessage)
     return () => removeEventListener("message", onMessage)
@@ -130,5 +145,6 @@ export function ExtensionTab({ id, tabKey, visible }: { id: string; tabKey: stri
     {html ? <iframe ref={frame} class="extension-frame" title={textOf(ext.name, lang.value)} sandbox="allow-scripts" srcDoc={html}
       style={{ flex: 1, width: "100%", border: 0, background: "var(--bg)", display: "block" }} />
       : failed && <EmptyHint title={textOf(ext.name, lang.value)} sub={s.extensionLoadFailed} icon={ext.icon} />}
+    {picking && <IconPickSheet current={picking.current} onPick={finish} onClose={() => finish(null)} />}
   </div>
 }

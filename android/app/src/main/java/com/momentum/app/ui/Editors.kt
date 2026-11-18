@@ -298,6 +298,62 @@ private fun Preview(caption: String, values: List<Pair<String?, String>>) {
     }
 }
 
+/**
+ * The icons a rule (or an extension's thing, bridge pickIcon) can have: any emoji first (opens the emoji picker), then
+ * every pixel sprite of [icons]; [selected] is tinted in the gap colour. Its own scroll area of a fixed height: the drag
+ * scrolls the icons first instead of fighting the sheet's scroll / drag-to-close (report #26: scrolling got stuck).
+ */
+@Composable
+fun IconChoices(selected: String, icons: List<String>, onPick: (String) -> Unit) {
+    var pickEmoji by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<String?>(null) }
+    val gap = LocalGapColor.current
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        androidx.compose.foundation.lazy.grid.GridCells.Adaptive(52.dp),
+        Modifier.fillMaxWidth().height(292.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // any emoji as the icon (pixel art like the sprites)
+        item(key = "emoji") {
+            val own = Emoji.isEmojiIcon(selected)
+            Box(
+                Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (own) gap.copy(alpha = .25f) else Px.Faint)
+                    .clickable { pickEmoji = true },
+                contentAlignment = Alignment.Center,
+            ) { PixelIcon(if (own) selected else "😀", 32.dp) }
+        }
+        items(icons.size, key = { icons[it] }) { k ->
+            val name = icons[k]
+            Box(
+                Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (name == selected) gap.copy(alpha = .25f) else Px.Faint)
+                    .clickable { onPick(name) },
+                contentAlignment = Alignment.Center,
+            ) { PixelIcon(name, 32.dp) }
+        }
+    }
+    // the emoji counts once its sheet has slid away (picking may close the sheet this grid is in)
+    if (pickEmoji) EmojiPicker(onPick = { chosen = it }, onDismiss = {
+        pickEmoji = false
+        chosen?.let { chosen = null; onPick(it) }
+    })
+}
+
+/** An extension asks for an icon (bridge pickIcon): the rules' icon choice in a sheet; dismissed = nothing picked. */
+@Composable
+fun IconPickSheet(vm: AppViewModel, current: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val S = LocalStrings.current
+    PxSheet(onDismiss) {
+        Text(S.extensionPickIcon, style = T.title.copy(fontSize = 20.sp))
+        IconChoices(current.orEmpty(), vm.meta?.icons.orEmpty(), onPick)
+    }
+}
+
 @Composable
 private fun SheetBody(gapColor: Color, top: Color, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalGapColor provides gapColor) {
@@ -351,7 +407,6 @@ fun RuleEditor(
         )
     }
     var showIcons by remember { mutableStateOf(false) }
-    var pickEmoji by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val icons = vm.meta?.icons.orEmpty()
@@ -415,42 +470,7 @@ fun RuleEditor(
             }
         }
 
-        if (showIcons) {
-            // its own scroll area of a fixed height: the drag scrolls the icons first instead of fighting the
-            // sheet's scroll / drag-to-close (report #26: scrolling through the icons got stuck)
-            val gap = LocalGapColor.current
-            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                androidx.compose.foundation.lazy.grid.GridCells.Adaptive(52.dp),
-                Modifier.fillMaxWidth().height(292.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // any emoji as the icon (pixel art like the sprites)
-                item(key = "emoji") {
-                    val own = Emoji.isEmojiIcon(d.icon)
-                    Box(
-                        Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (own) gap.copy(alpha = .25f) else Px.Faint)
-                            .clickable { pickEmoji = true },
-                        contentAlignment = Alignment.Center,
-                    ) { PixelIcon(if (own) d.icon else "😀", 32.dp) }
-                }
-                items(icons.size, key = { icons[it] }) { k ->
-                    val name = icons[k]
-                    Box(
-                        Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (name == d.icon) gap.copy(alpha = .25f) else Px.Faint)
-                            .clickable { d = d.copy(icon = name); showIcons = false },
-                        contentAlignment = Alignment.Center,
-                    ) { PixelIcon(name, 32.dp) }
-                }
-            }
-        }
-
-        if (pickEmoji) EmojiPicker(onPick = { d = d.copy(icon = it); showIcons = false }, onDismiss = { pickEmoji = false })
+        if (showIcons) IconChoices(d.icon, icons) { d = d.copy(icon = it); showIcons = false }
 
         val sign = if (acc) "+" else "−"
         val steps = generateSequence(d.base) {

@@ -35,6 +35,8 @@ test("the daylist: tasks tap the linked rules once done (also after 3 taps), the
   // the done tab instead of the feed (the bar is full now)
   await api(request, ann.token, "PUT", "/settings", { tabs: [{ tab: "rules" }, { tab: "chats" }, { tab: "ext:daylist:list" }, { tab: "ext:daylist:done" }, { tab: "profile" }] })
   await page.reload()
+  // the placed tab's page was already loading: WebKit reports a request cut off by the reload as "access control checks"
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes("due to access control checks")))
 
   // the task list: sandboxed, empty, the pencil in the corner edits the tasks
   await tab(page, "ext:daylist:list").click()
@@ -47,6 +49,15 @@ test("the daylist: tasks tap the linked rules once done (also after 3 taps), the
   await list.locator("#edit").click()
   await list.locator("#new").click()
   await list.locator("#name").fill("Beten")
+  // its icon: the app's picker over the page, the same icons and emojis as a rule's (bridge pickIcon)
+  await list.locator("#icon").click()
+  const icons = page.locator(".sheet[aria-label=icons]")
+  await expect(icons).toContainText("Icon wählen")
+  await icons.locator("[data-icon=star]").click()
+  await expect(icons).toHaveCount(0)
+  await expect(list.locator("#icon img")).toHaveAttribute("src", "sprites/icons/star.png")
+  await expect.poll(() => list.locator("#icon img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0)
+  await expect(list.locator("#name")).toHaveValue("Beten")                              // typed text stays
   await list.locator("#times .plus").click()
   await list.locator("#times .plus").click()
   await expect(list.locator("#times")).toContainText("3×")
@@ -61,18 +72,31 @@ test("the daylist: tasks tap the linked rules once done (also after 3 taps), the
   const other = (wd % 7) + 1
   await list.locator("#new").click()
   await list.locator("#name").fill("Wäsche")
+  // an emoji as its icon; closing the picker without a pick keeps it
+  await list.locator("#icon").click()
+  await icons.locator("button[aria-label=emoji]").click()
+  await page.locator("[data-testid=emoji-grid] .emoji-cell").first().click()
+  await expect(icons).toHaveCount(0)
+  const emoji = (await list.locator("#icon .emo").textContent())!
+  expect(emoji.length).toBeGreaterThan(0)
+  await list.locator("#icon").click()
+  await page.locator(".sheet-scrim").last().click({ position: { x: 30, y: 30 } })       // above the sheet
+  await expect(icons).toHaveCount(0)
+  await expect(list.locator("#icon .emo")).toHaveText(emoji)
   await list.locator("[data-type=weekdays]").click()
   await list.locator(`[data-wd='${wd}']`).click()
   await list.locator(`[data-wd='${other}']`).click()
   await list.locator("#saveTask").click()
   await expect(list.locator("#all .task")).toHaveCount(2)
   await expect(list.locator("#all")).toContainText("Jeden Tag")
+  await expect(list.locator("#all .task", { hasText: "Wäsche" }).locator(".ticon .emo")).toHaveText(emoji)
   await list.locator("#edit").click()                                                    // back to today's list
 
   // three taps until it counts; then the rule is tapped twice for me
   const row = list.locator(".task", { hasText: "Beten" })
   await expect(list.locator("#open .task")).toHaveCount(1)
   await expect(row.locator(".pips i")).toHaveCount(3)                                    // a little bar fills up
+  await expect(row.locator(".ticon img")).toHaveAttribute("src", "sprites/icons/star.png")
   await expect(row.locator(".pips i.on")).toHaveCount(0)
   await row.click()
   await expect(row.locator(".pips i.on")).toHaveCount(1)
@@ -98,6 +122,7 @@ test("the daylist: tasks tap the linked rules once done (also after 3 taps), the
   await expect(done.locator("#title")).toHaveText("Erledigt")
   await expect(done.locator(".done-row")).toHaveCount(1)
   await expect(done.locator(".done-row")).toContainText("Beten")
+  await expect(done.locator(".done-row .ticon img")).toHaveAttribute("src", "sprites/icons/star.png")
   await page.screenshot({ path: test.info().outputPath("daylist-done.png") })
   await done.locator(".done-row .undo").click()
   await expect(page.locator(".toast")).toContainText("Zurück in der Liste: Beten")
@@ -117,6 +142,9 @@ test("the daylist: tasks tap the linked rules once done (also after 3 taps), the
   await expect(once).toHaveCount(0)
   const tasks = (await api(request, ann.token, "GET", "/extensions/daylist/data/tasks")).docs
   expect(tasks).toHaveLength(3)
+  expect(tasks.find((d: any) => d.value.name === "Beten").value.icon).toBe("star")
+  expect(tasks.find((d: any) => d.value.name === "Wäsche").value.icon).toBe(emoji)
+  expect(tasks.find((d: any) => d.value.name === "Einkaufen").value.icon).toBeUndefined()
   expect(tasks.find((d: any) => d.value.name === "Einkaufen").value.done).toMatch(/^\d{4}-\d\d-\d\d$/)
 
   // the page itself reaches nothing: no token, no app storage, no network

@@ -51,6 +51,7 @@ import com.momentum.app.data.ExtensionPages
 import com.momentum.app.data.ExtensionResponse
 import com.momentum.app.data.InstallResponse
 import com.momentum.app.data.InstalledExtension
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
@@ -160,7 +161,8 @@ fun ExtensionsPage(vm: AppViewModel) {
 
 /** What the page may ask the app for: its data on the server (the token stays here), a toast, who's playing and which
  *  of the extension's tabs it is ([tab]). */
-private class AppDeps(private val vm: AppViewModel, private val tab: String?, private val ext: () -> InstalledExtension) : ExtensionBridge.Deps {
+private class AppDeps(private val vm: AppViewModel, private val tab: String?, private val ext: () -> InstalledExtension,
+                      private val pick: suspend (String?) -> String?) : ExtensionBridge.Deps {
     override suspend fun call(method: String, path: String, body: JsonElement?): JsonElement =
         vm.api.json.parseToJsonElement(vm.api.raw(method, path, body))
 
@@ -180,6 +182,8 @@ private class AppDeps(private val vm: AppViewModel, private val tab: String?, pr
     override suspend fun tap(rule: Int) = vm.extensionTap(rule)
 
     override suspend fun undo(event: Int) = vm.extensionUndo(event)
+
+    override suspend fun pickIcon(current: String?) = pick(current)
 }
 
 /** The page's way in: `window.MomentumAndroid.post(json)` (sdk.js); answers go back through `window.__momentumReceive`. */
@@ -211,6 +215,14 @@ fun ExtensionTab(vm: AppViewModel, id: String, tab: String?, visible: Boolean) {
     var html by remember(id, ext.version) { mutableStateOf<String?>(null) }
     var failed by remember(id, ext.version) { mutableStateOf(false) }
     var web by remember { mutableStateOf<WebView?>(null) }
+    // the page asked for an icon (bridge pickIcon): what's selected, and where the pick goes (null = closed without one)
+    var picking by remember { mutableStateOf<Pair<String?, CompletableDeferred<String?>>?>(null) }
+    val pick: suspend (String?) -> String? = { current ->
+        val done = CompletableDeferred<String?>()
+        picking?.second?.complete(null)                  // a second ask: the first one gets nothing
+        picking = current to done
+        done.await()
+    }
     LaunchedEffect(id, ext.version) {
         val page = ExtensionPages(context).pageOf(vm.api, ext)
         if (page != null) html = ExtensionBridge.withOrigin(page, vm.serverUrl) else failed = true
@@ -219,7 +231,7 @@ fun ExtensionTab(vm: AppViewModel, id: String, tab: String?, visible: Boolean) {
         web?.evaluateJavascript("window.__momentumReceive && window.__momentumReceive(" +
             org.json.JSONObject.quote(ExtensionBridge.event(if (visible) "show" else "hide")) + ")", null)
     }
-    DisposableEffect(Unit) { onDispose { web = null } }
+    DisposableEffect(Unit) { onDispose { web = null; picking?.second?.complete(null) } }
     Box(Modifier.fillMaxSize().background(Px.Bg).statusBarsPadding().navigationBarsPadding().padding(bottom = TAB_BAR_HEIGHT)) {
         val page = html
         if (page != null) {
@@ -239,7 +251,7 @@ fun ExtensionTab(vm: AppViewModel, id: String, tab: String?, visible: Boolean) {
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
                             }
-                            addJavascriptInterface(JsBridge(this, scope, id, AppDeps(vm, tab) { current }), "MomentumAndroid")
+                            addJavascriptInterface(JsBridge(this, scope, id, AppDeps(vm, tab, { current }, pick)), "MomentumAndroid")
                             loadDataWithBaseURL(null, page, "text/html", "utf-8", null)
                             web = this
                         }
@@ -249,6 +261,9 @@ fun ExtensionTab(vm: AppViewModel, id: String, tab: String?, visible: Boolean) {
                 )
             }
         } else if (failed) EmptyHint(ext.name.of(vm.lang.code), S.extensionLoadFailed, ext.icon)
+    }
+    picking?.let { (current, done) ->
+        IconPickSheet(vm, current, onPick = { done.complete(it); picking = null }, onDismiss = { done.complete(null); picking = null })
     }
 }
 
